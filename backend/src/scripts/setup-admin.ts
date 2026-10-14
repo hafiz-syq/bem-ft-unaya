@@ -22,13 +22,6 @@ async function main() {
     if (password.length < 8) {
       throw new Error('Validasi gagal: password kurang dari 8 karakter.');
     }
-
-    // 1. Hapus admin lama jika ada
-    await prisma.user.deleteMany({
-      where: { nim: '25146071' }
-    });
-    console.log('✅ Admin lama (25146071) berhasil dihapus (jika ada).');
-
     // 2. Hash password baru
     const hashedPassword = await bcrypt.hash(password, 10);
 
