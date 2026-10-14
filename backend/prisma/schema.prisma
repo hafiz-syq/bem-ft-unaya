@@ -1,0 +1,302 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  MAHASISWA
+  PENGURUS
+  ADMIN
+}
+
+enum DataChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ModerationStatus {
+  PENDING_MODERATION
+  PUBLISHED
+  REJECTED
+}
+
+enum PublicCommentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum TicketStatus {
+  DIKIRIM
+  DITINJAU
+  DIPROSES
+  SELESAI
+  DITOLAK
+}
+
+model User {
+  id                   String              @id @default(uuid())
+  nim                  String              @unique
+  password_hash        String
+  role                 Role                @default(MAHASISWA)
+  first_login          Boolean             @default(true)
+  isActive             Boolean             @default(true)
+  
+  profile              StudentProfile?
+  positions            Position[]
+  
+  ticketsSent          Ticket[]            @relation("TicketSender")
+  ticketsModerated     Ticket[]            @relation("TicketModerator")
+  ticketReplies        TicketReply[]       @relation("TicketReplyAuthor")
+
+  notifications        Notification[]
+
+  contents             Content[]
+
+  agendas              Agenda[]
+  galleries            Gallery[]
+  
+  assignmentsReceived  TicketAssignment[]  @relation("Assignee")
+  assignmentsGiven     TicketAssignment[]  @relation("Assigner")
+  emailVerification    EmailVerification?
+  
+  dataRequests         DataChangeRequest[] @relation("DataOwner")
+  dataRequestsReviewed DataChangeRequest[] @relation("DataReviewer")
+  
+  commentsModerated    PublicComment[]     @relation("CommentModerator")
+  auditLogs            AuditLog[]          @relation("AuditActor")
+  
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+}
+
+model StudentProfile {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  nama          String
+  nim           String   @unique
+  program_studi String
+  email         String?
+  no_hp         String?
+  foto          String?
+
+  // Terisi hanya setelah pengguna memasukkan kode verifikasi yang benar.
+  // Selama email ada tapi belum terverifikasi, pengguna ditahan di halaman verifikasi.
+  email_verified_at DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+/// Kode verifikasi email disimpan di tabel TERPISAH, bukan di StudentProfile.
+/// Alasannya: objek StudentProfile dikirim utuh ke klien di banyak endpoint
+/// (profil, audit, CMS, posisi, students, tiket, data-request). Kalau hash kode
+/// disimpan di sana, kode verifikasi ikut bocor. Tabel ini tidak pernah
+/// disertakan pada query-query tersebut, jadi kodenya aman secara desain.
+model EmailVerification {
+  id           String    @id @default(uuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code_hash    String? // kode 6 digit dalam bentuk hash, bukan teks asli
+  expires_at   DateTime?
+  attempts     Int       @default(0) // percobaan salah; kode hangus setelah batas
+  last_sent_at DateTime? // untuk membatasi frekuensi kirim ulang
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model DataChangeRequest {
+  id           String                  @id @default(uuid())
+  userId       String
+  user         User                    @relation("DataOwner", fields: [userId], references: [id])
+  requestData  Json
+  reason       String?                 @db.Text
+  status       DataChangeRequestStatus @default(PENDING)
+  reviewedById String?
+  reviewer     User?                   @relation("DataReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+}
+
+model Organization {
+  id            String         @id @default(uuid())
+  name          String
+  isActive      Boolean        @default(true)
+  departments   Department[]
+  positionSlots PositionSlot[]
+}
+
+model Department {
+  id             String         @id @default(uuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  name           String
+  isActive       Boolean        @default(true)
+  positionSlots  PositionSlot[]
+}
+
+model PositionSlot {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  departmentId   String?
+  department     Department?  @relation(fields: [departmentId], references: [id])
+  title          String
+  isActive       Boolean      @default(true)
+  positions      Position[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, departmentId, title])
+}
+
+model Position {
+  id             String       @id @default(uuid())
+  positionSlotId String
+  positionSlot   PositionSlot @relation(fields: [positionSlotId], references: [id])
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  isActive       Boolean      @default(true)
+  startDate      DateTime     @default(now())
+  endDate        DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Ticket {
+  id               String             @id @default(uuid())
+  ticket_no        String             @unique
+  type             String
+  senderId         String
+  sender           User               @relation("TicketSender", fields: [senderId], references: [id])
+  category         String
+  title            String
+  content          String             @db.Text
+  moderationStatus ModerationStatus   @default(PENDING_MODERATION)
+  status           TicketStatus       @default(DIKIRIM)
+  moderatedById    String?
+  moderator        User?              @relation("TicketModerator", fields: [moderatedById], references: [id])
+  moderatedAt      DateTime?
+  assignments      TicketAssignment[]
+  replies          TicketReply[]
+  attachments      Attachment[]
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model TicketAssignment {
+  id          String    @id @default(uuid())
+  ticketId    String
+  ticket      Ticket    @relation(fields: [ticketId], references: [id])
+  assigneeId  String
+  assignee    User      @relation("Assignee", fields: [assigneeId], references: [id])
+  assignerId  String
+  assigner    User      @relation("Assigner", fields: [assignerId], references: [id])
+  isActive    Boolean   @default(true)
+  assignedAt  DateTime  @default(now())
+  completedAt DateTime?
+}
+
+model TicketReply {
+  id        String   @id @default(uuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  authorId  String
+  author    User     @relation("TicketReplyAuthor", fields: [authorId], references: [id])
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  filename  String
+  url       String
+  mimeType  String
+  size      Int
+  createdAt DateTime @default(now())
+}
+
+model PublicComment {
+  id            String              @id @default(uuid())
+  nama          String
+  asal_kampus   String
+  email         String
+  no_hp         String
+  content       String              @db.Text
+  status        PublicCommentStatus @default(PENDING)
+  moderatedById String?
+  moderator     User?               @relation("CommentModerator", fields: [moderatedById], references: [id])
+  moderatedAt   DateTime?
+  createdAt     DateTime            @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorId     String
+  actor       User     @relation("AuditActor", fields: [actorId], references: [id])
+  action      String
+  entityType  String
+  entityId    String?
+  description String?  @db.Text
+  metadata    Json?
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String   @db.Text
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Content {
+  id        String   @id @default(uuid())
+  type      String   // Bisa berisi: 'BERITA', 'ARTIKEL', atau 'PROGRAM'
+  title     String
+  content   String   @db.Text
+  status    String   @default("PUBLISHED") // 'DRAFT' atau 'PUBLISHED'
+  image     String?
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Agenda {
+  id               String   @id @default(uuid())
+  title            String
+  description      String   @db.Text
+  date             DateTime
+  time             String
+  location         String
+  status           String   @default("UPCOMING") // 'UPCOMING' atau 'SELESAI'
+  registrationLink String?
+  authorId         String
+  author           User     @relation(fields: [authorId], references: [id])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model Gallery {
+  id         String   @id @default(uuid())
+  title      String
+  category   String   // 'FOTO' atau 'VIDEO' atau 'DOKUMENTASI'
+  url        String
+  activity   String?
+  year       Int
+  uploaderId String
+  uploader   User     @relation(fields: [uploaderId], references: [id])
+  createdAt  DateTime @default(now())
+}
