@@ -10,7 +10,10 @@ interface PositionSlot {
     title: string;
     organizationId: string;
     department: Department | null;
-    positions: { user: { nim: string; profile: { nama: string } | null } }[];
+    positions: { 
+        id: string;
+        user: { nim: string; profile: { nama: string } | null } 
+    }[];
 }
 
 export default function Positions() {
@@ -148,34 +151,38 @@ export default function Positions() {
                         return (
                             <div key={slot.id} className="flex flex-col h-full p-5 bg-white border border-gray-200 shadow-sm rounded-xl">
                                 <div className="flex-1 mb-4">
-                                    <div className="flex items-start justify-between mb-2">
-                                        <h3 className="text-lg font-bold leading-tight text-gray-900">{slot.title}</h3>
-                                        <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase tracking-wide ${activeUser ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                        <h3 className="text-lg font-bold leading-tight text-gray-900 line-clamp-2">{slot.title}</h3>
+                                        <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase tracking-wide shrink-0 ${activeUser ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                             {activeUser ? 'Terisi' : 'Kosong'}
                                         </span>
                                     </div>
                                     <p className="text-xs font-medium text-gray-500">{getOrgName(slot.organizationId)}</p>
-                                    {slot.department && <p className="mt-1 text-xs font-medium text-amber-400">• {slot.department.name}</p>}
-                                </div>                                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                                    {slot.department && <p className="mt-1 text-xs font-medium text-amber-400">{slot.department.name}</p>}
+                                </div>
+                                
+                                {/* [PERBAIKAN]: Penambahan min-w-0, flex-1, dan shrink-0 agar tidak tumpang tindih */}
+                                <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100">
                                     {activeUser ? (
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex items-center justify-center w-8 h-8 text-xs font-bold rounded-full bg-amber-100 text-amber-400">
+                                        <div className="flex items-center flex-1 min-w-0 gap-3">
+                                            <div className="flex items-center justify-center w-8 h-8 text-xs font-bold rounded-full shrink-0 bg-amber-100 text-amber-400">
                                                 {activeUser.profile?.nama.charAt(0) || 'U'}
                                             </div>
-                                            <div>
-                                                <p className="text-sm font-bold text-gray-900 truncate">{activeUser.profile?.nama || 'Tanpa Nama'}</p>
-                                                <p className="text-xs text-gray-500">{activeUser.nim}</p>
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-bold text-gray-900 truncate" title={activeUser.profile?.nama}>{activeUser.profile?.nama || 'Tanpa Nama'}</p>
+                                                <p className="text-xs text-gray-500 truncate">{activeUser.nim}</p>
                                             </div>
                                         </div>
                                     ) : (
                                         <p className="text-sm italic text-gray-400">Belum ada pejabat</p>
                                     )}
+                                    
                                     {activeUser && (
                                         <button
                                             onClick={() => { setRemovePositionId(slot.positions[0].id); setIsRemoveModalOpen(true); }}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-600 transition rounded-lg bg-red-50 hover:bg-red-100"
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-600 transition rounded-lg bg-red-50 hover:bg-red-100 shrink-0"
                                         >
-                                            <Trash2 className="w-3.5 h-3.5" /> Turunkan
+                                            <Trash2 className="w-3.5 h-3.5 shrink-0" /> Turunkan
                                         </button>
                                     )}
                                 </div>
@@ -232,13 +239,13 @@ export default function Positions() {
                             <button onClick={() => setIsRemoveModalOpen(false)} className="text-gray-400 hover:text-gray-600"><XCircle className="w-6 h-6" /></button>
                         </div>
                         <div className="p-6 space-y-4">
-                            <div className="flex items-center gap-3 p-4 bg-red-50 rounded-lg">
-                                <div className="flex items-center justify-center w-10 h-10 text-lg font-bold rounded-full bg-red-100 text-red-600">
+                            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50">
+                                <div className="flex items-center justify-center w-10 h-10 text-lg font-bold text-red-600 bg-red-100 rounded-full shrink-0">
                                     <Trash2 className="w-5 h-5" />
                                 </div>
                                 <div>
                                     <p className="text-sm font-bold text-gray-900">Yakin ingin menurunkan?</p>
-                                    <p className="text-xs text-gray-500 mt-1">Pengurus akan dikembalikan ke status mahasiswa biasa.</p>
+                                    <p className="mt-1 text-xs text-gray-500">Pengurus akan dikembalikan ke status mahasiswa biasa.</p>
                                 </div>
                             </div>
                             <div className="flex justify-end gap-3">
@@ -252,9 +259,9 @@ export default function Positions() {
                                 <button
                                     onClick={handleRemovePosition}
                                     disabled={isRemoving}
-                                    className="flex items-center gap-2 px-4 py-2 text-white rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50"
+                                    className="flex items-center gap-2 px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
                                 >
-                                    {isRemoving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Trash2 className="w-4 h-4" /> Ya, Turunkan</>}
+                                    {isRemoving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Trash2 className="w-4 h-4 shrink-0" /> Ya, Turunkan</>}
                                 </button>
                             </div>
                         </div>
