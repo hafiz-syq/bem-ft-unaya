@@ -37,7 +37,7 @@ export default function Students() {
       const response = await api.get('/students', {
         params: {
           page: currentPage,
-          limit: 15, // Menampilkan 10 data per halaman
+          limit: 20,
           search: currentSearch
         }
       });

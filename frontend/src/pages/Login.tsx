@@ -44,30 +44,30 @@ export default function Login() {
   };
   
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 space-y-6">
+    <div className="flex items-center justify-center min-h-screen p-4 bg-gray-50">
+      <div className="w-full max-w-md p-8 space-y-6 bg-white shadow-xl rounded-2xl">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900">BEM-FT UNAYA</h1>
-          <p className="text-gray-500 mt-2">Portal Sistem Informasi Mahasiswa</p>
+          <p className="mt-2 text-gray-500">Portal Sistem Informasi Mahasiswa</p>
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center">
+          <div className="p-3 text-sm text-center text-red-600 rounded-lg bg-red-50">
             {error}
           </div>
         )}
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">NIM / Username</label>
+            <label className="block mb-1 text-sm font-medium text-gray-700">NIM / Username</label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <User className="h-5 w-5 text-gray-400" />
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <User className="w-5 h-5 text-gray-400" />
               </div>
               <input
                 type="text"
                 required
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-400 focus:border-amber-400 bg-gray-50 text-gray-900"
+                className="block w-full py-2 pl-10 pr-3 text-gray-900 border border-gray-300 rounded-lg focus:ring-amber-400 focus:border-amber-400 bg-gray-50"
                 placeholder="Masukkan NIM Anda"
                 value={nim}
                 onChange={(e) => setNim(e.target.value)}
@@ -76,15 +76,15 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label className="block mb-1 text-sm font-medium text-gray-700">Password</label>
             <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Lock className="h-5 w-5 text-gray-400" />
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <Lock className="w-5 h-5 text-gray-400" />
               </div>
               <input
                 type="password"
                 required
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-400 focus:border-amber-400 bg-gray-50 text-gray-900"
+                className="block w-full py-2 pl-10 pr-3 text-gray-900 border border-gray-300 rounded-lg focus:ring-amber-400 focus:border-amber-400 bg-gray-50"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -95,19 +95,19 @@ export default function Login() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-amber-400 hover:bg-amber-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-amber-400 hover:bg-amber-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Masuk'}
+            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Masuk'}
           </button>
         </form>
 
         {/* 2. Tombol Kembali dengan React Router Link & Styling Tailwind */}
-        <div className="text-center pt-2">
+        <div className="pt-2 text-center">
           <Link 
             to="/" 
-            className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-500 hover:text-amber-600 transition-colors duration-200"
+            className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-500 transition-colors duration-200 hover:text-amber-600"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="w-4 h-4" />
             Kembali ke Halaman Utama
           </Link>
         </div>

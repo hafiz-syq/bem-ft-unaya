@@ -26,7 +26,7 @@ export default function PublicContentDetail() {
   }, [id, navigate]);
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen bg-gray-50"><Loader2 className="w-10 h-10 text-blue-600 animate-spin" /></div>;
+    return <div className="flex items-center justify-center min-h-screen bg-gray-50"><Loader2 className="w-10 h-10 text-amber-400 animate-spin" /></div>;
   }
 
   if (!content) return null;
@@ -36,10 +36,10 @@ export default function PublicContentDetail() {
       {/* Navbar Publik */}
       <nav className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200 shadow-sm">
         <Link to="/" className="flex items-center gap-3 group">
-          <div className="flex items-center justify-center w-10 h-10 transition-transform bg-blue-600 rounded-lg shadow-lg group-hover:scale-95"><Code2 className="w-6 h-6 text-white" /></div>
+          <div className="flex items-center justify-center w-10 h-10 transition-transform rounded-lg shadow-lg bg-amber-400 group-hover:scale-95"><Code2 className="w-6 h-6 text-white" /></div>
           <div><h1 className="text-xl font-black text-gray-900">BEM FT UNAYA</h1><p className="text-[10px] text-gray-500 font-bold uppercase">Portal Resmi</p></div>
         </Link>
-        <Link to="/" className="flex items-center gap-2 text-sm font-bold text-gray-500 transition-colors hover:text-blue-600"><ArrowLeft className="w-4 h-4"/> Kembali</Link>
+        <Link to="/" className="flex items-center gap-2 text-sm font-bold text-gray-500 transition-colors hover:text-amber-400"><ArrowLeft className="w-4 h-4"/> Kembali</Link>
       </nav>
 
       <main className="flex-1 w-full max-w-4xl px-6 py-10 mx-auto md:py-16">
@@ -55,7 +55,7 @@ export default function PublicContentDetail() {
           )}
           
           <div className="p-8 md:p-12">
-            <span className={`px-3 py-1 text-xs font-bold rounded-full mb-6 inline-block ${content.type === 'BERITA' ? 'bg-blue-100 text-blue-700' : content.type === 'PROGRAM' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
+            <span className={`px-3 py-1 text-xs font-bold rounded-full mb-6 inline-block ${content.type === 'BERITA' ? 'bg-amber-100 text-amber-500' : content.type === 'PROGRAM' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
               {content.type}
             </span>
             

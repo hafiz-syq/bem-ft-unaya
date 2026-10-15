@@ -22,10 +22,10 @@ export default function Gallery() {
     <div className="min-h-screen font-sans bg-gray-50">
       <nav className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200 shadow-sm">
         <Link to="/" className="flex items-center gap-3 group">
-          <div className="flex items-center justify-center w-10 h-10 transition-transform bg-blue-600 rounded-lg shadow-lg group-hover:scale-95"><Code2 className="w-6 h-6 text-white" /></div>
+          <div className="flex items-center justify-center w-10 h-10 transition-transform rounded-lg shadow-lg bg-amber-400 group-hover:scale-95"><Code2 className="w-6 h-6 text-white" /></div>
           <div><h1 className="text-xl font-black text-gray-900">BEM FT UNAYA</h1><p className="text-[10px] text-gray-500 font-bold uppercase">Portal Resmi</p></div>
         </Link>
-        <Link to="/" className="flex items-center gap-2 text-sm font-bold text-gray-500 transition-colors hover:text-blue-600"><ArrowLeft className="w-4 h-4"/> Kembali</Link>
+        <Link to="/" className="flex items-center gap-2 text-sm font-bold text-gray-500 transition-colors hover:text-amber-400"><ArrowLeft className="w-4 h-4"/> Kembali</Link>
       </nav>
 
       <main className="max-w-6xl px-6 py-12 mx-auto">
@@ -34,7 +34,7 @@ export default function Gallery() {
           <p className="text-lg text-gray-500">Momen penting dan rekam jejak kegiatan mahasiswa Teknik.</p>
         </div>
 
-        {loading ? <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 text-blue-600 animate-spin" /></div>
+        {loading ? <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 text-amber-400 animate-spin" /></div>
         : galleries.length === 0 ? <div className="p-12 font-medium text-center text-gray-500 bg-white border border-gray-200 shadow-sm rounded-2xl">Belum ada dokumentasi publik.</div>
         : <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {galleries.map(item => (

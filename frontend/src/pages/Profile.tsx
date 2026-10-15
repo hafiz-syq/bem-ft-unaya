@@ -81,7 +81,7 @@ export default function Profile() {
   };
 
   if (loading) {
-    return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-blue-600 animate-spin" /></div>;
+    return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-amber-400 animate-spin" /></div>;
   }
 
   if (error || !data) {
@@ -175,7 +175,7 @@ export default function Profile() {
               <div className="space-y-1">
                 <p className="text-sm font-medium text-gray-500">Email Terdaftar</p>
                 <p className="text-lg font-semibold text-gray-900 break-all">
-                  {data.profile?.email || <span className="font-normal italic text-gray-400">Belum ada email</span>}
+                  {data.profile?.email || <span className="italic font-normal text-gray-400">Belum ada email</span>}
                 </p>
                 {data.profile?.email ? (
                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 mt-1 text-xs font-bold rounded-full ${
