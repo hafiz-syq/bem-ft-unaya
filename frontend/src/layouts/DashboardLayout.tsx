@@ -96,12 +96,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex flex-col flex-1 min-h-screen md:ml-64">
 
         {/* Header / Topbar */}
-        <header className="sticky top-0 z-20 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-600 md:hidden"><Menu className="w-6 h-6" /></button>
+        <header className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 md:px-6 shadow-sm">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="relative z-50 inline-flex items-center justify-center w-10 h-10 text-gray-700 md:hidden transition hover:bg-gray-100"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
             <h2 className="hidden text-lg font-bold text-gray-800 capitalize sm:block">
               {location.pathname.replace('/', '').replace('-', ' ')}
             </h2>
+
+            {/* Tombol mobile: Kembali + Keluar */}
+            <div className="flex items-center gap-2 md:hidden">
+              <Link to="/" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-gray-600 rounded-lg hover:bg-gray-100 transition">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h18M15 6l-6 6 6 6"/></svg>
+                Kembali
+              </Link>
+              <button onClick={handleLogout} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-red-600 rounded-lg hover:bg-red-50 transition">
+                <LogOut className="w-4 h-4" /> Keluar
+              </button>
+            </div>
           </div>
 
           <div className="relative flex items-center gap-4">
@@ -113,25 +129,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {/* Dropdown Notifikasi */}
             {isNotifOpen && (
-              <div className="absolute z-50 overflow-hidden bg-white border border-gray-100 shadow-2xl top-12 right-12 w-80 rounded-xl">
-                <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-gray-50">
-                  <h3 className="font-bold text-gray-900">Notifikasi</h3>
+              <div className="absolute z-50 overflow-hidden bg-white border border-gray-100 shadow-xl top-12 right-2 w-[92vw] max-w-[280px] rounded-xl">
+                <div className="flex items-center justify-between p-3 border-b border-gray-100 bg-gray-50">
+                  <h3 className="text-sm font-bold text-gray-900">Notifikasi</h3>
                   {unreadCount > 0 && (
-                    <button onClick={handleMarkAsRead} className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700"><Check className="w-3 h-3" /> Tandai dibaca</button>
+                    <button onClick={handleMarkAsRead} className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700"><Check className="w-3 h-3" /> Tandai</button>
                   )}
                 </div>
-                <div className="overflow-y-auto max-h-80">
+                <div className="overflow-y-auto max-h-[55vh]">
                   {notifications.length === 0 ? (
-                    <div className="p-6 text-sm text-center text-gray-500">Tidak ada notifikasi.</div>
+                    <div className="p-5 text-sm text-center text-gray-500">Tidak ada notifikasi.</div>
                   ) : (
                     notifications.map(notif => (
-                      <div key={notif.id} className={`p-4 border-b border-gray-50 hover:bg-gray-50 transition ${notif.isRead ? 'opacity-60' : 'bg-blue-50/30'}`}>
-                        <div className="flex items-start justify-between mb-1">
+                      <div key={notif.id} className={`p-3 border-b border-gray-50 hover:bg-gray-50 transition ${notif.isRead ? 'opacity-60' : 'bg-blue-50/30'}`}>
+                        <div className="flex items-start justify-between gap-2">
                           <p className={`text-sm ${notif.isRead ? 'font-medium text-gray-700' : 'font-bold text-gray-900'}`}>{notif.title}</p>
-                          {!notif.isRead && <span className="w-2 h-2 bg-blue-600 rounded-full mt-1.5 flex-shrink-0"></span>}
+                          {!notif.isRead && <span className="flex-shrink-0 w-2 h-2 mt-1 bg-blue-600 rounded-full"></span>}
                         </div>
-                        <p className="text-xs text-gray-500">{notif.message}</p>
-                        <p className="text-[10px] text-gray-400 mt-2">{new Date(notif.createdAt).toLocaleString('id-ID')}</p>
+                        <p className="mt-1 text-xs text-gray-500">{notif.message}</p>
+                        <p className="text-[10px] text-gray-400 mt-1">{new Date(notif.createdAt).toLocaleString('id-ID')}</p>
                       </div>
                     ))
                   )}
@@ -152,23 +168,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* Mobile Menu Overlay */}
-        {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm md:hidden" onClick={() => setIsMobileMenuOpen(false)}>
-            <div className="w-64 h-full bg-white" onClick={e => e.stopPropagation()}>
-              <div className="p-6 border-b border-gray-200"><h1 className="text-xl font-black">Menu Navigasi</h1></div>
-              <nav className="p-4 space-y-2">
-                {allowedMenus.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link key={item.path} to={item.path} onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 rounded-xl hover:bg-gray-100">
-                      <Icon className="w-5 h-5" /> {item.name}
-                    </Link>
-                  );
-                })}
-              </nav>
+        <div
+          className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm md:hidden"
+          style={{ opacity: isMobileMenuOpen ? 1 : 0, transition: 'opacity 200ms ease-in-out' }}
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          <div
+            className="absolute left-0 top-0 w-64 h-full bg-white shadow-2xl md:hidden"
+            style={{ transform: isMobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)', transition: 'transform 260ms cubic-bezier(0.22, 1, 0.36, 1)', opacity: isMobileMenuOpen ? 1 : 0, visibility: isMobileMenuOpen ? 'visible' : 'hidden', pointerEvents: isMobileMenuOpen ? 'auto' : 'none' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-gray-200">
+              <h1 className="text-xl font-black">Menu Navigasi</h1>
             </div>
+            <nav className="p-4 space-y-2">
+              {allowedMenus.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 rounded-xl hover:bg-gray-100"
+                  >
+                    <Icon className="w-5 h-5" /> {item.name}
+                  </Link>
+                );
+              })}
+            </nav>
           </div>
-        )}
+        </div>
 
         <main className="flex-1 overflow-x-hidden">{children}</main>
       </div>
