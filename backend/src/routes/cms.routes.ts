@@ -1,30 +1,57 @@
 import { Router } from 'express';
-import { 
-  getContents, createContent, deleteContent, getContentById,
-  getAgendas, createAgenda, deleteAgenda,
-  getGalleries, createGallery, deleteGallery,
-  getPublicStructure
+import {
+  getContents, createContent, updateContent, deleteContent, getContentById,
+  getAgendas, createAgenda, updateAgenda, deleteAgenda,
+  getGalleries, createGallery, updateGallery, deleteGallery,
+  getSiteSettings, updateSiteSettings,
+  getPublicStructure,
 } from '../controllers/cms.controller';
-import { requireAuth } from '../middlewares/auth.middleware';
-import { uploadAttachment } from '../middlewares/upload.middleware'; 
+import { requireAuth, requireRole } from '../middlewares/auth.middleware';
+import { uploadAttachment } from '../middlewares/upload.middleware';
+import { OFFICER_ROLES } from '../lib/ticket-access';
 
 const router = Router();
 
-// Rute Agenda & Galeri & Struktur (Harus di atas /:id agar tidak tertimpa)
-router.get('/agendas', getAgendas);
-router.post('/agendas', requireAuth, createAgenda);
-router.delete('/agendas/:id', requireAuth, deleteAgenda);
+// Pengelola konten publik = admin + seluruh jenis pengurus.
+const pengelola = [requireAuth, requireRole(['ADMIN', ...OFFICER_ROLES])];
 
-router.get('/galleries', getGalleries);
-router.post('/galleries', requireAuth, uploadAttachment.single('file'), createGallery);
-router.delete('/galleries/:id', requireAuth, deleteGallery);
+// Unggahan galeri boleh memuat banyak foto sekaligus (maksimal 10) dalam satu postingan.
+const unggahGaleri = uploadAttachment.fields([
+  { name: 'images', maxCount: 10 },
+  { name: 'file', maxCount: 1 },
+]);
 
+// Unggahan cover konten/berita tetap satu file.
+const unggahKonten = uploadAttachment.fields([
+  { name: 'file', maxCount: 1 },
+  { name: 'images', maxCount: 1 },
+]);
+
+// --- Pengaturan situs (visi & misi dapat diubah tiap pergantian kepengurusan) ---
+// Hanya ADMIN yang boleh mengubah teks resmi organisasi.
+router.get('/settings', getSiteSettings);
+router.put('/settings', requireAuth, requireRole(['ADMIN']), updateSiteSettings);
+
+// --- Struktur kepengurusan (publik, tanpa email) ---
 router.get('/structure', getPublicStructure);
 
-// Rute Konten (Berita, Program)
-router.get('/', getContents); 
-router.get('/:id', getContentById); // <-- RUTE BARU UNTUK BACA KONTEN
-router.post('/', requireAuth, uploadAttachment.single('file'), createContent); 
-router.delete('/:id', requireAuth, deleteContent); 
+// --- Agenda ---
+router.get('/agendas', getAgendas);
+router.post('/agendas', ...pengelola, createAgenda);
+router.put('/agendas/:id', ...pengelola, updateAgenda);
+router.delete('/agendas/:id', ...pengelola, deleteAgenda);
+
+// --- Galeri (banyak foto per postingan) ---
+router.get('/galleries', getGalleries);
+router.post('/galleries', ...pengelola, unggahGaleri, createGallery);
+router.put('/galleries/:id', ...pengelola, unggahGaleri, updateGallery);
+router.delete('/galleries/:id', ...pengelola, deleteGallery);
+
+// --- Konten (Berita, Artikel, Program Kerja) ---
+router.get('/', getContents);
+router.post('/', ...pengelola, unggahKonten, createContent);
+router.get('/:id', getContentById);
+router.put('/:id', ...pengelola, unggahKonten, updateContent);
+router.delete('/:id', ...pengelola, deleteContent);
 
 export default router;

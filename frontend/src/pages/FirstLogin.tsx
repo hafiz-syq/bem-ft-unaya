@@ -102,35 +102,35 @@ export default function FirstLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 space-y-6 border-t-4 border-yellow-500">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 space-y-6 border-t-4 border-yellow-500">
         <div className="text-center">
-          <div className="mx-auto bg-yellow-100 w-12 h-12 flex items-center justify-center rounded-full mb-4">
-            <ShieldAlert className="h-6 w-6 text-yellow-600" />
+          <div className="mx-auto bg-yellow-100 dark:bg-yellow-900/40 w-12 h-12 flex items-center justify-center rounded-full mb-4">
+            <ShieldAlert className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Amankan Akun Anda</h1>
-          <p className="text-sm text-gray-500 mt-2">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Amankan Akun Anda</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
             Ini adalah pertama kalinya Anda login. Demi keamanan, Anda <b>diwajibkan</b> mengubah password bawaan (NIM) sekaligus melengkapi <b>email</b> dan <b>nomor HP/WA</b> Anda sebelum melanjutkan.
           </p>
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center">
+          <div className="bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm text-center">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Mail className="h-5 w-5 text-gray-400" />
+                <Mail className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               </div>
               <input
                 type="email"
                 required
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 text-gray-900"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 placeholder="nama@contoh.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -139,15 +139,15 @@ export default function FirstLogin() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">No. HP / WhatsApp</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">No. HP / WhatsApp</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Phone className="h-5 w-5 text-gray-400" />
+                <Phone className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               </div>
               <input
                 type="tel"
                 required
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 text-gray-900"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 placeholder="08xxxxxxxxxx"
                 value={noHp}
                 onChange={(e) => setNoHp(e.target.value)}
@@ -156,26 +156,26 @@ export default function FirstLogin() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Foto Profil <span className="font-normal text-gray-400">(opsional)</span>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Foto Profil <span className="font-normal text-gray-400 dark:text-gray-500">(opsional)</span>
             </label>
             {photoPreview ? (
               <div className="flex items-center gap-4">
                 <img
                   src={photoPreview}
                   alt="Pratinjau foto profil"
-                  className="object-cover w-16 h-16 border border-gray-200 rounded-full"
+                  className="object-cover w-16 h-16 border border-gray-200 dark:border-gray-800 rounded-full"
                 />
                 <button
                   type="button"
                   onClick={removePhoto}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-600 rounded-lg bg-red-50 hover:bg-red-100"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 rounded-lg bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900/40"
                 >
                   <X className="w-3.5 h-3.5" /> Hapus foto
                 </button>
               </div>
             ) : (
-              <label className="flex items-center justify-center w-full gap-2 px-3 py-3 text-sm font-medium text-gray-600 transition border border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+              <label className="flex items-center justify-center w-full gap-2 px-3 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 transition border border-gray-300 dark:border-gray-700 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800">
                 <Camera className="w-4 h-4" /> Pilih foto (JPG/PNG/WEBP, maks 2 MB)
                 <input
                   type="file"
@@ -188,15 +188,15 @@ export default function FirstLogin() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password Baru</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password Baru</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <KeyRound className="h-5 w-5 text-gray-400" />
+                <KeyRound className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               </div>
               <input
                 type="password"
                 required
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 text-gray-900"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 placeholder="Minimal 8 karakter"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -205,15 +205,15 @@ export default function FirstLogin() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Konfirmasi Password Baru</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Konfirmasi Password Baru</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <KeyRound className="h-5 w-5 text-gray-400" />
+                <KeyRound className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               </div>
               <input
                 type="password"
                 required
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 text-gray-900"
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 placeholder="Ketik ulang password baru"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}

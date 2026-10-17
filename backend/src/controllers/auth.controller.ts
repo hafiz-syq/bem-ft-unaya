@@ -6,6 +6,7 @@ import prisma from '../lib/prisma';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { logActivity } from '../services/audit.service';
 import { sendVerificationEmail } from '../services/email.service';
+import { opsiCookieToken, TOKEN_COOKIE } from '../lib/cookies';
 import crypto from 'crypto';
 
 export const loginSchema = z.object({
@@ -29,7 +30,11 @@ export const buildAuthUser = (user: any, profile: any) => ({
   role: user.role,
   first_login: user.first_login,
   email: profile?.email ?? null,
-  email_verified: Boolean(profile?.email_verified_at)
+  email_verified: Boolean(profile?.email_verified_at),
+  // Foto profil & nama ikut dikirim agar header dashboard dan landing
+  // tidak perlu memanggil API profil terpisah hanya untuk menampilkan avatar.
+  foto: user.foto ?? profile?.foto ?? null,
+  nama: profile?.nama ?? null
 });
 
 /**
@@ -78,22 +83,27 @@ export const login = async (req: any, res: any, next: any): Promise<void> => {
       return; // WAJIB ADA agar eksekusi berhenti di sini
     }
 
-    // 3. Buat JWT Token
+    // 3. Tolak akun yang sudah dinonaktifkan (mis. habis masa studi 5 tahun).
+    // Pesannya dibedakan dari "NIM atau Password salah" supaya pengguna tidak
+    // mengira lupa password padahal akunnya memang dinonaktifkan.
+    if (!user.isActive) {
+      res.status(403).json({
+        message: 'Akun ini sudah dinonaktifkan. Silakan hubungi administrator fakultas.',
+      });
+      return;
+    }
+
+    // 4. Buat JWT Token
     const token = jwt.sign(
       { id: user.id, nim: user.nim, role: user.role, first_login: user.first_login },
       process.env.JWT_SECRET as string,
       { expiresIn: '1d' }
     );
 
-    // 4. Set Cookie
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 1 hari
-    });
+    // 5. Set Cookie
+    res.cookie(TOKEN_COOKIE, token, opsiCookieToken(req));
 
-    // 5. Kirim data User HANYA SATU KALI ke Frontend
+    // 6. Kirim data User HANYA SATU KALI ke Frontend
     res.status(200).json({
       message: 'Login berhasil',
       user: buildAuthUser(user, user.profile)
@@ -194,12 +204,7 @@ export const completeFirstLogin = async (req: any, res: any, next: any): Promise
     );
 
     // 8. Set Cookie baru
-    res.cookie('token', newToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 1 hari
-    });
+    res.cookie(TOKEN_COOKIE, newToken, opsiCookieToken(req));
 
     res.status(200).json({
       message: terkirim

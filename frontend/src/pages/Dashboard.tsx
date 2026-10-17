@@ -1,7 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/axios';
-import { LayoutDashboard, Users, UserCheck, MessageSquare, AlertCircle, Clock, CheckCircle, Activity, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Users, UserCheck, MessageSquare, AlertCircle, Clock, CheckCircle, Activity, Loader2, ShieldAlert } from 'lucide-react';
+
+// Ringkasan penolakan permintaan dari origin web yang tidak dikenal.
+// Hanya dikirim backend kepada ADMIN (lihat cors-monitor.service.ts).
+interface OriginDitolak {
+  origin: string;
+  permintaan: number;
+  terakhir: string;
+}
+
+interface KeamananCors {
+  hari: number;
+  kejadian: number;
+  permintaan: number;
+  originUnik: number;
+  terakhir: string | null;
+  teratas: OriginDitolak[];
+  terpotong: boolean;
+}
 
 // Mendefinisikan tipe data yang jelas pengganti "any"
 interface DashboardStats {
@@ -17,6 +35,7 @@ interface DashboardStats {
   myKeluhan?: number;
   myActiveTickets?: number;
   myCompletedTickets?: number;
+  keamananCors?: KeamananCors;
 }
 
 export default function Dashboard() {
@@ -64,7 +83,7 @@ export default function Dashboard() {
       </div>
 
       <div className="mb-4">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800 sm:text-xl">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800 dark:text-gray-100 sm:text-xl">
           <Activity className="w-5 h-5 text-amber-400"/> Ringkasan Statistik
         </h2>
       </div>
@@ -74,41 +93,108 @@ export default function Dashboard() {
         // STATISTIK ADMIN & PENGURUS
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* [PERBAIKAN]: Menambahkan shrink-0 pada ikon, min-w-0 pada teks, dan truncate agar merespons sempurna */}
-          <div className="flex items-center gap-4 p-4 bg-white border border-gray-100 shadow-sm sm:p-6 rounded-xl">
-            <div className="flex items-center justify-center w-12 h-12 text-blue-600 bg-blue-100 rounded-lg shrink-0"><Users className="w-6 h-6"/></div>
-            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 truncate sm:text-sm">Total Mahasiswa</p><p className="text-xl font-black text-gray-900 sm:text-2xl">{stats?.totalMahasiswa || 0}</p></div>
+          <div className="flex items-center gap-4 p-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm sm:p-6 rounded-xl">
+            <div className="flex items-center justify-center w-12 h-12 text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 rounded-lg shrink-0"><Users className="w-6 h-6"/></div>
+            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 dark:text-gray-400 truncate sm:text-sm">Total Mahasiswa</p><p className="text-xl font-black text-gray-900 dark:text-gray-100 sm:text-2xl">{stats?.totalMahasiswa || 0}</p></div>
           </div>
-          <div className="flex items-center gap-4 p-4 bg-white border border-gray-100 shadow-sm sm:p-6 rounded-xl">
-            <div className="flex items-center justify-center w-12 h-12 text-purple-600 bg-purple-100 rounded-lg shrink-0"><UserCheck className="w-6 h-6"/></div>
-            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 truncate sm:text-sm">Total Pengurus</p><p className="text-xl font-black text-gray-900 sm:text-2xl">{stats?.totalPengurus || 0}</p></div>
+          <div className="flex items-center gap-4 p-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm sm:p-6 rounded-xl">
+            <div className="flex items-center justify-center w-12 h-12 text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/40 rounded-lg shrink-0"><UserCheck className="w-6 h-6"/></div>
+            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 dark:text-gray-400 truncate sm:text-sm">Total Pengurus</p><p className="text-xl font-black text-gray-900 dark:text-gray-100 sm:text-2xl">{stats?.totalPengurus || 0}</p></div>
           </div>
-          <div className="flex items-center gap-4 p-4 bg-white border border-gray-100 shadow-sm sm:p-6 rounded-xl">
-            <div className="flex items-center justify-center w-12 h-12 text-yellow-600 bg-yellow-100 rounded-lg shrink-0"><Clock className="w-6 h-6"/></div>
-            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 truncate sm:text-sm">Tiket Menunggu</p><p className="text-xl font-black text-gray-900 sm:text-2xl">{stats?.ticketMenunggu || 0}</p></div>
+          <div className="flex items-center gap-4 p-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm sm:p-6 rounded-xl">
+            <div className="flex items-center justify-center w-12 h-12 text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 rounded-lg shrink-0"><Clock className="w-6 h-6"/></div>
+            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 dark:text-gray-400 truncate sm:text-sm">Tiket Menunggu</p><p className="text-xl font-black text-gray-900 dark:text-gray-100 sm:text-2xl">{stats?.ticketMenunggu || 0}</p></div>
           </div>
-          <div className="flex items-center gap-4 p-4 bg-white border border-gray-100 shadow-sm sm:p-6 rounded-xl">
-            <div className="flex items-center justify-center w-12 h-12 text-green-600 bg-green-100 rounded-lg shrink-0"><CheckCircle className="w-6 h-6"/></div>
-            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 truncate sm:text-sm">Tiket Selesai</p><p className="text-xl font-black text-gray-900 sm:text-2xl">{stats?.ticketSelesai || 0}</p></div>
+          <div className="flex items-center gap-4 p-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm sm:p-6 rounded-xl">
+            <div className="flex items-center justify-center w-12 h-12 text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/40 rounded-lg shrink-0"><CheckCircle className="w-6 h-6"/></div>
+            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 dark:text-gray-400 truncate sm:text-sm">Tiket Selesai</p><p className="text-xl font-black text-gray-900 dark:text-gray-100 sm:text-2xl">{stats?.ticketSelesai || 0}</p></div>
           </div>
         </div>
       ) : (
         // STATISTIK MAHASISWA
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-          <div className="flex items-center gap-4 p-4 bg-white border border-gray-100 shadow-sm sm:p-6 rounded-xl">
-            <div className="flex items-center justify-center w-12 h-12 text-blue-600 bg-blue-100 rounded-lg shrink-0"><MessageSquare className="w-6 h-6"/></div>
-            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 truncate sm:text-sm">Total Aspirasi Saya</p><p className="text-xl font-black text-gray-900 sm:text-2xl">{stats?.myAspirasi || 0}</p></div>
+          <div className="flex items-center gap-4 p-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm sm:p-6 rounded-xl">
+            <div className="flex items-center justify-center w-12 h-12 text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 rounded-lg shrink-0"><MessageSquare className="w-6 h-6"/></div>
+            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 dark:text-gray-400 truncate sm:text-sm">Total Aspirasi Saya</p><p className="text-xl font-black text-gray-900 dark:text-gray-100 sm:text-2xl">{stats?.myAspirasi || 0}</p></div>
           </div>
-          <div className="flex items-center gap-4 p-4 bg-white border border-gray-100 shadow-sm sm:p-6 rounded-xl">
-            <div className="flex items-center justify-center w-12 h-12 text-red-600 bg-red-100 rounded-lg shrink-0"><AlertCircle className="w-6 h-6"/></div>
-            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 truncate sm:text-sm">Total Keluhan Saya</p><p className="text-xl font-black text-gray-900 sm:text-2xl">{stats?.myKeluhan || 0}</p></div>
+          <div className="flex items-center gap-4 p-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm sm:p-6 rounded-xl">
+            <div className="flex items-center justify-center w-12 h-12 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/40 rounded-lg shrink-0"><AlertCircle className="w-6 h-6"/></div>
+            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 dark:text-gray-400 truncate sm:text-sm">Total Keluhan Saya</p><p className="text-xl font-black text-gray-900 dark:text-gray-100 sm:text-2xl">{stats?.myKeluhan || 0}</p></div>
           </div>
-          <div className="flex items-center gap-4 p-4 bg-white border border-gray-100 shadow-sm sm:p-6 rounded-xl">
-            <div className="flex items-center justify-center w-12 h-12 text-yellow-600 bg-yellow-100 rounded-lg shrink-0"><Clock className="w-6 h-6"/></div>
-            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 truncate sm:text-sm">Tiket Sedang Diproses</p><p className="text-xl font-black text-gray-900 sm:text-2xl">{stats?.myActiveTickets || 0}</p></div>
+          <div className="flex items-center gap-4 p-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm sm:p-6 rounded-xl">
+            <div className="flex items-center justify-center w-12 h-12 text-yellow-600 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 rounded-lg shrink-0"><Clock className="w-6 h-6"/></div>
+            <div className="min-w-0"><p className="text-xs font-bold text-gray-500 dark:text-gray-400 truncate sm:text-sm">Tiket Sedang Diproses</p><p className="text-xl font-black text-gray-900 dark:text-gray-100 sm:text-2xl">{stats?.myActiveTickets || 0}</p></div>
           </div>
         </div>
       )}
-      
+
+      {/* Ringkasan keamanan: percobaan akses dari origin web tak dikenal. */}
+      {user?.role === 'ADMIN' && stats?.keamananCors && (
+        <section className="pt-2 space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800 dark:text-gray-100 sm:text-xl">
+              <ShieldAlert className="w-5 h-5 text-amber-400" /> Keamanan: Akses Lintas Origin
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
+              Permintaan {stats.keamananCors.hari} hari terakhir yang ditolak karena datang dari origin tidak dikenal.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="flex items-center gap-4 p-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm sm:p-6 rounded-xl">
+              <div className="flex items-center justify-center w-12 h-12 text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/40 rounded-lg shrink-0"><ShieldAlert className="w-6 h-6"/></div>
+              <div className="min-w-0"><p className="text-xs font-bold text-gray-500 dark:text-gray-400 truncate sm:text-sm">Permintaan Ditolak</p><p className="text-xl font-black text-gray-900 dark:text-gray-100 sm:text-2xl">{stats.keamananCors.permintaan}</p></div>
+            </div>
+            <div className="flex items-center gap-4 p-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm sm:p-6 rounded-xl">
+              <div className="flex items-center justify-center w-12 h-12 text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 rounded-lg shrink-0"><AlertCircle className="w-6 h-6"/></div>
+              <div className="min-w-0"><p className="text-xs font-bold text-gray-500 dark:text-gray-400 truncate sm:text-sm">Origin Unik</p><p className="text-xl font-black text-gray-900 dark:text-gray-100 sm:text-2xl">{stats.keamananCors.originUnik}</p></div>
+            </div>
+            <div className="flex items-center gap-4 p-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm sm:p-6 rounded-xl">
+              <div className="flex items-center justify-center w-12 h-12 text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 rounded-lg shrink-0"><Clock className="w-6 h-6"/></div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-gray-500 dark:text-gray-400 truncate sm:text-sm">Percobaan Terakhir</p>
+                <p className="text-sm font-black text-gray-900 dark:text-gray-100 truncate sm:text-base">
+                  {stats.keamananCors.terakhir ? new Date(stats.keamananCors.terakhir).toLocaleString('id-ID') : 'Tidak ada'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {stats.keamananCors.teratas.length > 0 ? (
+            <div className="overflow-hidden bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="text-sm text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800">
+                      <th className="p-4 font-medium">Origin</th>
+                      <th className="p-4 font-medium">Permintaan</th>
+                      <th className="p-4 font-medium">Terakhir</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                    {stats.keamananCors.teratas.map((item) => (
+                      <tr key={item.origin} className="text-sm hover:bg-gray-50 dark:hover:bg-gray-800">
+                        <td className="p-4 font-mono text-xs break-all text-gray-900 dark:text-gray-100 sm:text-sm">{item.origin}</td>
+                        <td className="p-4 font-bold text-gray-900 dark:text-gray-100">{item.permintaan}</td>
+                        <td className="p-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">{new Date(item.terakhir).toLocaleString('id-ID')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="px-4 py-3 text-xs border-t border-gray-100 dark:border-gray-800 text-gray-500 dark:text-gray-400">
+                Origin di sini belum terdaftar sebagai alamat resmi. Tambahkan ke FRONTEND_URLS hanya bila memang dikenal.
+                {stats.keamananCors.terpotong && ' Angka ini batas bawah karena catatan sudah sangat banyak.'}
+              </p>
+            </div>
+          ) : (
+            <div className="p-4 text-sm text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-xl">
+              Belum ada percobaan akses dari origin tidak dikenal. Bagus.
+            </div>
+          )}
+        </section>
+      )}
+
     </div>
   );
 }

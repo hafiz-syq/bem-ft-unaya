@@ -1,0 +1,117 @@
+import { Response, NextFunction } from 'express';
+import prisma from '../lib/prisma';
+import { logActivity } from '../services/audit.service';
+import { hitungAngkatan } from '../services/account-lifecycle.service';
+import type { Prisma } from '@prisma/client';
+
+
+// Lokasi kolom CSV untuk tabel mahasiswa
+const HEADER_LAHAN = ['No', 'NIM', 'Nama', 'Program Studi', 'Email', 'No HP', 'Angkatan', 'Role', 'Jabatan', 'Organisasi', 'Status', 'Dilarang Login', 'Tenggat Hapus'];
+
+/**
+ * Ekspor data mahasiswa ke file CSV.
+ * Hanya bisa dilakukan oleh ADMIN.
+ * Endpoint: GET /api/students/export
+ */
+export const exportMahasiswa = async (req: any, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user || req.user.role !== 'ADMIN') {
+      res.status(403).json({ message: 'Hanya admin yang dapat mengekspor data mahasiswa.' });
+      return;
+    }
+
+    const { search, status, role } = req.query;
+
+    // Bangun filter
+    const where: any = { role: { not: 'ADMIN' } };
+    if (status === 'AKTIF') where.isActive = true;
+    else if (status === 'NONAKTIF') where.isActive = false;
+
+    if (role && role !== 'ALL') where.role = role;
+
+    if (search) {
+      where.OR = [
+        { nim: { contains: search } },
+        { profile: { nama: { contains: search } } },
+      ];
+    }
+
+    const mahasiswa = await prisma.user.findMany({
+      where,
+      orderBy: { nim: 'asc' },
+      include: {
+        profile: true,
+        positions: {
+          where: { isActive: true },
+          include: {
+            positionSlot: {
+              include: {
+                organization: { select: { name: true } },
+                department: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Hitung jumlah
+    const total = mahasiswa.length;
+
+    // Siapkan CSV content
+    const rows: string[][] = [HEADER_LAHAN];
+
+    for (let i = 0; i < mahasiswa.length; i++) {
+      const m = mahasiswa[i];
+      const angkatan = hitungAngkatan(m.nim);
+      const jabatan = m.positions[0]?.positionSlot.title ?? '-';
+      const organisasi = m.positions[0]?.positionSlot.organization.name ?? '-';
+      const status = m.isActive ? 'Aktif' : 'Nonaktif';
+      const dilarang = m.first_login ? 'Belum ganti password' : 'Aktif';
+
+      rows.push([
+        String(i + 1),
+        m.nim,
+        m.profile?.nama ?? '-',
+        m.profile?.program_studi ?? '-',
+        m.profile?.email ?? '-',
+        m.profile?.no_hp ?? '-',
+        String(angkatan ?? '-'),
+        m.role,
+        jabatan,
+        organisasi,
+        status,
+        dilarang,
+        m.tenggatHapus ? new Date(m.tenggatHapus).toLocaleDateString('id-ID') : '-',
+      ]);
+    }
+
+    // Buat CSV string
+    const csvContent = rows.map((row) =>
+      row.map((cell) => {
+        if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+          return `"${cell.replace(/"/g, '""')}"`;
+        }
+        return cell;
+      }).join(',')
+    ).join('\n');
+
+    // Header untuk file download
+    const fileName = `data-mahasiswa-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+    await logActivity(
+      req.user.id,
+      'EXPORT_STUDENTS',
+      'Student',
+      `Mengekspor data mahasiswa: ${total} baris dicetak ke CSV`,
+      undefined,
+      { total, filters: { search: String(search || ''), status: String(status || 'ALL'), role: String(role || 'ALL') } } as const
+    );
+
+    res.send(csvContent);
+  } catch (error) {
+    next(error);
+  }
+};

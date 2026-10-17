@@ -1,59 +1,14 @@
-# ============================================================
-#  RAHASIA — jangan pernah di-commit
-# ============================================================
-# backend/.env memuat DATABASE_URL, JWT_SECRET, dan SMTP_PASS yang asli.
-# Kalau file ini pernah ter-push, segera ganti semua kredensialnya.
-.env
-.env.*
-!.env.example
-backend/.env
-frontend/.env
-
-# ============================================================
-#  Dependensi
-# ============================================================
+# Build & runtime artifacts
 node_modules/
-backend/node_modules/
-frontend/node_modules/
 
-# ============================================================
-#  Hasil build
-# ============================================================
-dist/
-build/
-backend/dist/
+# Environment files (contain secrets)
+.env
+.env.*.local
+
+# Vite dev & build output
 frontend/dist/
-*.tsbuildinfo
+frontend/.vite/
 
-# ============================================================
-#  Data runtime
-# ============================================================
-# Lampiran tiket & foto profil yang diunggah pengguna asli.
-# Folder ini dibuat otomatis oleh server kalau belum ada.
-backend/uploads/
-
-# ============================================================
-#  Log
-# ============================================================
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# ============================================================
-#  Editor & sistem operasi
-# ============================================================
-.vscode/*
-!.vscode/extensions.json
-.idea/
+# OS files
 .DS_Store
 Thumbs.db
-desktop.ini
-
-# ============================================================
-#  Sisa file sementara
-# ============================================================
-*.tmp*
-*.bak

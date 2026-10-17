@@ -1,0 +1,210 @@
+# Pemeriksaan otomatis: aturan akses backend (401/403), keutuhan migrasi, dan
+# pemeriksaan statis.
+#
+# Tiga hal yang dijaga:
+#   1. uji-akses  — setiap endpoint backend punya aturan peran yang TERTULIS dan
+#                   TERUJI. Rute baru tanpa baris harapan akan menggagalkan job
+#                   ini; lihat backend/src/tests/uji-akses-rute.ts.
+#   2. migrasi    — folder prisma/migrations masih bisa diterapkan dari basis
+#                   data kosong, dan hasilnya sama dengan schema.prisma.
+#   3. statis     — type-check backend, lint + build frontend.
+#
+# Semuanya berjalan di runner sementara dengan MySQL kosong.
+name: uji-akses
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  uji-akses:
+    name: Aturan akses 401/403
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: bem_ft_uji
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    env:
+      # Basis data runner bersifat sementara dan dibuang setelah job selesai.
+      DATABASE_URL: mysql://root:root@127.0.0.1:3306/bem_ft_uji
+      # Kunci khusus pengujian, bukan kunci produksi.
+      JWT_SECRET: kunci-uji-ci-bukan-untuk-produksi
+      NODE_ENV: test
+      API_URL: http://localhost:3000/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Pasang dependensi backend
+        working-directory: backend
+        run: npm ci
+
+      - name: Siapkan Prisma Client
+        working-directory: backend
+        run: npx prisma generate
+
+      # Skema dibentuk lewat migrasi (bukan `db push`) supaya yang diuji adalah
+      # skema yang sama dengan yang dipakai produksi. Keutuhan folder migrasi
+      # sendiri dijaga oleh job "migrasi" di bawah.
+      - name: Terapkan migrasi
+        working-directory: backend
+        run: npx prisma migrate deploy
+
+      - name: Bangun backend
+        working-directory: backend
+        run: npm run build
+
+      - name: Nyalakan server backend
+        working-directory: backend
+        run: |
+          node dist/index.js > server.log 2>&1 &
+          echo "PID server: $!"
+
+      - name: Tunggu server siap
+        working-directory: backend
+        run: |
+          for percobaan in $(seq 1 30); do
+            if curl -sf "$API_URL/health" > /dev/null; then
+              echo "Server siap pada percobaan ke-$percobaan."
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server tidak siap setelah 30 detik. Log server:"
+          cat server.log
+          exit 1
+
+      # Matriks seluruh endpoint: tamu / mahasiswa / pengurus / admin.
+      - name: Uji matriks akses seluruh endpoint
+        working-directory: backend
+        run: npm test
+
+      # Melengkapi matriks: login sungguhan + memastikan balasan 403 ekspor
+      # benar-benar tidak memuat isi CSV.
+      - name: Uji akses non-admin (login sungguhan)
+        working-directory: backend
+        run: npm run verifikasi:akses
+
+      - name: Tampilkan log server bila gagal
+        if: failure()
+        working-directory: backend
+        run: cat server.log
+
+  migrasi:
+    name: Migrasi dari basis data kosong
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: bem_ft_migrasi
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    env:
+      DATABASE_URL: mysql://root:root@127.0.0.1:3306/bem_ft_migrasi
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Pasang dependensi backend
+        working-directory: backend
+        run: npm ci
+
+      - name: Siapkan Prisma Client
+        working-directory: backend
+        run: npx prisma generate
+
+      # Basis data service di atas benar-benar kosong, jadi langkah ini membuktikan
+      # seluruh folder prisma/migrations masih bisa diterapkan dari nol (tidak ada
+      # migrasi yang hilang, terhapus, atau saling bergantung secara kacau).
+      - name: Terapkan seluruh migrasi dari basis data kosong
+        working-directory: backend
+        run: npx prisma migrate deploy
+
+      - name: Tampilkan status migrasi
+        working-directory: backend
+        run: npx prisma migrate status
+
+      # `--exit-code` dari `migrate diff`: 0 = tidak ada perbedaan, 2 = ada
+      # perbedaan, 1 = gagal dijalankan. Perbedaan berarti isi schema.prisma
+      # sudah berubah tanpa migrasi baru — persis keadaan yang membuat produksi
+      # dan pengembangan berbeda diam-diam.
+      - name: Pastikan hasil migrasi sama dengan schema.prisma
+        working-directory: backend
+        run: |
+          set +e
+          npx prisma migrate diff \
+            --from-url "$DATABASE_URL" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --exit-code
+          kode=$?
+          set -e
+
+          if [ "$kode" -eq 2 ]; then
+            echo "::error::Skema hasil migrasi BERBEDA dari schema.prisma. Buat migrasi baru dengan 'npx prisma migrate dev' di folder backend, lalu commit folder prisma/migrations."
+            exit 1
+          fi
+
+          if [ "$kode" -ne 0 ]; then
+            echo "::error::Pemeriksaan migrasi gagal dijalankan (exit $kode)."
+            exit 1
+          fi
+
+          echo "Migrasi dari nol berhasil dan hasilnya sama dengan schema.prisma."
+
+  statis:
+    name: Pemeriksaan statis
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Backend — type-check
+        working-directory: backend
+        run: |
+          npm ci
+          npx prisma generate
+          npx tsc --noEmit
+
+      - name: Frontend — lint & build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+          npm run build

@@ -1,10 +1,27 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/bem.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BEM FT UNAYA</title>
+    <script>
+      // Terapkan tema tersimpan SEBELUM React dimuat, agar tidak ada kilatan
+      // terang (FOUC) pada pengguna tema gelap. Nilai sama dengan yang dipakai
+      // ThemeContext; kalau salah satu berubah, ubahlah keduanya.
+      (function () {
+        try {
+          var simpanan = localStorage.getItem('tema');
+          var sistemGelap = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var tema = simpanan || (sistemGelap ? 'dark' : 'light');
+          var html = document.documentElement;
+          if (tema === 'dark') html.classList.add('dark');
+          html.style.colorScheme = tema;
+        } catch (e) {
+          /* localStorage diblokir: biarkan tema terang */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

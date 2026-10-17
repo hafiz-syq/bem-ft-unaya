@@ -19,6 +19,9 @@ import Agenda from './pages/Agenda';
 import Gallery from './pages/Gallery';
 import About from './pages/About';
 import PublicContentDetail from './pages/PublicContentDetail';
+import PublicComments from './pages/PublicComments';
+import Faq from './pages/Faq';
+import Demisioner from './pages/Demisioner';
 
 /**
  * Penjaga dasar: hanya memastikan pengguna sudah login.
@@ -103,6 +106,14 @@ function App() {
         </ProtectedRoute>
       } />
 
+      <Route path="/buku-tamu" element={
+        <ProtectedRoute>
+          <DashboardLayout>
+            <PublicComments />
+          </DashboardLayout>
+        </ProtectedRoute>
+      } />
+
       <Route path="/organizations" element={
         <ProtectedRoute>
           <DashboardLayout>
@@ -135,6 +146,14 @@ function App() {
         </ProtectedRoute>
       } />
 
+      <Route path="/faq" element={
+        <ProtectedRoute>
+          <DashboardLayout>
+            <Faq />
+          </DashboardLayout>
+        </ProtectedRoute>
+      } />
+
       <Route path="/cms" element={
         <ProtectedRoute>
           <DashboardLayout>
@@ -146,6 +165,7 @@ function App() {
       <Route path="/agenda" element={<Agenda />} />
       <Route path="/gallery" element={<Gallery />} />
       <Route path="/about" element={<About />} />
+      <Route path="/demisioner" element={<Demisioner />} />
       <Route path="/post/:id" element={<PublicContentDetail />} />
 
       <Route path="*" element={<Navigate to="/login" replace />} />

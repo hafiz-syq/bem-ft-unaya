@@ -3,5 +3,62 @@
 @tailwind utilities;
 
 body {
-  @apply bg-gray-50 text-gray-900;
+  @apply bg-gray-50 text-gray-900 dark:bg-[#0a0a0f] dark:text-gray-100;
+}
+
+/* Kontrol form bawaan browser (scrollbar, dropdown) ikut tema aktif.
+   Kelas `dark` di <html> dipasang oleh skrip inline di index.html sebelum
+   React dimuat, jadi tidak ada kilatan warna saat halaman dibuka. */
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+/* Scrollbar diseragamkan untuk KEDUA tema: lebar, track, radius, dan
+   tombol panah memakai aturan yang sama persis — hanya warnanya yang
+   mengikuti tema. Sebelumnya hanya tema gelap yang distyle, sedangkan tema
+   terang memakai scrollbar bawaan sistem (lebih lebar dan bertonjolan
+   panah), sehingga ukurannya berbeda dan menggeser isi halaman saat tema
+   diganti.
+
+   Warna dipilih lewat variabel di `html` — BUKAN lewat selector
+   `html.dark ::-webkit-...` — karena scrollbar viewport tidak selalu cocok
+   dengan selector ber-descendant di semua versi Chromium/Electron, sedangkan
+   variabel mewaris turun sehingga selalu terbaca di scrollbar mana pun. */
+:root {
+  --scrollbar-thumb: rgb(156 163 175 / 1);
+  --scrollbar-thumb-hover: rgb(107 114 128 / 1);
+}
+
+html.dark {
+  --scrollbar-thumb: rgb(55 65 81 / 1);
+  --scrollbar-thumb-hover: rgb(75 85 99 / 1);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Panah atas/bawah disembunyikan agar tinggi scrollbar sama di kedua tema. */
+::-webkit-scrollbar-button {
+  display: none;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
 }

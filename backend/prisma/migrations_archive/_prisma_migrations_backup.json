@@ -1,0 +1,30 @@
+[
+  {
+    "migration_name": "20261008123537_init",
+    "checksum": "9027013e6f6b4fe822e524f04e6478eb8314900861ada85dc66b6c594ab7d672",
+    "started_at": "Thu Oct 08 2026 19:35:37 GMT+0700 (Indochina Time)",
+    "finished_at": "Thu Oct 08 2026 19:35:40 GMT+0700 (Indochina Time)",
+    "applied_steps_count": 1
+  },
+  {
+    "migration_name": "20261015040159_add_email_verification",
+    "checksum": "9f637bbf84162160ccedd1cd28a4cd5f3819081882c5a4470ee9c5164170d136",
+    "started_at": "Thu Oct 15 2026 04:02:01 GMT+0700 (Indochina Time)",
+    "finished_at": "Thu Oct 15 2026 04:02:01 GMT+0700 (Indochina Time)",
+    "applied_steps_count": 1
+  },
+  {
+    "migration_name": "20261015040608_email_verification_table",
+    "checksum": "c6bd7559182933bfdd39c40cfe01bc57e14b9c2c3cd8d8559a3b2dd6e846ad6f",
+    "started_at": "Thu Oct 15 2026 04:06:10 GMT+0700 (Indochina Time)",
+    "finished_at": "Thu Oct 15 2026 04:06:10 GMT+0700 (Indochina Time)",
+    "applied_steps_count": 1
+  },
+  {
+    "migration_name": "20261015223256_add_roles_ticket_target_profile_lifecycle_gallery_demisioner_settings_faq",
+    "checksum": "3273fe9645c9e1bb570dfefd65df4625af470534ed025b60f5cdf329c8677c2b",
+    "started_at": "Thu Oct 15 2026 22:33:12 GMT+0700 (Indochina Time)",
+    "finished_at": "Thu Oct 15 2026 22:33:12 GMT+0700 (Indochina Time)",
+    "applied_steps_count": 1
+  }
+]

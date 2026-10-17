@@ -3,13 +3,14 @@ import { login, completeFirstLogin, verifyEmail, resendVerification, buildAuthUs
 import { requireAuth } from '../middlewares/auth.middleware';
 import { uploadPhoto } from '../middlewares/upload.middleware';
 import prisma from '../lib/prisma';
+import { opsiHapusCookieToken, TOKEN_COOKIE } from '../lib/cookies';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 const router = Router();
 
 // Proteksi Brute-Force khusus untuk endpoint login
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 menit
+  windowMs: 5 * 60 * 1000, // 15 menit
   max: 5, // Batas 5 kali percobaan gagal/request per IP
   message: { message: 'Terlalu banyak percobaan login. Silakan coba lagi setelah 15 menit.' }
 });
@@ -38,11 +39,7 @@ router.post('/resend-verification', requireAuth, verifikasiLimiter, resendVerifi
 
 // Endpoint Logout
 router.post('/logout', (req: Request, res: Response) => {
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-  });
+  res.clearCookie(TOKEN_COOKIE, opsiHapusCookieToken(req));
   res.json({ message: 'Logout berhasil.' });
 });
 

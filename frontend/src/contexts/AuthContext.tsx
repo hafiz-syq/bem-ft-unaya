@@ -5,12 +5,17 @@ import { api } from '../lib/axios';
 interface User {
   id: string;
   nim: string;
-  role: 'MAHASISWA' | 'PENGURUS' | 'ADMIN';
+  // Role dibiarkan sebagai string agar role pengurus per organisasi
+  // (PENGURUS_DPM, PENGURUS_BEM, dst.) tidak perlu didaftarkan ulang di sini.
+  role: string;
   first_login: boolean;
   // Dipakai penjaga rute: selama email ada tapi belum terverifikasi,
   // pengguna ditahan di halaman /verify-email.
   email: string | null;
   email_verified: boolean;
+  // Foto profil & nama dari server, dipakai header dashboard dan landing.
+  foto?: string | null;
+  nama?: string | null;
 }
 
 interface AuthContextType {

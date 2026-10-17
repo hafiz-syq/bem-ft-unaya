@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
+import { hitungAngkatan } from '../services/account-lifecycle.service';
 
 export const getMyProfile = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -10,7 +11,16 @@ export const getMyProfile = async (req: any, res: Response, next: NextFunction):
     // Ambil data user beserta relasi tabel StudentProfile (jika ada)
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { profile: true }
+      include: {
+        profile: true,
+        // Jabatan aktif ditampilkan sebagai bagian biodata di halaman profil.
+        positions: {
+          where: { isActive: true },
+          include: {
+            positionSlot: { include: { organization: true, department: true } }
+          }
+        }
+      }
     });
 
     if (!user) {
@@ -18,19 +28,32 @@ export const getMyProfile = async (req: any, res: Response, next: NextFunction):
       return;
     }
 
-    // Ekstrak angkatan dari 2 digit pertama NIM (misal: 2214... -> Angkatan 2022)
-    const angkatan = "20" + user.nim.substring(0, 2);
-
     res.status(200).json({
+      id: user.id,
       nim: user.nim,
       role: user.role,
       isActive: user.isActive,
-      angkatan: angkatan,
+      // Angkatan dibaca dari 2 digit pertama NIM (misal: 2214... -> Angkatan 2022)
+      angkatan: hitungAngkatan(user.nim),
+      // Foto profil diprioritaskan dari tabel User supaya berlaku untuk SEMUA role,
+      // termasuk admin yang tidak punya baris StudentProfile.
+      foto: user.foto ?? user.profile?.foto ?? null,
+      deactivatedAt: user.deactivatedAt,
+      deactivationType: user.deactivationType,
+      createdAt: user.createdAt,
       // email_verified ikut dikirim supaya halaman profil bisa menampilkan status
       // verifikasi tanpa perlu tahu detail kolom internal.
       profile: user.profile
         ? { ...user.profile, email_verified: Boolean(user.profile.email_verified_at) }
-        : null // Admin bernilai null karena tidak ada di tabel profile
+        : null, // Admin bernilai null karena tidak ada di tabel profile
+      email_verified: Boolean(user.profile?.email_verified_at),
+      jabatan: user.positions.map((p) => ({
+        id: p.id,
+        title: p.positionSlot.title,
+        organisasi: p.positionSlot.organization.name,
+        divisi: p.positionSlot.department?.name ?? null,
+        startDate: p.startDate,
+      }))
     });
   } catch (error) {
     next(error);
@@ -109,6 +132,41 @@ export const updateMyEmail = async (req: any, res: Response, next: NextFunction)
       emailBerubah,
       profile: { email: updated.email, email_verified: Boolean(updated.email_verified_at) }
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Mengunggah / mengganti foto profil milik pengguna yang sedang login.
+ * Berlaku untuk SEMUA role dan disimpan di kolom User.foto agar admin
+ * (yang tidak punya StudentProfile) juga bisa punya foto.
+ */
+export const uploadMyPhoto = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const file = req.file;
+
+    if (!file) {
+      res.status(400).json({ message: 'Pilih file foto terlebih dahulu.' });
+      return;
+    }
+
+    const foto = `/uploads/${file.filename}`;
+
+    await prisma.user.update({ where: { id: req.user.id }, data: { foto } });
+
+    // Profil (untuk mahasiswa/pengurus) disamakan agar tampilan lama tetap konsisten.
+    await prisma.studentProfile.updateMany({ where: { userId: req.user.id }, data: { foto } });
+
+    await logActivity(
+      req.user.id,
+      'UPDATE_PHOTO',
+      'User',
+      'Memperbarui foto profil',
+      req.user.id
+    );
+
+    res.status(200).json({ message: 'Foto profil berhasil diperbarui.', foto });
   } catch (error) {
     next(error);
   }

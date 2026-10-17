@@ -1,138 +1,62 @@
 import prisma from '../lib/prisma';
 import fs from 'fs';
 import path from 'path';
-import bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
+import { parsingPdfMahasiswa } from '../services/student-import.service';
+import { simpanMahasiswa } from '../controllers/student-import.save';
 
-const pdfParse = require('pdf-parse');
-
-async function extractAndValidate(filePath: string) {
-  const dataBuffer = fs.readFileSync(filePath);
-  const parse = pdfParse.default || pdfParse;
-  const data = await parse(dataBuffer);
-  const text = data.text;
-  
-  const students: { nama: string; nim: string; program_studi: string }[] = [];
-  let invalidCount = 0;
-  
-  const nimSet = new Set<string>();
-  let duplicateNIM = 0;
-
-  const regex = /(?:([A-Za-z\.\,\'\ -]+?)\s*\|?\s*(\d{8}[A-Za-z]?)|(\d{8}[A-Za-z]?)\s*\|?\s*([A-Za-z\.\,\'\ -]+?))\s*\|?\s*(SISTEM INFORMASI|TEKNIK MESIN|TEKNIK SIPIL)/gi;
-  const matches = [...text.matchAll(regex)];
-
-  for (const match of matches) {
-    const rawNama = match[1] || match[4];
-    const rawNim = match[2] || match[3];
-
-    const nama = rawNama.replace(/\n/g, ' ').trim();
-    const nim = rawNim.trim().toUpperCase();
-    const prodi = match[5].trim().toUpperCase();
-
-    if (nama.toLowerCase().includes('nama mahasiswa')) continue;
-
-    if (!nama || !nim || !prodi) {
-      invalidCount++;
-      continue;
-    }
-
-    if (nimSet.has(nim)) {
-      duplicateNIM++;
-      continue;
-    }
-    
-    nimSet.add(nim);
-    students.push({ nama, nim, program_studi: prodi });
-  }
-
-  return { students, totalParsed: matches.length, invalidCount, duplicateNIM };
-}
+/**
+ * Seed awal proyek: membaca backend/data/TEKNIK.pdf lalu membuat akun mahasiswa,
+ * kemudian menyiapkan organisasi dan slot jabatannya.
+ *
+ * Pembacaan PDF dan penulisan akun memakai service yang SAMA dengan fitur unggah
+ * di halaman Data Mahasiswa (services/student-import.service.ts), sehingga pola
+ * baris dan aturan password tidak pernah berbeda antara keduanya.
+ *
+ * Bedanya hanya sikap terhadap baris bermasalah: seed berhenti total (dijalankan
+ * sekali di awal proyek), sedangkan unggahan lewat halaman admin melewatinya dan
+ * melaporkannya.
+ */
 
 async function main() {
   console.log('--- STARTING SEED PROCESS ---');
   const pdfPath = path.join(__dirname, '../../data/TEKNIK.pdf');
-  
+
   if (!fs.existsSync(pdfPath)) {
     throw new Error('TEKNIK.pdf tidak ditemukan di folder backend/data/');
   }
 
   // TAHAP A: Parsing & Validasi
-  const { students, totalParsed, invalidCount, duplicateNIM } = await extractAndValidate(pdfPath);
-  
+  const hasil = await parsingPdfMahasiswa(fs.readFileSync(pdfPath));
+
   console.log(`\nPDF RESULT`);
-  console.log(`Total Parsed       : ${totalParsed}`);
-  console.log(`Valid              : ${students.length}`);
-  console.log(`Invalid            : ${invalidCount}`);
-  console.log(`Duplicate NIM      : ${duplicateNIM}\n`);
+  console.log(`Total Parsed       : ${hasil.totalDibaca}`);
+  console.log(`Valid              : ${hasil.valid.length}`);
+  console.log(`Bermasalah         : ${hasil.bermasalah.length}\n`);
 
-  if (invalidCount > 0 || duplicateNIM > 0 || students.length === 0) {
-    throw new Error('VALIDASI GAGAL: Ditemukan invalid data atau duplikasi. Seed dibatalkan.');
+  if (hasil.bermasalah.length > 0) {
+    for (const b of hasil.bermasalah.slice(0, 10)) {
+      console.log(`  - ${b.nim || '(NIM kosong)'} ${b.nama}: ${b.alasan}`);
+    }
+    if (hasil.bermasalah.length > 10) {
+      console.log(`  ... dan ${hasil.bermasalah.length - 10} baris lain.`);
+    }
+    throw new Error('VALIDASI GAGAL: Ditemukan baris bermasalah. Seed dibatalkan.');
   }
 
-  // TAHAP B: Pengecekan Idempotency & Persiapan Hashing di Luar Transaksi
-  console.log('Checking existing students in database...');
-  const allParsedNims = students.map((s) => s.nim);
-  
-  const existingUsers = await prisma.user.findMany({
-    where: { nim: { in: allParsedNims } },
-    select: { nim: true }
-  });
-  
-  // PERBAIKAN TS7006: Menambahkan tipe eksplisit pada parameter 'u'
-  const existingNimSet = new Set(existingUsers.map((u: { nim: string }) => u.nim));
-
-  const newStudents = students.filter((s) => !existingNimSet.has(s.nim));
-  const existingStudentsCount = students.length - newStudents.length;
-
-  const preparedStudents = [];
-  if (newStudents.length > 0) {
-    console.log(`\nPreparing passwords for ${newStudents.length} new students...`);
-    for (let i = 0; i < newStudents.length; i++) {
-      const student = newStudents[i];
-      const password_hash = await bcrypt.hash(student.nim, 10);
-      preparedStudents.push({ ...student, password_hash });
-
-      if ((i + 1) % 50 === 0 || i + 1 === newStudents.length) {
-        console.log(`Prepared ${i + 1}/${newStudents.length}`);
-      }
-    }
-  } else {
-    console.log('\nNo new students to prepare. All exist in database.');
+  if (hasil.valid.length === 0) {
+    throw new Error('VALIDASI GAGAL: Tidak ada baris mahasiswa yang terbaca dari PDF.');
   }
 
-  // TAHAP C: Database Transaction (Batching)
-  if (preparedStudents.length > 0) {
-    console.log(`\nSeeding students to database in batches...`);
-    const CHUNK_SIZE = 50;
-    let insertedCount = 0;
+  // TAHAP B & C: penyiapan password lalu penyisipan berkelompok.
+  // Idempoten: NIM yang sudah ada dilewati, bukan ditimpa.
+  console.log('Seeding students to database...');
+  const simpan = await simpanMahasiswa(hasil.valid);
 
-    for (let i = 0; i < preparedStudents.length; i += CHUNK_SIZE) {
-      const chunk = preparedStudents.slice(i, i + CHUNK_SIZE);
-      
-      // Transaksi dibuat sangat singkat hanya untuk operasi insert DB
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        for (const student of chunk) {
-          await tx.user.create({
-            data: {
-              nim: student.nim,
-              password_hash: student.password_hash,
-              role: 'MAHASISWA',
-              first_login: true,
-              profile: {
-                create: { 
-                  nama: student.nama, 
-                  nim: student.nim, 
-                  program_studi: student.program_studi 
-                }
-              }
-            }
-          });
-        }
-      });
-      
-      insertedCount += chunk.length;
-      console.log(`Inserted ${insertedCount}/${preparedStudents.length}`);
-    }
+  console.log(`\nInserted           : ${simpan.dibuat}`);
+  console.log(`Existing/skipped   : ${simpan.dilewati.length}`);
+  if (simpan.gagal.length > 0) {
+    console.log(`Gagal disimpan     : ${simpan.gagal.length} (${simpan.gagal.slice(0, 10).join(', ')})`);
   }
 
   // SEED ORGANISASI (Transaksi Singkat Tersendiri)
@@ -169,24 +93,23 @@ async function main() {
   const totalSlots = await prisma.positionSlot.count();
 
   console.log('\n--- SEED COMPLETED ---');
-  console.log(`PDF Students       : ${students.length}`);
-  console.log(`New Students       : ${preparedStudents.length}`);
-  console.log(`Existing Students  : ${existingStudentsCount}`);
-  console.log(`Invalid            : ${invalidCount}`);
-  console.log(`Duplicate NIM      : ${duplicateNIM}`);
+  console.log(`PDF Students       : ${hasil.valid.length}`);
+  console.log(`New Students       : ${simpan.dibuat}`);
+  console.log(`Existing Students  : ${simpan.dilewati.length}`);
+  console.log(`Bermasalah         : ${hasil.bermasalah.length}`);
   console.log(`Organizations      : ${totalOrgs}`);
   console.log(`Position Slots     : ${totalSlots}`);
-  
+
   if (totalMahasiswa !== totalProfiles) {
     console.warn('\nWARNING: Jumlah User Mahasiswa tidak sama dengan jumlah StudentProfile!');
   }
 }
 
 main()
-  .catch(e => { 
-    console.error('\nERROR:', e.message || e); 
-    process.exit(1); 
+  .catch(e => {
+    console.error('\nERROR:', e.message || e);
+    process.exit(1);
   })
-  .finally(async () => { 
-    await prisma.$disconnect(); 
+  .finally(async () => {
+    await prisma.$disconnect();
   });

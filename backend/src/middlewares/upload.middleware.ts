@@ -78,3 +78,23 @@ export const uploadPhoto = multer({
   fileFilter: photoFileFilter,
   limits: { fileSize: UPLOAD_LIMITS.foto } // Maksimal 2 MB
 });
+
+// --- Khusus berkas PDF impor data mahasiswa ---
+// Isinya hanya dibaca sekali untuk diproses, jadi disimpan di memori dan tidak
+// pernah menyentuh disk: dengan begitu tidak ada berkas sementara yang perlu
+// dibersihkan setelah proses selesai (berhasil maupun gagal).
+const pdfFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  if (file.mimetype === 'application/pdf') {
+    cb(null, true);
+  } else {
+    cb(uploadError('Berkas impor harus berupa PDF.'));
+  }
+};
+
+export const uploadPdfImpor = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: pdfFileFilter,
+  // Nama field "file" dipakai supaya pesan batas ukuran di app.ts otomatis
+  // menyebut angka 5 MB dari UPLOAD_LIMITS.
+  limits: { fileSize: UPLOAD_LIMITS.file, files: 1 } // Maksimal 5 MB
+});

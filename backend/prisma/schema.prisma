@@ -10,7 +10,26 @@ generator client {
 enum Role {
   MAHASISWA
   PENGURUS
+  PENGURUS_DPM
+  PENGURUS_BEM
+  PENGURUS_SISTEM_INFORMASI
+  PENGURUS_TEKNIK_MESIN
+  PENGURUS_TEKNIK_SIPIL
   ADMIN
+}
+
+/// Tujuan organisasi sebuah tiket.
+/// - ASPIRASI hanya boleh masuk ke BEM.
+/// - KELUHAN boleh diarahkan ke DPM atau ke salah satu himpunan prodi.
+/// Nilai enum ini sengaja memakai nama organisasi, bukan id, supaya
+/// pencocokan hak baca tidak bergantung pada baris tabel Organization
+/// yang bisa saja dihapus/diubah admin.
+enum TicketTarget {
+  DPM
+  BEM
+  SISTEM_INFORMASI
+  TEKNIK_MESIN
+  TEKNIK_SIPIL
 }
 
 enum DataChangeRequestStatus {
@@ -46,6 +65,27 @@ model User {
   role                 Role                @default(MAHASISWA)
   first_login          Boolean             @default(true)
   isActive             Boolean             @default(true)
+
+  // --- Siklus hidup akun mahasiswa ---
+  // deactivatedAt dipakai job otomatis untuk menghitung "sudah nonaktif 1 tahun".
+  // deactivationType membedakan nonaktif MANUAL (oleh admin/pengurus) dengan AUTO
+  // (habis masa studi 5 tahun); hanya yang AUTO yang boleh dihapus otomatis.
+  deactivatedAt        DateTime?
+  deactivationType     String?
+
+  // --- Perpanjangan & tenggat hapus yang diatur admin ---
+  // tenggatHapus: kapan akun nonaktif-otomatis dihapus permanen. Kosong berarti
+  // mengikuti aturan bawaan (deactivatedAt + tenggat 1 tahun). Admin boleh
+  // menggeser tanggal ini untuk menunda penghapusan tanpa mengaktifkan akun.
+  tenggatHapus         DateTime?
+  // perpanjanganHingga: akhir masa perpanjangan studi. Selama tanggal ini belum
+  // lewat, akun TIDAK dinonaktifkan otomatis walau angkatannya sudah lewat 5
+  // tahun. Kosong berarti tidak ada perpanjangan.
+  perpanjanganHingga   DateTime?
+
+  // Foto profil berlaku untuk SEMUA role (termasuk ADMIN yang tidak punya
+  // StudentProfile), sehingga disimpan di tabel User, bukan hanya di profil.
+  foto                 String?
   
   profile              StudentProfile?
   positions            Position[]
@@ -69,6 +109,7 @@ model User {
   dataRequestsReviewed DataChangeRequest[] @relation("DataReviewer")
   
   commentsModerated    PublicComment[]     @relation("CommentModerator")
+  commentReplies       PublicCommentReply[] @relation("CommentReplier")
   auditLogs            AuditLog[]          @relation("AuditActor")
   
   createdAt            DateTime            @default(now())
@@ -174,6 +215,8 @@ model Ticket {
   id               String             @id @default(uuid())
   ticket_no        String             @unique
   type             String
+  // Organisasi tujuan tiket. Null untuk data lama sebelum fitur ini ada.
+  targetOrganization TicketTarget?
   senderId         String
   sender           User               @relation("TicketSender", fields: [senderId], references: [id])
   category         String
@@ -237,18 +280,43 @@ model PublicComment {
   moderator     User?               @relation("CommentModerator", fields: [moderatedById], references: [id])
   moderatedAt   DateTime?
   createdAt     DateTime            @default(now())
+  // Utas balasan resmi dari admin/pengurus.
+  replies       PublicCommentReply[]
+
+  // Mempercepat daftar komentar yang tayang di halaman depan (hanya APPROVED).
+  @@index([status, createdAt])
+}
+
+/// Balasan resmi admin/pengurus atas sebuah komentar publik.
+/// Dibuat sebagai tabel sendiri, bukan kolom di PublicComment, supaya beberapa
+/// pengurus bisa menjawab berurutan dalam satu utas — sama seperti balasan tiket.
+model PublicCommentReply {
+  id        String        @id @default(uuid())
+  commentId String
+  comment   PublicComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User          @relation("CommentReplier", fields: [authorId], references: [id])
+  content   String        @db.Text
+  createdAt DateTime      @default(now())
 }
 
 model AuditLog {
   id          String   @id @default(uuid())
-  actorId     String
-  actor       User     @relation("AuditActor", fields: [actorId], references: [id])
+  // actorId boleh kosong: peristiwa yang datang dari luar (mis. permintaan dari
+  // origin web yang ditolak) tidak punya pelaku manusia, dan pemeriksaan
+  // otomatis pun dicatat tanpa pengguna. actor = null berarti "Sistem".
+  actorId     String?
+  actor       User?    @relation("AuditActor", fields: [actorId], references: [id])
   action      String
   entityType  String
   entityId    String?
   description String?  @db.Text
   metadata    Json?
   createdAt   DateTime @default(now())
+
+  // Mempercepat ringkasan per jenis aksi pada rentang waktu tertentu
+  // (dipakai ringkasan keamanan di dashboard admin).
+  @@index([action, createdAt])
 }
 
 model Notification {
@@ -283,6 +351,8 @@ model Agenda {
   location         String
   status           String   @default("UPCOMING") // 'UPCOMING' atau 'SELESAI'
   registrationLink String?
+  // Tautan khusus postingan media sosial (Instagram/TikTok/Facebook) untuk agenda ini.
+  socialMediaLink  String?
   authorId         String
   author           User     @relation(fields: [authorId], references: [id])
   createdAt        DateTime @default(now())
@@ -293,10 +363,56 @@ model Gallery {
   id         String   @id @default(uuid())
   title      String
   category   String   // 'FOTO' atau 'VIDEO' atau 'DOKUMENTASI'
+  // url tetap dipertahankan sebagai COVER (foto pertama) agar seluruh
+  // tampilan lama yang cuma membaca satu gambar tetap jalan.
   url        String
   activity   String?
   year       Int
   uploaderId String
   uploader   User     @relation(fields: [uploaderId], references: [id])
+  // Satu postingan galeri boleh memuat banyak foto (carousel).
+  images     GalleryImage[]
   createdAt  DateTime @default(now())
+}
+
+/// Satu foto di dalam sebuah postingan galeri.
+model GalleryImage {
+  id        String   @id @default(uuid())
+  galleryId String
+  gallery   Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  url       String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+/// Riwayat demisioner (pengurus lama) DPM & BEM Teknik.
+model Demisioner {
+  id           String   @id @default(uuid())
+  organization String // 'DPM' atau 'BEM' (bebas teks agar admin fleksibel)
+  nama         String
+  nim          String
+  jabatan      String?
+  periode      String // contoh: '2022/2023'
+  foto         String?
+  description  String?  @db.Text // sejarah singkat / pesan demisioner
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+/// Pengaturan teks situs yang bisa diubah admin setiap pergantian kepengurusan.
+/// Dipakai untuk visi & misi BEM (dan teks lain ke depannya).
+model SiteSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+/// Pertanyaan yang sering diajukan (halaman FAQ dashboard).
+model Faq {
+  id        String   @id @default(uuid())
+  question  String
+  answer    String   @db.Text
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

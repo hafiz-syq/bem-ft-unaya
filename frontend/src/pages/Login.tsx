@@ -4,6 +4,7 @@ import { User, Lock, Loader2, ArrowLeft } from 'lucide-react'; // Ditambahkan Ar
 import axios from 'axios';
 import { api } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function Login() {
   const [nim, setNim] = useState('');
@@ -44,30 +45,31 @@ export default function Login() {
   };
   
   return (
-    <div className="flex items-center justify-center min-h-screen p-4 bg-gray-50">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white shadow-xl rounded-2xl">
+    <div className="flex items-center justify-center min-h-screen p-4 bg-gray-50 dark:bg-gray-950">
+      <div className="relative w-full max-w-md p-8 space-y-6 bg-white shadow-xl rounded-2xl dark:bg-gray-900 dark:border dark:border-gray-800">
+        <ThemeToggle className="absolute top-4 right-4" />
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900">BEM-FT UNAYA</h1>
-          <p className="mt-2 text-gray-500">Portal Sistem Informasi Mahasiswa</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">BEM-FT UNAYA</h1>
+          <p className="mt-2 text-gray-500 dark:text-gray-400">Portal Sistem Informasi Mahasiswa</p>
         </div>
 
         {error && (
-          <div className="p-3 text-sm text-center text-red-600 rounded-lg bg-red-50">
+          <div className="p-3 text-sm text-center text-red-600 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">
             {error}
           </div>
         )}
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">NIM / Username</label>
+            <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">NIM / Username</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <User className="w-5 h-5 text-gray-400" />
+                <User className="w-5 h-5 text-gray-400 dark:text-gray-500" />
               </div>
               <input
                 type="text"
                 required
-                className="block w-full py-2 pl-10 pr-3 text-gray-900 border border-gray-300 rounded-lg focus:ring-amber-400 focus:border-amber-400 bg-gray-50"
+                className="block w-full py-2 pl-10 pr-3 text-gray-900 border border-gray-300 rounded-lg focus:ring-amber-400 focus:border-amber-400 bg-gray-50 dark:text-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:placeholder:text-gray-500"
                 placeholder="Masukkan NIM Anda"
                 value={nim}
                 onChange={(e) => setNim(e.target.value)}
@@ -76,15 +78,15 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">Password</label>
+            <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <Lock className="w-5 h-5 text-gray-400" />
+                <Lock className="w-5 h-5 text-gray-400 dark:text-gray-500" />
               </div>
               <input
                 type="password"
                 required
-                className="block w-full py-2 pl-10 pr-3 text-gray-900 border border-gray-300 rounded-lg focus:ring-amber-400 focus:border-amber-400 bg-gray-50"
+                className="block w-full py-2 pl-10 pr-3 text-gray-900 border border-gray-300 rounded-lg focus:ring-amber-400 focus:border-amber-400 bg-gray-50 dark:text-gray-100 dark:border-gray-700 dark:bg-gray-800"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -95,7 +97,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-amber-400 hover:bg-amber-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-amber-400 hover:bg-amber-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-300 dark:focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Masuk'}
           </button>
@@ -105,7 +107,7 @@ export default function Login() {
         <div className="pt-2 text-center">
           <Link 
             to="/" 
-            className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-500 transition-colors duration-200 hover:text-amber-600"
+            className="inline-flex items-center justify-center gap-2 text-sm font-medium text-gray-500 transition-colors duration-200 hover:text-amber-600 dark:text-gray-400 dark:hover:text-amber-300"
           >
             <ArrowLeft className="w-4 h-4" />
             Kembali ke Halaman Utama

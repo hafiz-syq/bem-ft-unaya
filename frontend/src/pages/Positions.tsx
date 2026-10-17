@@ -115,16 +115,16 @@ export default function Positions() {
 
     return (
         <div className="max-w-6xl p-6 mx-auto space-y-6 md:p-8">
-            <div className="flex flex-col justify-between gap-4 p-6 bg-white border border-gray-100 shadow-sm md:flex-row md:items-center rounded-xl">
+            <div className="flex flex-col justify-between gap-4 p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm md:flex-row md:items-center rounded-xl">
                 <div>
-                    <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
+                    <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
                         <UserPlus className="w-6 h-6 text-amber-400" />
                         Manajemen Kepengurusan
                     </h1>
-                    <p className="mt-1 text-sm text-gray-500">Buat slot jabatan dan angkat mahasiswa menjadi pengurus BEM.</p>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Buat slot jabatan dan angkat mahasiswa menjadi pengurus BEM.</p>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={() => setIsSlotModalOpen(true)} className="flex items-center gap-2 px-4 py-2 font-medium text-gray-700 transition bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <button onClick={() => setIsSlotModalOpen(true)} className="flex items-center gap-2 px-4 py-2 font-medium text-gray-700 dark:text-gray-300 transition bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
                         <Building2 className="w-4 h-4" /> Buat Jabatan Baru
                     </button>
                     <button onClick={() => setIsAssignModalOpen(true)} className="flex items-center gap-2 px-4 py-2 font-medium text-white transition rounded-lg bg-amber-400 hover:bg-amber-500">
@@ -133,15 +133,15 @@ export default function Positions() {
                 </div>
             </div>
 
-            {error && <div className="p-4 text-red-600 rounded-lg bg-red-50">{error}</div>}
+            {error && <div className="p-4 text-red-600 dark:text-red-400 rounded-lg bg-red-50 dark:bg-red-950/60">{error}</div>}
 
             {/* Grid Jabatan */}
             {loading ? (
                 <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-amber-400 animate-spin" /></div>
             ) : slots.length === 0 ? (
-                <div className="p-12 text-center text-gray-500 bg-white border border-gray-200 rounded-xl">
+                <div className="p-12 text-center text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl">
                     <ShieldCheck className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                    <p className="text-lg font-medium text-gray-900">Belum ada jabatan</p>
+                    <p className="text-lg font-medium text-gray-900 dark:text-gray-100">Belum ada jabatan</p>
                     <p>Klik tombol 'Buat Jabatan Baru' untuk memulai.</p>
                 </div>
             ) : (
@@ -149,38 +149,38 @@ export default function Positions() {
                     {slots.map(slot => {
                         const activeUser = slot.positions[0]?.user;
                         return (
-                            <div key={slot.id} className="flex flex-col h-full p-5 bg-white border border-gray-200 shadow-sm rounded-xl">
+                            <div key={slot.id} className="flex flex-col h-full p-5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm rounded-xl">
                                 <div className="flex-1 mb-4">
                                     <div className="flex items-start justify-between gap-2 mb-2">
-                                        <h3 className="text-lg font-bold leading-tight text-gray-900 line-clamp-2">{slot.title}</h3>
-                                        <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase tracking-wide shrink-0 ${activeUser ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                        <h3 className="text-lg font-bold leading-tight text-gray-900 dark:text-gray-100 line-clamp-2">{slot.title}</h3>
+                                        <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase tracking-wide shrink-0 ${activeUser ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'}`}>
                                             {activeUser ? 'Terisi' : 'Kosong'}
                                         </span>
                                     </div>
-                                    <p className="text-xs font-medium text-gray-500">{getOrgName(slot.organizationId)}</p>
+                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{getOrgName(slot.organizationId)}</p>
                                     {slot.department && <p className="mt-1 text-xs font-medium text-amber-400">{slot.department.name}</p>}
                                 </div>
                                 
                                 {/* [PERBAIKAN]: Penambahan min-w-0, flex-1, dan shrink-0 agar tidak tumpang tindih */}
-                                <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100">
+                                <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
                                     {activeUser ? (
                                         <div className="flex items-center flex-1 min-w-0 gap-3">
-                                            <div className="flex items-center justify-center w-8 h-8 text-xs font-bold rounded-full shrink-0 bg-amber-100 text-amber-400">
+                                            <div className="flex items-center justify-center w-8 h-8 text-xs font-bold rounded-full shrink-0 bg-amber-100 dark:bg-amber-900/40 text-amber-400">
                                                 {activeUser.profile?.nama.charAt(0) || 'U'}
                                             </div>
                                             <div className="min-w-0">
-                                                <p className="text-sm font-bold text-gray-900 truncate" title={activeUser.profile?.nama}>{activeUser.profile?.nama || 'Tanpa Nama'}</p>
-                                                <p className="text-xs text-gray-500 truncate">{activeUser.nim}</p>
+                                                <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate" title={activeUser.profile?.nama}>{activeUser.profile?.nama || 'Tanpa Nama'}</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{activeUser.nim}</p>
                                             </div>
                                         </div>
                                     ) : (
-                                        <p className="text-sm italic text-gray-400">Belum ada pejabat</p>
+                                        <p className="text-sm italic text-gray-400 dark:text-gray-500">Belum ada pejabat</p>
                                     )}
                                     
                                     {activeUser && (
                                         <button
                                             onClick={() => { setRemovePositionId(slot.positions[0].id); setIsRemoveModalOpen(true); }}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-600 transition rounded-lg bg-red-50 hover:bg-red-100 shrink-0"
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 transition rounded-lg bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900/40 shrink-0"
                                         >
                                             <Trash2 className="w-3.5 h-3.5 shrink-0" /> Turunkan
                                         </button>
@@ -195,32 +195,32 @@ export default function Positions() {
             {/* Modal Buat Jabatan */}
             {isSlotModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
-                    <div className="w-full max-w-md overflow-hidden bg-white shadow-2xl rounded-2xl">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                            <h2 className="text-xl font-bold text-gray-900">Buat Jabatan Baru</h2>
-                            <button onClick={() => setIsSlotModalOpen(false)} className="text-gray-400 hover:text-gray-600"><XCircle className="w-6 h-6" /></button>
+                    <div className="w-full max-w-md overflow-hidden bg-white dark:bg-gray-900 shadow-2xl rounded-2xl">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Buat Jabatan Baru</h2>
+                            <button onClick={() => setIsSlotModalOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"><XCircle className="w-6 h-6" /></button>
                         </div>
                         <form onSubmit={handleCreateSlot} className="p-6 space-y-4">
                             <div>
-                                <label className="block mb-1 text-sm font-medium text-gray-700">Organisasi Induk</label>
-                                <select required className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-amber-300 focus:border-amber-300" value={newSlot.organizationId} onChange={(e) => setNewSlot({ ...newSlot, organizationId: e.target.value, departmentId: '' })}>
+                                <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Organisasi Induk</label>
+                                <select required className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-300 focus:border-amber-300 dark:focus:border-amber-700" value={newSlot.organizationId} onChange={(e) => setNewSlot({ ...newSlot, organizationId: e.target.value, departmentId: '' })}>
                                     <option value="" disabled>Pilih Organisasi...</option>
                                     {organizations.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}
                                 </select>
                             </div>
                             <div>
-                                <label className="block mb-1 text-sm font-medium text-gray-700">Departemen <span className="font-normal text-gray-400">(Opsional)</span></label>
-                                <select className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-amber-300 focus:border-amber-300" value={newSlot.departmentId} onChange={(e) => setNewSlot({ ...newSlot, departmentId: e.target.value })}>
+                                <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Departemen <span className="font-normal text-gray-400 dark:text-gray-500">(Opsional)</span></label>
+                                <select className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-300 focus:border-amber-300 dark:focus:border-amber-700" value={newSlot.departmentId} onChange={(e) => setNewSlot({ ...newSlot, departmentId: e.target.value })}>
                                     <option value="">-- Tidak Terikat Departemen --</option>
                                     {selectedOrgDepartments.map(dept => <option key={dept.id} value={dept.id}>{dept.name}</option>)}
                                 </select>
                             </div>
                             <div>
-                                <label className="block mb-1 text-sm font-medium text-gray-700">Nama Jabatan</label>
-                                <input type="text" required placeholder="Contoh: Ketua BEM / Menteri Kominfo" className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-amber-300 focus:border-amber-300" value={newSlot.title} onChange={(e) => setNewSlot({ ...newSlot, title: e.target.value })} />
+                                <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Nama Jabatan</label>
+                                <input type="text" required placeholder="Contoh: Ketua BEM / Menteri Kominfo" className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-300 focus:border-amber-300 dark:focus:border-amber-700" value={newSlot.title} onChange={(e) => setNewSlot({ ...newSlot, title: e.target.value })} />
                             </div>
                             <div className="flex justify-end gap-3 pt-2">
-                                <button type="button" onClick={() => setIsSlotModalOpen(false)} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Batal</button>
+                                <button type="button" onClick={() => setIsSlotModalOpen(false)} className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
                                 <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 text-white rounded-lg bg-amber-400 hover:bg-amber-500">
                                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan Jabatan'}
                                 </button>
@@ -233,26 +233,26 @@ export default function Positions() {
             {/* Modal Konfirmasi Turunkan Pengurus */}
             {isRemoveModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
-                    <div className="w-full max-w-sm overflow-hidden bg-white shadow-2xl rounded-2xl">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                            <h2 className="text-xl font-bold text-gray-900">Konfirmasi Turunkan</h2>
-                            <button onClick={() => setIsRemoveModalOpen(false)} className="text-gray-400 hover:text-gray-600"><XCircle className="w-6 h-6" /></button>
+                    <div className="w-full max-w-sm overflow-hidden bg-white dark:bg-gray-900 shadow-2xl rounded-2xl">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Konfirmasi Turunkan</h2>
+                            <button onClick={() => setIsRemoveModalOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"><XCircle className="w-6 h-6" /></button>
                         </div>
                         <div className="p-6 space-y-4">
-                            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50">
-                                <div className="flex items-center justify-center w-10 h-10 text-lg font-bold text-red-600 bg-red-100 rounded-full shrink-0">
+                            <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 dark:bg-red-950/60">
+                                <div className="flex items-center justify-center w-10 h-10 text-lg font-bold text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/40 rounded-full shrink-0">
                                     <Trash2 className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <p className="text-sm font-bold text-gray-900">Yakin ingin menurunkan?</p>
-                                    <p className="mt-1 text-xs text-gray-500">Pengurus akan dikembalikan ke status mahasiswa biasa.</p>
+                                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100">Yakin ingin menurunkan?</p>
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Pengurus akan dikembalikan ke status mahasiswa biasa.</p>
                                 </div>
                             </div>
                             <div className="flex justify-end gap-3">
                                 <button
                                     type="button"
                                     onClick={() => setIsRemoveModalOpen(false)}
-                                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                                    className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
                                 >
                                     Batal
                                 </button>
@@ -272,15 +272,15 @@ export default function Positions() {
             {/* Modal Angkat Pengurus */}
             {isAssignModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
-                    <div className="w-full max-w-md overflow-hidden bg-white shadow-2xl rounded-2xl">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-                            <h2 className="text-xl font-bold text-gray-900">Angkat Pengurus</h2>
-                            <button onClick={() => setIsAssignModalOpen(false)} className="text-gray-400 hover:text-gray-600"><XCircle className="w-6 h-6" /></button>
+                    <div className="w-full max-w-md overflow-hidden bg-white dark:bg-gray-900 shadow-2xl rounded-2xl">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Angkat Pengurus</h2>
+                            <button onClick={() => setIsAssignModalOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"><XCircle className="w-6 h-6" /></button>
                         </div>
                         <form onSubmit={handleAssign} className="p-6 space-y-4">
                             <div>
-                                <label className="block mb-1 text-sm font-medium text-gray-700">Pilih Jabatan</label>
-                                <select required className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-amber-300 focus:border-amber-300" value={assignData.positionSlotId} onChange={(e) => setAssignData({ ...assignData, positionSlotId: e.target.value })}>
+                                <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Pilih Jabatan</label>
+                                <select required className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-300 focus:border-amber-300 dark:focus:border-amber-700" value={assignData.positionSlotId} onChange={(e) => setAssignData({ ...assignData, positionSlotId: e.target.value })}>
                                     <option value="" disabled>Pilih slot jabatan...</option>
                                     {slots.map(slot => (
                                         <option key={slot.id} value={slot.id}>{slot.title} ({getOrgName(slot.organizationId)})</option>
@@ -288,11 +288,11 @@ export default function Positions() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block mb-1 text-sm font-medium text-gray-700">NIM Mahasiswa</label>
-                                <input type="text" required placeholder="Masukkan NIM mahasiswa..." className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-amber-300 focus:border-amber-300 uppercase" value={assignData.nim} onChange={(e) => setAssignData({ ...assignData, nim: e.target.value })} />
+                                <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">NIM Mahasiswa</label>
+                                <input type="text" required placeholder="Masukkan NIM mahasiswa..." className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-300 focus:border-amber-300 dark:focus:border-amber-700 uppercase" value={assignData.nim} onChange={(e) => setAssignData({ ...assignData, nim: e.target.value })} />
                             </div>
                             <div className="flex justify-end gap-3 pt-2">
-                                <button type="button" onClick={() => setIsAssignModalOpen(false)} className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Batal</button>
+                                <button type="button" onClick={() => setIsAssignModalOpen(false)} className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
                                 <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 text-white rounded-lg bg-amber-400 hover:bg-amber-500">
                                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Angkat Pengurus'}
                                 </button>

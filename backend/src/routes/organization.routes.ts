@@ -1,14 +1,25 @@
 import { Router } from 'express';
-import { getOrganizations, createOrganization, createDepartment } from '../controllers/organization.controller';
-import { requireAuth } from '../middlewares/auth.middleware';
+import {
+  getOrganizations,
+  createOrganization,
+  deleteOrganization,
+  createDepartment,
+  deleteDepartment,
+} from '../controllers/organization.controller';
+import { requireAuth, requireRole } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-// Middleware requireAuth memastikan hanya user yang login yang bisa akses.
-// (Nantinya di sisi Frontend, halaman ini hanya ditampilkan untuk Admin).
+// Master organisasi adalah area admin (lihat menu "Master Organisasi").
+router.use(requireAuth, requireRole(['ADMIN']));
 
-router.get('/', requireAuth, getOrganizations);
-router.post('/', requireAuth, createOrganization);
-router.post('/departments', requireAuth, createDepartment);
+router.get('/', getOrganizations);
+router.post('/', createOrganization);
+router.post('/departments', createDepartment);
+router.delete('/departments/:id', deleteDepartment);
+
+// Hapus organisasi beserta divisi & slot jabatannya (butuh force=true bila masih
+// menyimpan riwayat jabatan lama).
+router.delete('/:id', deleteOrganization);
 
 export default router;

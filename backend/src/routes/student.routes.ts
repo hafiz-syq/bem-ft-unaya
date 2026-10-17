@@ -1,12 +1,36 @@
 import { Router } from 'express';
-import { getStudents } from '../controllers/student.controller';
+import {
+  getStudents,
+  createStudent,
+  updateStudentStatus,
+  perpanjangAkun,
+  updateStudentRole,
+  runLifecycle,
+  requireOfficer,
+  requireAdmin,
+} from '../controllers/student.controller';
 import { requireAuth } from '../middlewares/auth.middleware';
+import { uploadPdfImpor } from '../middlewares/upload.middleware';
+import { pratinjauImpor, simpanImpor } from '../controllers/student-import.controller';
 
 const router = Router();
 
-// HANYA Admin dan Pengurus yang boleh mengakses daftar mahasiswa
-// (Meskipun requireAuth saja belum cukup ketat, nanti kita buatkan middleware RBAC. 
-// Untuk sekarang, kita pastikan rute ini tertutup dari luar).
-router.get('/', requireAuth, getStudents);
+// Semua rute di sini hanya untuk pengurus & admin.
+router.use(requireAuth, requireOfficer);
+
+// Pemeriksaan siklus hidup akun secara manual (admin saja).
+router.post('/maintenance/run-lifecycle', requireAdmin, runLifecycle);
+
+// Impor massal dari PDF (admin saja). Dua langkah: pratinjau dulu, baru simpan.
+router.post('/import/pratinjau', requireAdmin, uploadPdfImpor.single('file'), pratinjauImpor);
+router.post('/import/simpan', requireAdmin, uploadPdfImpor.single('file'), simpanImpor);
+
+router.get('/', getStudents);
+router.post('/', createStudent);
+router.patch('/:id/status', updateStudentStatus);
+// Perpanjangan masa studi & geser tenggat hapus: hanya admin, karena menyangkut
+// keberadaan akun.
+router.patch('/:id/perpanjangan', requireAdmin, perpanjangAkun);
+router.patch('/:id/role', requireAdmin, updateStudentRole);
 
 export default router;

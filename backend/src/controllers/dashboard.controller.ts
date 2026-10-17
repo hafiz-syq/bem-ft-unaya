@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
+import { ringkasanPenolakanCors } from '../services/cors-monitor.service';
 
 export const getDashboardStats = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -17,6 +18,10 @@ export const getDashboardStats = async (req: any, res: Response, next: NextFunct
       const ticketDiproses = await prisma.ticket.count({ where: { status: { in: ['DITINJAU', 'DIPROSES'] } } });
       const ticketSelesai = await prisma.ticket.count({ where: { status: 'SELESAI' } });
 
+      // Ringkasan percobaan akses dari origin tak dikenal hanya untuk ADMIN:
+      // ini telemetri keamanan, bukan bagian dari pekerjaan kepengurusan.
+      const keamananCors = user.role === 'ADMIN' ? await ringkasanPenolakanCors() : null;
+
       res.status(200).json({
         role: user.role,
         data: {
@@ -26,7 +31,8 @@ export const getDashboardStats = async (req: any, res: Response, next: NextFunct
           totalKeluhan,
           ticketMenunggu,
           ticketDiproses,
-          ticketSelesai
+          ticketSelesai,
+          ...(keamananCors ? { keamananCors } : {})
         }
       });
     } else {
