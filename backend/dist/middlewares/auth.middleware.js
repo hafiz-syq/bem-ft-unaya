@@ -7,6 +7,7 @@ exports.requireRole = exports.optionalAuth = exports.requireAuth = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const ticket_access_1 = require("../lib/ticket-access");
+const device_1 = require("../lib/device");
 const requireAuth = async (req, res, next) => {
     try {
         // Membaca token dari httpOnly cookie
@@ -23,7 +24,10 @@ const requireAuth = async (req, res, next) => {
         // memakai sesi lamanya, dan perubahan role baru berlaku setelah login ulang.
         const akun = await prisma_1.default.user.findUnique({
             where: { id: decoded.id },
-            select: { id: true, nim: true, role: true, isActive: true },
+            select: {
+                id: true, nim: true, role: true, isActive: true,
+                deviceId: true, sessionVersion: true,
+            },
         });
         if (!akun) {
             res.status(401).json({ message: 'Akun tidak ditemukan. Silakan login kembali.' });
@@ -45,6 +49,13 @@ const requireAuth = async (req, res, next) => {
                 });
                 return;
             }
+        }
+        // Perangkat diperiksa setiap permintaan supaya membuka kunci perangkat
+        // langsung memutus sesi lama, tanpa menunggu token kedaluwarsa (1 hari).
+        const alasanPerangkat = (0, device_1.periksaSesiPerangkat)(akun, decoded);
+        if (alasanPerangkat) {
+            res.status(401).json({ code: 'PERANGKAT_BERUBAH', message: alasanPerangkat });
+            return;
         }
         // Role diambil dari database agar keputusan otorisasi selalu mengikuti keadaan
         // terkini, bukan role saat token dibuat.
@@ -75,9 +86,14 @@ const optionalAuth = async (req, _res, next) => {
         const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
         const akun = await prisma_1.default.user.findUnique({
             where: { id: decoded.id },
-            select: { id: true, nim: true, role: true, isActive: true },
+            select: {
+                id: true, nim: true, role: true, isActive: true,
+                deviceId: true, sessionVersion: true,
+            },
         });
-        if (akun?.isActive) {
+        // Sesi dari perangkat lama diperlakukan seperti tamu, bukan 401: endpoint
+        // pemakai optionalAuth tetap bisa dibaca publik tanpa menjatuhkan halaman.
+        if (akun?.isActive && !(0, device_1.periksaSesiPerangkat)(akun, decoded)) {
             req.user = { ...decoded, id: akun.id, nim: akun.nim, role: akun.role };
         }
     }

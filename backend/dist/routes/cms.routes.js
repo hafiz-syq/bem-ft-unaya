@@ -10,12 +10,12 @@ const router = (0, express_1.Router)();
 // Pengelola konten publik = admin + seluruh jenis pengurus.
 const pengelola = [auth_middleware_1.requireAuth, (0, auth_middleware_1.requireRole)(['ADMIN', 'SUPERADMIN', ...ticket_access_1.OFFICER_ROLES])];
 // Unggahan galeri boleh memuat banyak foto sekaligus (maksimal 10) dalam satu postingan.
-const unggahGaleri = upload_middleware_1.uploadAttachment.fields([
+const unggahGaleri = (0, upload_middleware_1.denganWebp)(upload_middleware_1.uploadAttachment).fields([
     { name: 'images', maxCount: 10 },
     { name: 'file', maxCount: 1 },
 ]);
 // Unggahan cover konten/berita tetap satu file.
-const unggahKonten = upload_middleware_1.uploadAttachment.fields([
+const unggahKonten = (0, upload_middleware_1.denganWebp)(upload_middleware_1.uploadAttachment).fields([
     { name: 'file', maxCount: 1 },
     { name: 'images', maxCount: 1 },
 ]);
@@ -27,6 +27,8 @@ router.put('/settings', auth_middleware_1.requireAuth, (0, auth_middleware_1.req
 router.get('/structure', cms_controller_1.getPublicStructure);
 // --- Agenda ---
 router.get('/agendas', cms_controller_1.getAgendas);
+// Berkas .ics didaftarkan sebelum rute berparameter /:id agar tidak tertangkap.
+router.get('/agendas/calendar.ics', cms_controller_1.getAgendaIcs);
 router.post('/agendas', ...pengelola, cms_controller_1.createAgenda);
 router.put('/agendas/:id', ...pengelola, cms_controller_1.updateAgenda);
 router.delete('/agendas/:id', ...pengelola, cms_controller_1.deleteAgenda);

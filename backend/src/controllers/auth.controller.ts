@@ -9,6 +9,8 @@ import { sendVerificationEmail, sendPasswordResetEmail } from '../services/email
 import { opsiCookieToken, TOKEN_COOKIE } from '../lib/cookies';
 import { frontendBaseUrl, samarkanEmail } from '../lib/frontend-url';
 import { isAdminRole } from '../lib/ticket-access';
+import { bacaDeviceId, labelPerangkat } from '../lib/device';
+import { beriNotifikasiPercobaanPerangkat } from '../services/notifikasi-perangkat.service';
 import crypto from 'crypto';
 
 export const loginSchema = z.object({
@@ -106,17 +108,84 @@ export const login = async (req: any, res: any, next: any): Promise<void> => {
       }
     }
 
-    // 4. Buat JWT Token
+    // 4. Kunci satu perangkat.
+    //
+    // Akun yang belum pernah terikat akan langsung diikat ke perangkat yang
+    // dipakai sekarang. Akun yang sudah terikat hanya boleh login dari
+    // perangkat yang sama; percobaan dari perangkat lain dicatat sebagai
+    // `pendingDevice` agar admin/superadmin bisa meninjaunya dari halaman
+    // Perangkat & Sesi, lalu mengizinkan atau menolaknya.
+    const deviceId = bacaDeviceId(req);
+    const label = labelPerangkat(req);
+    let deviceAktif = user.deviceId;
+    let versiSesi = user.sessionVersion;
+
+    if (deviceAktif) {
+      if (deviceId !== deviceAktif) {
+        const simpan = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            pendingDeviceId: deviceId,
+            pendingDeviceLabel: deviceId ? label : null,
+            pendingDeviceAt: deviceId ? new Date() : null,
+          },
+        });
+
+        // Beri notifikasi in-app ke semua admin bahwa ada akun yang mencoba
+        // login dari perangkat lain.
+        beriNotifikasiPercobaanPerangkat(user.id, user.id, user.nim).catch((err) => {
+          console.error('[notif-perangkat] gagal kirim notifikasi:', err);
+        });
+
+        res.status(403).json({
+          code: 'PERANGKAT_TERKUNCI',
+          message: `Akun ini sudah aktif di perangkat lain${user.deviceLabel ? ` (${user.deviceLabel})` : ''}. Jika perangkat lama sudah dijual/rusak, minta ADMIN atau SUPERADMIN mengizinkan perangkat baru melalui menu Perangkat & Sesi.`,
+        });
+        return;
+      }
+
+      // Login ulang dari perangkat yang sama: segarkan label (mis. browser
+      // diperbarui) dan bersihkan percobaan perangkat lain yang sudah tidak perlu.
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          deviceLabel: label,
+          pendingDeviceId: null,
+          pendingDeviceLabel: null,
+          pendingDeviceAt: null,
+        },
+      });
+    } else if (deviceId) {
+      const diperbarui = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          deviceId,
+          deviceLabel: label,
+          deviceBoundAt: new Date(),
+          pendingDeviceId: null,
+          pendingDeviceLabel: null,
+          pendingDeviceAt: null,
+        },
+        select: { deviceId: true, sessionVersion: true },
+      });
+      deviceAktif = diperbarui.deviceId;
+      versiSesi = diperbarui.sessionVersion;
+    }
+
+    // 5. Buat JWT Token
     const token = jwt.sign(
-      { id: user.id, nim: user.nim, role: user.role, first_login: user.first_login },
+      {
+        id: user.id, nim: user.nim, role: user.role, first_login: user.first_login,
+        deviceId: deviceAktif, v: versiSesi,
+      },
       process.env.JWT_SECRET as string,
       { expiresIn: '1d' }
     );
 
-    // 5. Set Cookie
+    // 6. Set Cookie
     res.cookie(TOKEN_COOKIE, token, opsiCookieToken(req));
 
-    // 6. Kirim data User HANYA SATU KALI ke Frontend
+    // 7. Kirim data User HANYA SATU KALI ke Frontend
     res.status(200).json({
       message: 'Login berhasil',
       user: buildAuthUser(user, user.profile)
@@ -224,9 +293,14 @@ export const completeFirstLogin = async (req: any, res: any, next: any): Promise
       email: email.toLowerCase()
     });
 
-    // 7. Buat ulang Token JWT karena status first_login sudah berubah
+    // 7. Buat ulang Token JWT karena status first_login sudah berubah.
+    // Sertakan penanda perangkat & versi sesi supaya token baru tetap sah
+    // setelah penguncian perangkat diperiksa di middleware.
     const newToken = jwt.sign(
-      { id: updatedUser.id, nim: updatedUser.nim, role: updatedUser.role, first_login: false },
+      {
+        id: updatedUser.id, nim: updatedUser.nim, role: updatedUser.role, first_login: false,
+        deviceId: updatedUser.deviceId, v: updatedUser.sessionVersion,
+      },
       process.env.JWT_SECRET as string,
       { expiresIn: '1d' }
     );

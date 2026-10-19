@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   getContents, createContent, updateContent, deleteContent, getContentById,
-  getAgendas, createAgenda, updateAgenda, deleteAgenda,
+  getAgendas, createAgenda, updateAgenda, deleteAgenda, getAgendaIcs,
   getGalleries, createGallery, updateGallery, deleteGallery,
   getSiteSettings, updateSiteSettings,
   getPublicStructure,
@@ -14,7 +14,7 @@ import {
   hapusKomentarGaleri,
 } from '../controllers/gallery-comment.controller';
 import { optionalAuth, requireAuth, requireRole } from '../middlewares/auth.middleware';
-import { uploadAttachment } from '../middlewares/upload.middleware';
+import { denganWebp, uploadAttachment } from '../middlewares/upload.middleware';
 import { OFFICER_ROLES } from '../lib/ticket-access';
 
 const router = Router();
@@ -23,13 +23,13 @@ const router = Router();
 const pengelola = [requireAuth, requireRole(['ADMIN', 'SUPERADMIN', ...OFFICER_ROLES])];
 
 // Unggahan galeri boleh memuat banyak foto sekaligus (maksimal 10) dalam satu postingan.
-const unggahGaleri = uploadAttachment.fields([
+const unggahGaleri = denganWebp(uploadAttachment).fields([
   { name: 'images', maxCount: 10 },
   { name: 'file', maxCount: 1 },
 ]);
 
 // Unggahan cover konten/berita tetap satu file.
-const unggahKonten = uploadAttachment.fields([
+const unggahKonten = denganWebp(uploadAttachment).fields([
   { name: 'file', maxCount: 1 },
   { name: 'images', maxCount: 1 },
 ]);
@@ -44,6 +44,8 @@ router.get('/structure', getPublicStructure);
 
 // --- Agenda ---
 router.get('/agendas', getAgendas);
+// Berkas .ics didaftarkan sebelum rute berparameter /:id agar tidak tertangkap.
+router.get('/agendas/calendar.ics', getAgendaIcs);
 router.post('/agendas', ...pengelola, createAgenda);
 router.put('/agendas/:id', ...pengelola, updateAgenda);
 router.delete('/agendas/:id', ...pengelola, deleteAgenda);

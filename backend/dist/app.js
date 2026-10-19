@@ -24,10 +24,19 @@ const faq_routes_1 = __importDefault(require("./routes/faq.routes"));
 const dashboard_charts_routes_1 = __importDefault(require("./routes/dashboard-charts.routes"));
 const student_exports_routes_1 = __importDefault(require("./routes/student-exports.routes"));
 const notifikasi_perpanjangan_routes_1 = __importDefault(require("./routes/notifikasi-perpanjangan.routes"));
+const device_routes_1 = __importDefault(require("./routes/device.routes"));
+const image_convert_routes_1 = __importDefault(require("./routes/image-convert.routes"));
 const upload_middleware_1 = require("./middlewares/upload.middleware");
 const cors_origin_1 = require("./lib/cors-origin");
 const cors_monitor_service_1 = require("./services/cors-monitor.service");
 const app = (0, express_1.default)();
+// Ketika API berjalan di balik reverse proxy/load balancer (nginx, Cloudflare,
+// cPanel, dsb.), IP asli pengunjung dikirim lewat header X-Forwarded-For.
+// Aktifkan dengan TRUST_PROXY=1 agar rate limit komentar tamu dan info asal
+// pengirim di halaman moderasi memakai IP pengunjung, bukan IP proxy.
+if (process.env.TRUST_PROXY === '1') {
+    app.set('trust proxy', 1);
+}
 // Konfigurasi CORS.
 // Origin yang diizinkan = alamat lokal/LAN yang sah + daftar eksplisit dari env
 // (lihat src/lib/cors-origin.ts). Origin publik lain ditolak tanpa header
@@ -79,6 +88,8 @@ app.use('/api/notifications', notification_routes_1.default);
 app.use('/api/cms', cms_routes_1.default);
 app.use('/api/demisioner', demisioner_routes_1.default);
 app.use('/api/faqs', faq_routes_1.default);
+app.use('/api/devices', device_routes_1.default);
+app.use('/api/image-convert', image_convert_routes_1.default);
 // Health check
 app.get('/api/health', (req, res) => {
     res.status(200).json({ status: 'OK', message: 'BEM-FT UNAYA API is running smoothly.' });

@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+
+# Halaman yang butuh sesi tidak perlu dirayapi.
+Disallow: /dashboard
+Disallow: /cms
+Disallow: /students
+Disallow: /tickets
+Disallow: /profile
+Disallow: /buku-tamu
+Disallow: /galeri-komentar
+Disallow: /data-requests
+Disallow: /positions
+Disallow: /organizations
+Disallow: /audit
+Disallow: /faq

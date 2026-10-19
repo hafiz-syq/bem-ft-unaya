@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getMyProfile, updateMyEmail, uploadMyPhoto } from '../controllers/profile.controller';
 import { requireAuth } from '../middlewares/auth.middleware';
-import { uploadPhoto } from '../middlewares/upload.middleware';
+import { denganWebp, uploadPhoto } from '../middlewares/upload.middleware';
 
 const router = Router();
 
@@ -12,6 +12,7 @@ router.get('/me', requireAuth, getMyProfile);
 router.put('/me', requireAuth, updateMyEmail);
 
 // Endpoint untuk mengunggah / mengganti foto profil (semua role)
-router.post('/me/photo', requireAuth, uploadPhoto.single('foto'), uploadMyPhoto);
+const unggahFotoProfil = denganWebp(uploadPhoto);
+router.post('/me/photo', requireAuth, unggahFotoProfil.single('foto'), uploadMyPhoto);
 
 export default router;

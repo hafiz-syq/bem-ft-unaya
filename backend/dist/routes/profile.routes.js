@@ -10,5 +10,6 @@ router.get('/me', auth_middleware_1.requireAuth, profile_controller_1.getMyProfi
 // Endpoint untuk mengubah email pribadi (tersedia untuk semua pengguna yang login)
 router.put('/me', auth_middleware_1.requireAuth, profile_controller_1.updateMyEmail);
 // Endpoint untuk mengunggah / mengganti foto profil (semua role)
-router.post('/me/photo', auth_middleware_1.requireAuth, upload_middleware_1.uploadPhoto.single('foto'), profile_controller_1.uploadMyPhoto);
+const unggahFotoProfil = (0, upload_middleware_1.denganWebp)(upload_middleware_1.uploadPhoto);
+router.post('/me/photo', auth_middleware_1.requireAuth, unggahFotoProfil.single('foto'), profile_controller_1.uploadMyPhoto);
 exports.default = router;

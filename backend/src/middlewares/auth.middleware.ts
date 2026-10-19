@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { isAdminRole } from '../lib/ticket-access';
+import { periksaSesiPerangkat } from '../lib/device';
 
 export interface AuthRequest extends Request { user?: any; }
 
@@ -24,7 +25,10 @@ export const requireAuth = async (req: any, res: Response, next: NextFunction): 
     // memakai sesi lamanya, dan perubahan role baru berlaku setelah login ulang.
     const akun = await prisma.user.findUnique({
       where: { id: decoded.id },
-      select: { id: true, nim: true, role: true, isActive: true },
+      select: {
+        id: true, nim: true, role: true, isActive: true,
+        deviceId: true, sessionVersion: true,
+      },
     });
 
     if (!akun) {
@@ -47,6 +51,14 @@ export const requireAuth = async (req: any, res: Response, next: NextFunction): 
         });
         return;
       }
+    }
+
+    // Perangkat diperiksa setiap permintaan supaya membuka kunci perangkat
+    // langsung memutus sesi lama, tanpa menunggu token kedaluwarsa (1 hari).
+    const alasanPerangkat = periksaSesiPerangkat(akun, decoded);
+    if (alasanPerangkat) {
+      res.status(401).json({ code: 'PERANGKAT_BERUBAH', message: alasanPerangkat });
+      return;
     }
 
     // Role diambil dari database agar keputusan otorisasi selalu mengikuti keadaan
@@ -76,10 +88,15 @@ export const optionalAuth = async (req: any, _res: Response, next: NextFunction)
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET as string);
     const akun = await prisma.user.findUnique({
       where: { id: decoded.id },
-      select: { id: true, nim: true, role: true, isActive: true },
+      select: {
+        id: true, nim: true, role: true, isActive: true,
+        deviceId: true, sessionVersion: true,
+      },
     });
 
-    if (akun?.isActive) {
+    // Sesi dari perangkat lama diperlakukan seperti tamu, bukan 401: endpoint
+    // pemakai optionalAuth tetap bisa dibaca publik tanpa menjatuhkan halaman.
+    if (akun?.isActive && !periksaSesiPerangkat(akun, decoded)) {
       req.user = { ...decoded, id: akun.id, nim: akun.nim, role: akun.role };
     }
   } catch {

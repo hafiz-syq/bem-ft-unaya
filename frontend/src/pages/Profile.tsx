@@ -155,8 +155,8 @@ export default function Profile() {
 
     setPhotoMsg(''); setPhotoErr('');
 
-    if (!file.type.startsWith('image/')) {
-      setPhotoErr('Berkas harus berupa gambar (JPG, PNG, atau WEBP).');
+    if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
+      setPhotoErr('Berkas harus berupa gambar (JPG, PNG, WEBP, HEIC, dst.; bukan SVG).');
       e.target.value = '';
       return;
     }
@@ -229,7 +229,7 @@ export default function Profile() {
             <input
               ref={photoInputRef}
               type="file"
-              accept="image/png,image/jpeg,image/jpg,image/webp"
+              accept="image/*"
               onChange={handlePhotoChange}
               className="hidden"
             />
@@ -272,7 +272,7 @@ export default function Profile() {
           )}
           <p className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <Upload className="w-3.5 h-3.5" />
-            Klik ikon kamera untuk menambahkan / mengganti foto profil (JPG, PNG, WEBP — maksimal 2 MB).
+            Klik ikon kamera untuk menambahkan / mengganti foto profil (JPG, PNG, WEBP, HEIC — maksimal 2 MB, otomatis diubah ke WebP).
           </p>
         </div>
 

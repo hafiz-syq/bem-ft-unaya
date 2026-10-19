@@ -6,6 +6,7 @@ import {
   Activity, Loader2, ShieldAlert, BarChart3, Timer, Inbox, UserMinus,
 } from 'lucide-react';
 import { isAdminRole, targetLabel } from '../lib/roles';
+import AgendaCalendar from '../components/AgendaCalendar';
 
 // Ringkasan penolakan permintaan dari origin web yang tidak dikenal.
 // Hanya dikirim backend kepada ADMIN (lihat cors-monitor.service.ts).
@@ -170,6 +171,10 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Kalender agenda tersinkron dengan CMS: kegiatan multi-hari tampil
+          sebagai blok berwarna sesuai warna yang dipilih pengurus. */}
+      <AgendaCalendar />
 
       {/* STATISTIK TAMBAHAN & GRAFIK (SEMUA ROLE) */}
       {statistik && (

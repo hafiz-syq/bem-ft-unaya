@@ -96,7 +96,14 @@ export async function siapkanAkunUji(): Promise<Record<Exclude<Peran, 'tamu'>, A
   for (const spek of SPESIFIKASI_AKUN) {
     const akun = await prisma.user.upsert({
       where: { nim: spek.nim },
-      update: { password_hash, role: spek.role, first_login: false, isActive: true },
+      update: {
+        password_hash, role: spek.role, first_login: false, isActive: true,
+        // Akun uji selalu dimulai tanpa kunci perangkat agar cookie uji (tanpa
+        // payload deviceId, v=0) tetap sah meski pengujian sebelumnya mengubah data.
+        deviceId: null, deviceLabel: null, deviceBoundAt: null,
+        pendingDeviceId: null, pendingDeviceLabel: null, pendingDeviceAt: null,
+        sessionVersion: 0,
+      },
       create: {
         nim: spek.nim,
         password_hash,

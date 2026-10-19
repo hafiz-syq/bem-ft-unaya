@@ -20,11 +20,21 @@ import faqRoutes from './routes/faq.routes';
 import dashboardChartsRoutes from './routes/dashboard-charts.routes';
 import studentExportsRoutes from './routes/student-exports.routes';
 import notifikasiPerpanjanganRoutes from './routes/notifikasi-perpanjangan.routes';
+import deviceRoutes from './routes/device.routes';
+import imageConvertRoutes from './routes/image-convert.routes';
 import { UPLOAD_LIMITS } from './middlewares/upload.middleware';
 import { bolehkanOrigin } from './lib/cors-origin';
 import { catatPenolakanCors } from './services/cors-monitor.service';
 
 const app: Application = express();
+
+// Ketika API berjalan di balik reverse proxy/load balancer (nginx, Cloudflare,
+// cPanel, dsb.), IP asli pengunjung dikirim lewat header X-Forwarded-For.
+// Aktifkan dengan TRUST_PROXY=1 agar rate limit komentar tamu dan info asal
+// pengirim di halaman moderasi memakai IP pengunjung, bukan IP proxy.
+if (process.env.TRUST_PROXY === '1') {
+  app.set('trust proxy', 1);
+}
 
 // Konfigurasi CORS.
 // Origin yang diizinkan = alamat lokal/LAN yang sah + daftar eksplisit dari env
@@ -85,6 +95,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/cms', cmsRoutes);
 app.use('/api/demisioner', demisionerRoutes);
 app.use('/api/faqs', faqRoutes);
+app.use('/api/devices', deviceRoutes);
+app.use('/api/image-convert', imageConvertRoutes);
 
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {

@@ -13,6 +13,8 @@ const email_service_1 = require("../services/email.service");
 const cookies_1 = require("../lib/cookies");
 const frontend_url_1 = require("../lib/frontend-url");
 const ticket_access_1 = require("../lib/ticket-access");
+const device_1 = require("../lib/device");
+const notifikasi_perangkat_service_1 = require("../services/notifikasi-perangkat.service");
 const crypto_1 = __importDefault(require("crypto"));
 exports.loginSchema = zod_1.z.object({
     nim: zod_1.z.string().min(1),
@@ -97,11 +99,74 @@ const login = async (req, res, next) => {
                 return;
             }
         }
-        // 4. Buat JWT Token
-        const token = jsonwebtoken_1.default.sign({ id: user.id, nim: user.nim, role: user.role, first_login: user.first_login }, process.env.JWT_SECRET, { expiresIn: '1d' });
-        // 5. Set Cookie
+        // 4. Kunci satu perangkat.
+        //
+        // Akun yang belum pernah terikat akan langsung diikat ke perangkat yang
+        // dipakai sekarang. Akun yang sudah terikat hanya boleh login dari
+        // perangkat yang sama; percobaan dari perangkat lain dicatat sebagai
+        // `pendingDevice` agar admin/superadmin bisa meninjaunya dari halaman
+        // Perangkat & Sesi, lalu mengizinkan atau menolaknya.
+        const deviceId = (0, device_1.bacaDeviceId)(req);
+        const label = (0, device_1.labelPerangkat)(req);
+        let deviceAktif = user.deviceId;
+        let versiSesi = user.sessionVersion;
+        if (deviceAktif) {
+            if (deviceId !== deviceAktif) {
+                const simpan = await prisma_1.default.user.update({
+                    where: { id: user.id },
+                    data: {
+                        pendingDeviceId: deviceId,
+                        pendingDeviceLabel: deviceId ? label : null,
+                        pendingDeviceAt: deviceId ? new Date() : null,
+                    },
+                });
+                // Beri notifikasi in-app ke semua admin bahwa ada akun yang mencoba
+                // login dari perangkat lain.
+                (0, notifikasi_perangkat_service_1.beriNotifikasiPercobaanPerangkat)(user.id, user.id, user.nim).catch((err) => {
+                    console.error('[notif-perangkat] gagal kirim notifikasi:', err);
+                });
+                res.status(403).json({
+                    code: 'PERANGKAT_TERKUNCI',
+                    message: `Akun ini sudah aktif di perangkat lain${user.deviceLabel ? ` (${user.deviceLabel})` : ''}. Jika perangkat lama sudah dijual/rusak, minta ADMIN atau SUPERADMIN mengizinkan perangkat baru melalui menu Perangkat & Sesi.`,
+                });
+                return;
+            }
+            // Login ulang dari perangkat yang sama: segarkan label (mis. browser
+            // diperbarui) dan bersihkan percobaan perangkat lain yang sudah tidak perlu.
+            await prisma_1.default.user.update({
+                where: { id: user.id },
+                data: {
+                    deviceLabel: label,
+                    pendingDeviceId: null,
+                    pendingDeviceLabel: null,
+                    pendingDeviceAt: null,
+                },
+            });
+        }
+        else if (deviceId) {
+            const diperbarui = await prisma_1.default.user.update({
+                where: { id: user.id },
+                data: {
+                    deviceId,
+                    deviceLabel: label,
+                    deviceBoundAt: new Date(),
+                    pendingDeviceId: null,
+                    pendingDeviceLabel: null,
+                    pendingDeviceAt: null,
+                },
+                select: { deviceId: true, sessionVersion: true },
+            });
+            deviceAktif = diperbarui.deviceId;
+            versiSesi = diperbarui.sessionVersion;
+        }
+        // 5. Buat JWT Token
+        const token = jsonwebtoken_1.default.sign({
+            id: user.id, nim: user.nim, role: user.role, first_login: user.first_login,
+            deviceId: deviceAktif, v: versiSesi,
+        }, process.env.JWT_SECRET, { expiresIn: '1d' });
+        // 6. Set Cookie
         res.cookie(cookies_1.TOKEN_COOKIE, token, (0, cookies_1.opsiCookieToken)(req));
-        // 6. Kirim data User HANYA SATU KALI ke Frontend
+        // 7. Kirim data User HANYA SATU KALI ke Frontend
         res.status(200).json({
             message: 'Login berhasil',
             user: (0, exports.buildAuthUser)(user, user.profile)
@@ -194,8 +259,13 @@ const completeFirstLogin = async (req, res, next) => {
             nama: user.profile?.nama || user.nim,
             email: email.toLowerCase()
         });
-        // 7. Buat ulang Token JWT karena status first_login sudah berubah
-        const newToken = jsonwebtoken_1.default.sign({ id: updatedUser.id, nim: updatedUser.nim, role: updatedUser.role, first_login: false }, process.env.JWT_SECRET, { expiresIn: '1d' });
+        // 7. Buat ulang Token JWT karena status first_login sudah berubah.
+        // Sertakan penanda perangkat & versi sesi supaya token baru tetap sah
+        // setelah penguncian perangkat diperiksa di middleware.
+        const newToken = jsonwebtoken_1.default.sign({
+            id: updatedUser.id, nim: updatedUser.nim, role: updatedUser.role, first_login: false,
+            deviceId: updatedUser.deviceId, v: updatedUser.sessionVersion,
+        }, process.env.JWT_SECRET, { expiresIn: '1d' });
         // 8. Set Cookie baru
         res.cookie(cookies_1.TOKEN_COOKIE, newToken, (0, cookies_1.opsiCookieToken)(req));
         res.status(200).json({

@@ -13,7 +13,23 @@ const tanpaIsiCsv = (peran, hasil) => hasil.status !== 200 && hasil.body.include
     : null;
 const BARIS = [
     // ── auth.routes.ts ──────────────────────────────────────────────────────
-    { metode: 'GET', jalur: '/auth/me', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
+    // Tamu sengaja mendapat 200 + `user: null` (bukan 401) agar halaman publik
+    // tidak mencatat error jaringan di console. Rute ber-login tetap 401.
+    {
+        metode: 'GET',
+        jalur: '/auth/me',
+        harapan: { tamu: 200, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+        cek: (peran, hasil) => {
+            if (peran !== 'tamu')
+                return null;
+            try {
+                return JSON.parse(hasil.body).user === null ? null : 'Tamu seharusnya menerima user: null.';
+            }
+            catch {
+                return 'Balasan /auth/me bukan JSON yang valid.';
+            }
+        },
+    },
     {
         metode: 'POST',
         jalur: '/auth/login',
@@ -46,6 +62,19 @@ const BARIS = [
         harapan: { tamu: 'DIIZINKAN' },
         amanDiuji: true,
         catatan: 'tanpa token ditolak validasi (400)',
+    },
+    // ── device.routes.ts (kunci perangkat) ─────────────────────────────────
+    {
+        metode: 'GET',
+        jalur: '/devices',
+        harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    },
+    {
+        metode: 'POST',
+        jalur: '/devices/:id/reset',
+        harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+        amanDiuji: true,
+        catatan: 'id tidak ada sehingga admin menerima 404 dan tidak ada data yang berubah',
     },
     // ── profile.routes.ts ───────────────────────────────────────────────────
     { metode: 'GET', jalur: '/profile/me', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
@@ -137,6 +166,12 @@ const BARIS = [
     { metode: 'PUT', jalur: '/cms/settings', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
     { metode: 'GET', jalur: '/cms/structure', harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' } },
     { metode: 'GET', jalur: '/cms/agendas', harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' } },
+    {
+        metode: 'GET',
+        jalur: '/cms/agendas/calendar.ics',
+        harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+        catatan: 'berkas .ics agenda tetap publik; isi berupa teks kalender (Content-Type text/calendar)',
+    },
     { metode: 'POST', jalur: '/cms/agendas', harapan: { tamu: 401, mahasiswa: 403 } },
     { metode: 'PUT', jalur: '/cms/agendas/:id', harapan: { tamu: 401, mahasiswa: 403 } },
     { metode: 'DELETE', jalur: '/cms/agendas/:id', harapan: { tamu: 401, mahasiswa: 403 } },
@@ -157,6 +192,22 @@ const BARIS = [
         harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' },
         amanDiuji: true,
         catatan: 'isi komentar kosong ditolak validasi (400) sebelum menulis apa pun',
+        cek: (peran, hasil) => {
+            if (peran !== 'tamu')
+                return null;
+            if (hasil.status !== 400)
+                return null;
+            try {
+                const json = JSON.parse(hasil.body);
+                // Bila body mencantumkan nama, pastikan hanya versi yang sudah dibersihkan yang diteruskan ke validasi server.
+                if (json.message && json.message.includes('Nama wajib'))
+                    return null;
+                return null;
+            }
+            catch {
+                return null;
+            }
+        },
     },
     { metode: 'GET', jalur: '/cms/gallery-comments', harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
     { metode: 'PATCH', jalur: '/cms/gallery-comments/:id/status', harapan: { tamu: 401, mahasiswa: 403 } },
@@ -166,6 +217,28 @@ const BARIS = [
     { metode: 'GET', jalur: '/cms/:id', harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' } },
     { metode: 'PUT', jalur: '/cms/:id', harapan: { tamu: 401, mahasiswa: 403 } },
     { metode: 'DELETE', jalur: '/cms/:id', harapan: { tamu: 401, mahasiswa: 403 } },
+    // ── image-convert.routes.ts (konversi gambar dari URL) ─────────────────────
+    // Body kosong ditolak validasi (400) sebelum unduh apa pun, jadi aman diuji.
+    {
+        metode: 'POST',
+        jalur: '/image-convert/konversi',
+        harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN' },
+        amanDiuji: true,
+        catatan: 'body kosong ditolak validasi (400) sebelum mengunduh gambar',
+    },
+    {
+        metode: 'GET',
+        jalur: '/image-convert/preview',
+        harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+        catatan: 'penjaga peran ada di rute; body kosong lancu mengembalikan 400 atau 404',
+    },
+    {
+        metode: 'POST',
+        jalur: '/image-convert/validasi-url',
+        harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN' },
+        amanDiuji: true,
+        catatan: 'body kosong ditolak validasi (400)',
+    },
     // ── demisioner.routes.ts ────────────────────────────────────────────────
     { metode: 'GET', jalur: '/demisioner', harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' } },
     { metode: 'POST', jalur: '/demisioner', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
@@ -215,7 +288,7 @@ const NAMA_PERAN = {
 };
 /** Ganti penanda `:param` dengan id nyata/tidak ada. */
 function betulkanJalur(jalur, idJabatan) {
-    return jalur.replace(':idJabatan', idJabatan).replace(/:(id|commentId|replyId)/g, bantu_uji_1.ID_TIDAK_ADA);
+    return jalur.replace(':idJabatan', idJabatan).replace(/:(id|commentId|replyId)/g, (cocok) => cocok.slice(1));
 }
 /**
  * Id jabatan (Position) untuk menguji DELETE /positions/:id.

@@ -137,6 +137,11 @@ const kirimKomentarGaleri = async (req, res, next) => {
                 galleryId,
                 authorId: userId,
                 guestName: userId ? null : namaTamu,
+                // Asal pengirim tamu disimpan hanya untuk kebutuhan moderasi.
+                guestIp: userId ? null : String(req.ip ?? '').slice(0, 190) || null,
+                guestUserAgent: userId
+                    ? null
+                    : String(req.headers?.['user-agent'] ?? '').slice(0, 255) || null,
                 content,
             },
             include: { author: { select: selectPenulis } },
@@ -180,6 +185,10 @@ const getKomentarGaleriUntukModerasi = async (req, res, next) => {
             data: komentar.map((k) => ({
                 ...bentukKomentar(k),
                 galeri: { id: k.gallery.id, title: k.gallery.title, url: k.gallery.url },
+                // Hanya di respons moderasi: bantu pengurus mengenali asal komentar tamu
+                // (mis. satu IP membanjiri antrean). Tidak pernah dikirim ke publik.
+                ip: k.guestIp,
+                saringanPerangkat: k.guestUserAgent,
             })),
             meta: { total, menunggu, disetujui, ditolak },
         });

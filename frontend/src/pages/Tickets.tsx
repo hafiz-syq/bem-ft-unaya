@@ -101,7 +101,7 @@ export default function Tickets() {
       fetchData();
     } catch (error) {
       console.error(error);
-      alert('Gagal mengirim tiket. Pastikan file max 5MB (JPG/PNG/PDF).');
+      alert('Gagal mengirim tiket. Pastikan file maksimal 5MB (gambar apa pun atau PDF).');
     } finally {
       setIsSubmitting(false);
     }
@@ -512,10 +512,10 @@ export default function Tickets() {
               {/* --- INPUT FILE (LAMPIRAN) --- */}
               <div>
                 <label className="flex items-center gap-2 mb-1 text-sm font-bold text-gray-700 dark:text-gray-300"><Paperclip className="w-4 h-4 text-gray-500 dark:text-gray-400" /> Bukti Lampiran (Opsional)</label>
-                <input type="file" ref={fileInputRef} accept=".jpg,.jpeg,.png,.pdf" onChange={handleFileChange} className="hidden" />
+                <input type="file" ref={fileInputRef} accept="image/*,application/pdf" onChange={handleFileChange} className="hidden" />
                 <div className="flex items-center gap-3">
                   <button type="button" onClick={() => fileInputRef.current?.click()} className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 transition bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Pilih File...</button>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]">{selectedFile ? selectedFile.name : 'Maks 5MB (JPG/PNG/PDF)'}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]">{selectedFile ? selectedFile.name : 'Maks 5MB (gambar/PDF) · gambar otomatis WebP'}</span>
                 </div>
               </div>
 

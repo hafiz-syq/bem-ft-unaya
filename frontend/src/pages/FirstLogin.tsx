@@ -22,9 +22,10 @@ export default function FirstLogin() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validasi cepat di sisi klien supaya pengguna dapat umpan balik langsung
-    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
-      setError('Format foto tidak didukung. Gunakan JPG, PNG, atau WEBP.');
+    // Validasi cepat di sisi klien supaya pengguna dapat umpan balik langsung.
+    // Semua format gambar diterima dan otomatis diubah ke WebP oleh server.
+    if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
+      setError('Format foto tidak didukung. Gunakan JPG, PNG, WEBP, HEIC, atau format gambar lain (bukan SVG).');
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
@@ -184,10 +185,10 @@ export default function FirstLogin() {
               </div>
             ) : (
               <label className="flex items-center justify-center w-full gap-2 px-3 py-3 text-sm font-medium text-gray-600 dark:text-gray-400 transition border border-gray-300 dark:border-gray-700 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800">
-                <Camera className="w-4 h-4" /> Pilih foto (JPG/PNG/WEBP, maks 2 MB)
+                <Camera className="w-4 h-4" /> Pilih foto (JPG/PNG/WEBP/HEIC, maks 2 MB)
                 <input
                   type="file"
-                  accept="image/png,image/jpeg,image/webp"
+                  accept="image/*"
                   className="hidden"
                   onChange={handlePhotoChange}
                 />

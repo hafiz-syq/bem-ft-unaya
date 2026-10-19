@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, assetUrl } from '../lib/axios';
 import {
   FileText, Plus, Trash2, Globe, Loader2, XCircle, Calendar, Image as ImageIcon,
-  MapPin, Clock, Paperclip, Pencil, Save, Award, Settings2, Link2, Share2, Users
+  MapPin, Clock, Paperclip, Pencil, Save, Award, Settings2, Link2, Share2, Users, Check
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdminRole } from '../lib/roles';
+import { formatRentangTanggal, jumlahHariAgenda, kunciTanggal } from '../lib/tanggal';
 
 interface Content {
   id: string; type: string; title: string; content: string; createdAt: string; image: string | null;
@@ -15,7 +16,8 @@ interface Content {
 }
 
 interface Agenda {
-  id: string; title: string; description: string; date: string; time: string; location: string;
+  id: string; title: string; description: string; date: string; endDate: string | null;
+  time: string; location: string; color: string | null;
   registrationLink: string | null; socialMediaLink: string | null;
   author: { profile: { nama: string } | null };
 }
@@ -35,6 +37,10 @@ interface Demisioner {
 type Tab = 'KONTEN' | 'AGENDA' | 'GALERI' | 'DEMISIONER' | 'PENGATURAN';
 
 const KATEGORI_GALERI = ['FOTO', 'INFOGRAFIS', 'VIDEO', 'DOKUMENTASI'];
+
+// Warna penanda agenda di kalender dashboard. Pengurus juga bisa memilih
+// warna lain lewat pemilih warna khusus.
+const WARNA_AGENDA = ['#F59E0B', '#3B82F6', '#10B981', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#64748B'];
 
 export default function CMSManager() {
   const { user } = useAuth();
@@ -58,7 +64,8 @@ export default function CMSManager() {
 
   const [formData, setFormData] = useState({ type: 'BERITA', title: '', content: '' });
   const [agendaData, setAgendaData] = useState({
-    title: '', description: '', date: '', time: '', location: '', registrationLink: '', socialMediaLink: '',
+    title: '', description: '', date: '', endDate: '', time: '', location: '',
+    registrationLink: '', socialMediaLink: '', color: '#F59E0B',
   });
   const [galleryData, setGalleryData] = useState({
     title: '', category: 'FOTO', activity: '', year: new Date().getFullYear().toString(),
@@ -113,7 +120,10 @@ export default function CMSManager() {
   const resetForm = () => {
     setEditingId(null);
     setFormData({ type: 'BERITA', title: '', content: '' });
-    setAgendaData({ title: '', description: '', date: '', time: '', location: '', registrationLink: '', socialMediaLink: '' });
+    setAgendaData({
+      title: '', description: '', date: '', endDate: '', time: '', location: '',
+      registrationLink: '', socialMediaLink: '', color: '#F59E0B',
+    });
     setGalleryData({ title: '', category: 'FOTO', activity: '', year: new Date().getFullYear().toString() });
     setDemisionerData({ organization: 'BEM', nama: '', nim: '', jabatan: '', periode: '', description: '' });
     setContentFile(null);
@@ -138,11 +148,13 @@ export default function CMSManager() {
     setAgendaData({
       title: item.title,
       description: item.description,
-      date: item.date ? new Date(item.date).toISOString().slice(0, 10) : '',
+      date: kunciTanggal(item.date) ?? '',
+      endDate: kunciTanggal(item.endDate) ?? '',
       time: item.time,
       location: item.location,
       registrationLink: item.registrationLink || '',
       socialMediaLink: item.socialMediaLink || '',
+      color: item.color || '#F59E0B',
     });
     setIsModalOpen(true);
   };
@@ -191,7 +203,11 @@ export default function CMSManager() {
 
   // --- Submit Agenda ---
   const handleSubmitAgenda = async (e: React.FormEvent) => {
-    e.preventDefault(); setSubmitting(true);
+    e.preventDefault();
+    if (agendaData.endDate && agendaData.date && agendaData.endDate < agendaData.date) {
+      return alert('Tanggal selesai tidak boleh sebelum tanggal mulai.');
+    }
+    setSubmitting(true);
     try {
       if (editingId) await api.put(`/cms/agendas/${editingId}`, agendaData);
       else await api.post('/cms/agendas', agendaData);
@@ -369,9 +385,24 @@ export default function CMSManager() {
               <div key={item.id} className="relative flex flex-col justify-between p-5 overflow-hidden transition bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm rounded-xl hover:shadow-md">
                 <div className="absolute top-0 right-0 flex items-start justify-end w-16 h-16 p-3 rounded-bl-full bg-amber-50 dark:bg-amber-950/60"><Calendar className="w-5 h-5 text-amber-400" /></div>
                 <div>
-                  <h3 className="pr-10 mb-2 text-lg font-bold">{item.title}</h3>
+                  <h3 className="flex items-start gap-2 pr-10 mb-2 text-lg font-bold">
+                    <span
+                      aria-hidden="true"
+                      className="mt-1.5 w-3 h-3 rounded-full shrink-0"
+                      style={{ backgroundColor: item.color || '#F59E0B' }}
+                    />
+                    <span>{item.title}</span>
+                  </h3>
                   <div className="mb-4 space-y-2">
-                    <p className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400"><Calendar className="w-3 h-3 text-gray-400 dark:text-gray-500" /> {new Date(item.date).toLocaleDateString('id-ID')}</p>
+                    <p className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                      <Calendar className="w-3 h-3 text-gray-400 dark:text-gray-500" />
+                      {formatRentangTanggal(item.date, item.endDate)}
+                      {jumlahHariAgenda(item.date, item.endDate) > 1 && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                          {jumlahHariAgenda(item.date, item.endDate)} hari
+                        </span>
+                      )}
+                    </p>
                     <p className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400"><Clock className="w-3 h-3 text-gray-400 dark:text-gray-500" /> {item.time} WIB</p>
                     <p className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400"><MapPin className="w-3 h-3 text-gray-400 dark:text-gray-500" /> {item.location}</p>
                     {item.socialMediaLink && (
@@ -514,10 +545,10 @@ export default function CMSManager() {
                     <label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">
                       Gambar Cover ({editingId ? 'biarkan kosong bila tidak diganti' : 'Opsional'})
                     </label>
-                    <input type="file" ref={contentFileInputRef} accept=".jpg,.jpeg,.png,.webp" onChange={e => setContentFile(e.target.files ? e.target.files[0] : null)} className="hidden" />
+                    <input type="file" ref={contentFileInputRef} accept="image/*" onChange={e => setContentFile(e.target.files ? e.target.files[0] : null)} className="hidden" />
                     <div className="flex items-center gap-3 border border-gray-300 dark:border-gray-700 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800">
                       <button type="button" onClick={() => contentFileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-700 dark:text-gray-300 transition bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm hover:bg-gray-100 dark:hover:bg-gray-800"><Paperclip className="w-4 h-4" /> Pilih Gambar...</button>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{contentFile ? contentFile.name : 'Maks 5MB (JPG/PNG/WEBP)'}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{contentFile ? contentFile.name : 'Maks 5MB (JPG/PNG/WEBP/HEIC — otomatis WebP)'}</span>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -546,8 +577,65 @@ export default function CMSManager() {
                 <form id="form-agenda" onSubmit={handleSubmitAgenda} className="space-y-4">
                   <div><label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Nama Kegiatan</label><input type="text" required className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={agendaData.title} onChange={e => setAgendaData({ ...agendaData, title: e.target.value })} /></div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div><label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Tanggal</label><input type="date" required className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={agendaData.date} onChange={e => setAgendaData({ ...agendaData, date: e.target.value })} /></div>
-                    <div><label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Waktu (Contoh: 08:00)</label><input type="time" required className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={agendaData.time} onChange={e => setAgendaData({ ...agendaData, time: e.target.value })} /></div>
+                    <div><label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Tanggal Mulai</label><input type="date" required className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={agendaData.date} onChange={e => setAgendaData({ ...agendaData, date: e.target.value })} /></div>
+                    <div>
+                      <label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Tanggal Selesai (Opsional)</label>
+                      <input
+                        type="date"
+                        min={agendaData.date || undefined}
+                        className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300"
+                        value={agendaData.endDate}
+                        onChange={e => setAgendaData({ ...agendaData, endDate: e.target.value })}
+                      />
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Kosongkan bila kegiatan hanya satu hari. Isi bila kegiatan berlangsung beberapa hari — kalender akan memblok seluruh rentangnya.
+                      </p>
+                      {agendaData.date && agendaData.endDate && agendaData.endDate < agendaData.date && (
+                        <p role="alert" className="mt-1 text-xs font-bold text-red-600 dark:text-red-400">
+                          Tanggal selesai tidak boleh sebelum tanggal mulai.
+                        </p>
+                      )}
+                      {agendaData.date && agendaData.endDate && agendaData.endDate >= agendaData.date && (
+                        <p className="mt-1 text-xs font-bold text-amber-600 dark:text-amber-400">
+                          Kegiatan berlangsung {jumlahHariAgenda(agendaData.date, agendaData.endDate)} hari.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div><label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Waktu (Contoh: 08:00)</label><input type="time" required className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={agendaData.time} onChange={e => setAgendaData({ ...agendaData, time: e.target.value })} /></div>
+                  <div>
+                    <label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Warna Penanda Kalender</label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {WARNA_AGENDA.map((warna) => {
+                        const aktif = agendaData.color.toUpperCase() === warna;
+                        return (
+                          <button
+                            key={warna}
+                            type="button"
+                            aria-label={`Pilih warna ${warna}`}
+                            aria-pressed={aktif}
+                            onClick={() => setAgendaData({ ...agendaData, color: warna })}
+                            style={{ backgroundColor: warna }}
+                            className={`flex items-center justify-center w-8 h-8 rounded-full transition ring-offset-2 dark:ring-offset-gray-900 ${aktif ? 'ring-2 ring-gray-900 dark:ring-white' : 'ring-1 ring-black/10 hover:scale-105'}`}
+                          >
+                            {aktif && <Check className="w-4 h-4 text-white drop-shadow" />}
+                          </button>
+                        );
+                      })}
+                      <label className="flex items-center gap-2 px-2 py-1.5 text-xs font-bold border border-gray-300 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                        Warna lain
+                        <input
+                          type="color"
+                          aria-label="Pilih warna khusus"
+                          value={agendaData.color}
+                          onChange={e => setAgendaData({ ...agendaData, color: e.target.value.toUpperCase() })}
+                          className="w-7 h-7 bg-transparent border-0 cursor-pointer"
+                        />
+                      </label>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Warna ini tampil di kalender dashboard untuk menandai jenis kegiatan.
+                    </p>
                   </div>
                   <div><label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Lokasi Tempat</label><input type="text" required className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={agendaData.location} onChange={e => setAgendaData({ ...agendaData, location: e.target.value })} /></div>
                   <div><label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Deskripsi Singkat</label><textarea required rows={3} className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300 resize-none" value={agendaData.description} onChange={e => setAgendaData({ ...agendaData, description: e.target.value })}></textarea></div>
@@ -579,7 +667,7 @@ export default function CMSManager() {
                     <input
                       type="file"
                       ref={galleryFileInputRef}
-                      accept=".jpg,.jpeg,.png,.webp"
+                      accept="image/*"
                       multiple
                       onChange={e => setGalleryFiles(e.target.files ? Array.from(e.target.files) : [])}
                       className="hidden"
@@ -654,10 +742,10 @@ export default function CMSManager() {
                 <form id="form-demisioner" onSubmit={handleSubmitDemisioner} className="space-y-4">
                   <div>
                     <label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Foto ({editingId ? 'biarkan kosong bila tidak diganti' : 'Opsional'})</label>
-                    <input type="file" ref={demisionerFileInputRef} accept=".jpg,.jpeg,.png,.webp" onChange={e => setDemisionerFile(e.target.files ? e.target.files[0] : null)} className="hidden" />
+                    <input type="file" ref={demisionerFileInputRef} accept="image/*" onChange={e => setDemisionerFile(e.target.files ? e.target.files[0] : null)} className="hidden" />
                     <div className="flex items-center gap-3 border border-gray-300 dark:border-gray-700 p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800">
                       <button type="button" onClick={() => demisionerFileInputRef.current?.click()} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-700 dark:text-gray-300 transition bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-sm hover:bg-gray-100 dark:hover:bg-gray-800"><Paperclip className="w-4 h-4" /> Pilih Foto...</button>
-                      <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{demisionerFile ? demisionerFile.name : 'Maks 2MB (JPG/PNG/WEBP)'}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 truncate">{demisionerFile ? demisionerFile.name : 'Maks 2MB · otomatis WebP'}</span>
                     </div>
                   </div>
 

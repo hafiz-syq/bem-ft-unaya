@@ -13,8 +13,33 @@ interface KomentarGaleri {
   penulis: string;
   role: string;
   foto: string | null;
+  // Hanya terisi untuk komentar tamu; dipakai pengurus menilai spam.
+  ip: string | null;
+  perangkat: string | null;
   galeri: { id: string; title: string; url: string };
 }
+
+/** Ringkasan user-agent agar mudah dibaca tanpa menampilkan string panjang. */
+const ringkasPerangkat = (userAgent: string | null): string | null => {
+  if (!userAgent) return null;
+
+  const browser = /Edg\//.test(userAgent) ? 'Edge'
+    : /OPR\//.test(userAgent) ? 'Opera'
+      : /Chrome\//.test(userAgent) ? 'Chrome'
+        : /Firefox\//.test(userAgent) ? 'Firefox'
+          : /Safari\//.test(userAgent) ? 'Safari'
+            : null;
+
+  const sistem = /Android/.test(userAgent) ? 'Android'
+    : /iPhone|iPad|iPod/.test(userAgent) ? 'iOS'
+      : /Windows/.test(userAgent) ? 'Windows'
+        : /Mac OS X/.test(userAgent) ? 'macOS'
+          : /Linux/.test(userAgent) ? 'Linux'
+            : null;
+
+  if (browser && sistem) return `${browser} di ${sistem}`;
+  return browser || sistem || userAgent.slice(0, 60);
+};
 
 interface Meta {
   total: number;
@@ -65,6 +90,13 @@ export default function GalleryCommentsAdmin() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     muat();
   }, [muat]);
+
+  // Berapa kali satu alamat IP muncul di daftar ini — sinyal cepat untuk
+  // mengenali satu pengunjung yang membanjiri antrean moderasi.
+  const jumlahPerIp = komentar.reduce<Record<string, number>>((akumulasi, item) => {
+    if (item.ip) akumulasi[item.ip] = (akumulasi[item.ip] ?? 0) + 1;
+    return akumulasi;
+  }, {});
 
   const ubahStatus = async (id: string, baru: 'APPROVED' | 'REJECTED' | 'PENDING') => {
     setSedangProses(id);
@@ -196,6 +228,28 @@ export default function GalleryCommentsAdmin() {
                   </div>
 
                   <p className="mt-2 text-sm text-gray-700 break-words whitespace-pre-line dark:text-gray-300">{k.content}</p>
+
+                  {k.role === 'TAMU' && (
+                    <div className="flex flex-wrap items-center gap-2 mt-2 text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                      <span className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800">
+                        Asal: {k.ip || 'tidak tercatat'}
+                      </span>
+                      {k.perangkat && (
+                        <span
+                          title={k.perangkat}
+                          className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800"
+                        >
+                          Perangkat: {ringkasPerangkat(k.perangkat)}
+                        </span>
+                      )}
+                      {k.ip && jumlahPerIp[k.ip] > 1 && (
+                        <span className="px-2 py-0.5 font-bold rounded bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                          {jumlahPerIp[k.ip]} komentar dari IP ini
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <Link
                     to="/gallery"
                     className="inline-block mt-2 text-xs font-bold text-amber-600 hover:text-amber-700 dark:text-amber-300"

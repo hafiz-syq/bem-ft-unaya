@@ -97,6 +97,15 @@ model User {
   // StudentProfile), sehingga disimpan di tabel User, bukan hanya di profil.
   foto                 String?
   
+  // --- Perangkat & sesi (kunci perangkat) ---
+  deviceId             String?            @db.VarChar(64)
+  deviceLabel          String?            @db.VarChar(160)
+  deviceBoundAt        DateTime?
+  pendingDeviceId      String?            @db.VarChar(64)
+  pendingDeviceLabel   String?            @db.VarChar(160)
+  pendingDeviceAt      DateTime?
+  sessionVersion       Int                @default(0)
+  
   profile              StudentProfile?
   positions            Position[]
   
@@ -364,9 +373,11 @@ model Agenda {
   title            String
   description      String   @db.Text
   date             DateTime
+  endDate          DateTime?
   time             String
   location         String
   status           String   @default("UPCOMING") // 'UPCOMING' atau 'SELESAI'
+  color            String   @default("#F59E0B") @db.VarChar(7)
   registrationLink String?
   // Tautan khusus postingan media sosial (Instagram/TikTok/Facebook) untuk agenda ini.
   socialMediaLink  String?
@@ -437,6 +448,9 @@ model GalleryComment {
   authorId      String?
   author        User?               @relation("GalleryCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   guestName     String?
+  // Jejak pengirim tamu (untuk moderasi): alamat IP & perangkat.
+  guestIp       String?
+  guestUserAgent String?
   content       String              @db.Text
   // Default PENDING: komentar tampil setelah disetujui admin/pengurus.
   status        PublicCommentStatus @default(PENDING)
@@ -446,6 +460,7 @@ model GalleryComment {
   createdAt     DateTime            @default(now())
 
   @@index([galleryId, status, createdAt])
+  @@index([guestIp, createdAt])
 }
 
 /// Kode OTP & token sekali pakai untuk fitur lupa password.

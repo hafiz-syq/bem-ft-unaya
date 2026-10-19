@@ -11,6 +11,7 @@ export default function Login() {
   const [nim, setNim] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [errorPerangkat, setErrorPerangkat] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -18,6 +19,7 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setErrorPerangkat(false);
     setIsLoading(true);
 
     try {
@@ -37,6 +39,7 @@ export default function Login() {
     } catch (err) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || 'Gagal terhubung ke server');
+        setErrorPerangkat(err.response?.data?.code === 'PERANGKAT_TERKUNCI');
       } else {
         setError('Terjadi kesalahan yang tidak terduga');
       }
@@ -55,7 +58,15 @@ export default function Login() {
         </div>
 
         {error && (
-          <div role="alert" className="p-3 text-sm text-center text-red-600 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">
+          <div
+            role="alert"
+            className={`p-3 text-sm text-center rounded-lg ${
+              errorPerangkat
+                ? 'text-amber-800 bg-amber-50 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-900/60'
+                : 'text-red-600 bg-red-50 dark:bg-red-950/60 dark:text-red-300'
+            }`}
+          >
+            {errorPerangkat && <p className="font-bold mb-1">Akun sedang dipakai di perangkat lain</p>}
             {error}
           </div>
         )}

@@ -1,30 +1,45 @@
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { type ReactNode } from 'react';
 import { useAuth } from './contexts/AuthContext';
-import Login from './pages/Login';
-import LupaPassword from './pages/LupaPassword';
-import ResetPassword from './pages/ResetPassword';
-import FirstLogin from './pages/FirstLogin';
-import VerifyEmail from './pages/VerifyEmail';
-import Dashboard from './pages/Dashboard';
-import DashboardLayout from './layouts/DashboardLayout'; // Import Layout
-import Profile from './pages/Profile';
-import Students from './pages/Students';
-import Tickets from './pages/Tickets';
-import Organizations from './pages/Organizations';
-import Positions from './pages/Positions';
-import DataRequests from './pages/DataRequests';
-import AuditLogs from './pages/AuditLogs';
 import Landing from './pages/Landing';
-import CMSManager from './pages/CMSManager';
-import Agenda from './pages/Agenda';
-import Gallery from './pages/Gallery';
-import About from './pages/About';
-import PublicContentDetail from './pages/PublicContentDetail';
-import PublicComments from './pages/PublicComments';
-import Faq from './pages/Faq';
-import Demisioner from './pages/Demisioner';
-import GalleryCommentsAdmin from './pages/GalleryCommentsAdmin';
+
+// Halaman selain landing dimuat sesuai kebutuhan. Ini memangkas JavaScript
+// awal yang harus diunduh pengunjung, sehingga halaman publik tampil lebih
+// cepat terutama di jaringan kampus/HP.
+const Login = lazy(() => import('./pages/Login'));
+const LupaPassword = lazy(() => import('./pages/LupaPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const FirstLogin = lazy(() => import('./pages/FirstLogin'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const DashboardLayout = lazy(() => import('./layouts/DashboardLayout'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Students = lazy(() => import('./pages/Students'));
+const Devices = lazy(() => import('./pages/Devices'));
+const Tickets = lazy(() => import('./pages/Tickets'));
+const Organizations = lazy(() => import('./pages/Organizations'));
+const Positions = lazy(() => import('./pages/Positions'));
+const DataRequests = lazy(() => import('./pages/DataRequests'));
+const AuditLogs = lazy(() => import('./pages/AuditLogs'));
+const CMSManager = lazy(() => import('./pages/CMSManager'));
+const Agenda = lazy(() => import('./pages/Agenda'));
+const Gallery = lazy(() => import('./pages/Gallery'));
+const About = lazy(() => import('./pages/About'));
+const PublicContentDetail = lazy(() => import('./pages/PublicContentDetail'));
+const PublicComments = lazy(() => import('./pages/PublicComments'));
+const Faq = lazy(() => import('./pages/Faq'));
+const Demisioner = lazy(() => import('./pages/Demisioner'));
+const GalleryCommentsAdmin = lazy(() => import('./pages/GalleryCommentsAdmin'));
+
+/** Tampilan sementara saat potongan halaman sedang diunduh. */
+function MemuatHalaman() {
+  return (
+    <div className="flex items-center justify-center min-h-screen" role="status" aria-live="polite">
+      <span className="w-10 h-10 border-4 rounded-full border-amber-200 border-t-amber-500 animate-spin" />
+      <span className="sr-only">Memuat halaman…</span>
+    </div>
+  );
+}
 
 /**
  * Penjaga dasar: hanya memastikan pengguna sudah login.
@@ -58,8 +73,14 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 function App() {
+  useEffect(() => {
+    // Mark as hydrated after mount to ensure client-side JS takes over
+    // This prevents React hydration mismatch warnings
+  }, []);
+
   return (
-    <Routes>
+    <Suspense fallback={<MemuatHalaman />}>
+      <Routes>
       <Route path="/" element={<Landing />} />
 
       <Route path="/login" element={<Login />} />
@@ -107,6 +128,14 @@ function App() {
         <ProtectedRoute>
           <DashboardLayout>
             <Students />
+          </DashboardLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/devices" element={
+        <ProtectedRoute>
+          <DashboardLayout>
+            <Devices />
           </DashboardLayout>
         </ProtectedRoute>
       } />
@@ -181,8 +210,9 @@ function App() {
       <Route path="/demisioner" element={<Demisioner />} />
       <Route path="/post/:id" element={<PublicContentDetail />} />
 
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </Suspense>
   );
 }
 

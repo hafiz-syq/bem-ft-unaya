@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api, assetUrl } from '../lib/axios';
 import { ROLE_LABEL, isAdminRole, isStaff } from '../lib/roles';
 import ThemeToggle from '../components/ThemeToggle';
-import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2, Images } from 'lucide-react';
+import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2, Images, Smartphone } from 'lucide-react';
 
 interface Notification {
   id: string; title: string; message: string; isRead: boolean; createdAt: string;
@@ -62,6 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // tombol moderasi & balasan hanya muncul untuk pengurus dan admin.
     { name: 'Buku Tamu', path: '/buku-tamu', icon: MessageSquare, show: true },
     { name: 'Data Mahasiswa', path: '/students', icon: Users, show: isStaff(role) },
+    { name: 'Perangkat & Sesi', path: '/devices', icon: Smartphone, show: isAdminRole(role) },
     { name: 'Master Organisasi', path: '/organizations', icon: Building2, show: isAdminRole(role) },
     { name: 'Kepengurusan', path: '/positions', icon: UserPlus, show: isAdminRole(role) },
     { name: 'Konten Web Publik', path: '/cms', icon: Globe, show: isStaff(role) },

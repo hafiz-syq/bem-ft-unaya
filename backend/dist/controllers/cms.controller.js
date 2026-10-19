@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPublicStructure = exports.updateSiteSettings = exports.getSiteSettings = exports.deleteGallery = exports.updateGallery = exports.createGallery = exports.getGalleries = exports.deleteAgenda = exports.updateAgenda = exports.createAgenda = exports.getAgendas = exports.deleteContent = exports.updateContent = exports.createContent = exports.getContentById = exports.getContents = void 0;
+exports.getPublicStructure = exports.updateSiteSettings = exports.getSiteSettings = exports.deleteGallery = exports.updateGallery = exports.createGallery = exports.getGalleries = exports.deleteAgenda = exports.updateAgenda = exports.createAgenda = exports.getAgendaIcs = exports.getAgendas = exports.deleteContent = exports.updateContent = exports.createContent = exports.getContentById = exports.getContents = void 0;
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const audit_service_1 = require("../services/audit.service");
 const account_lifecycle_service_1 = require("../services/account-lifecycle.service");
@@ -118,6 +118,34 @@ const deleteContent = async (req, res, next) => {
 };
 exports.deleteContent = deleteContent;
 // ================= AGENDA =================
+const WARNA_AGENDA_BAWAAN = '#F59E0B';
+const POLA_WARNA = /^#[0-9a-fA-F]{6}$/;
+/** Tanggal agenda disimpan apa adanya dari input `YYYY-MM-DD` (UTC tengah malam). */
+const bacaTanggal = (nilai) => {
+    if (!nilai)
+        return null;
+    const tanggal = new Date(String(nilai));
+    return Number.isNaN(tanggal.getTime()) ? null : tanggal;
+};
+/**
+ * Menormalkan rentang agenda.
+ * `endDate` yang sama dengan tanggal mulai disimpan sebagai NULL supaya agenda
+ * satu hari tidak dianggap multi-hari oleh kalender.
+ */
+const rentangAgenda = (mulai, selesai) => {
+    if (!selesai)
+        return { ok: true, endDate: null };
+    if (selesai < mulai) {
+        return { ok: false, pesan: 'Tanggal selesai tidak boleh sebelum tanggal mulai.' };
+    }
+    return { ok: true, endDate: selesai.getTime() === mulai.getTime() ? null : selesai };
+};
+const bacaWarna = (nilai) => {
+    if (nilai === undefined || nilai === null || nilai === '')
+        return WARNA_AGENDA_BAWAAN;
+    const warna = String(nilai).trim();
+    return POLA_WARNA.test(warna) ? warna.toUpperCase() : null;
+};
 const getAgendas = async (req, res, next) => {
     try {
         const agendas = await prisma_1.default.agenda.findMany({
@@ -131,16 +159,103 @@ const getAgendas = async (req, res, next) => {
     }
 };
 exports.getAgendas = getAgendas;
+// ================= AGENDA → BERKAS KALENDER (.ics) =================
+// Semua pengunjung bisa mengunduh agenda sebagai berkas kalender standar
+// (RFC 5545) untuk ditambahkan ke Google Calendar / Outlook / HP.
+/** Karakter yang wajib di-escape dalam teks iCalendar. */
+const escapeIcs = (teks) => String(teks ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+/** Lipat baris > 75 oktet dengan kelanjutan spasi (aturan iCalendar). */
+const lipatIcs = (baris) => {
+    if (baris.length <= 75)
+        return baris;
+    const bagian = [];
+    let sisa = baris;
+    while (sisa.length > 74) {
+        bagian.push(sisa.slice(0, 74));
+        sisa = ' ' + sisa.slice(74);
+    }
+    bagian.push(sisa);
+    return bagian.join('\r\n');
+};
+/** Angka dua digit. */
+const duaDigit = (n) => String(n).padStart(2, '0');
+/**
+ * Waktu agenda ("HH:MM" WIB, tanpa zona yang bergeser) menjadi bentuk UTC
+ * iCalendar `YYYYMMDDTHHMMSSZ` (+ menit offset untuk DTEND).
+ */
+const waktuIcsUtc = (tanggal, jamText, tambahMenit = 0) => {
+    const [t, m] = (jamText || '').split(':').map((v) => parseInt(v, 10) || 0);
+    const d = new Date(`${String(tanggal).slice(0, 10)}T00:00:00Z`);
+    d.setUTCMinutes(d.getUTCMinutes() + t * 60 + m + tambahMenit);
+    return `${d.getUTCFullYear()}${duaDigit(d.getUTCMonth() + 1)}${duaDigit(d.getUTCDate())}T${duaDigit(d.getUTCHours())}${duaDigit(d.getUTCMinutes())}00Z`;
+};
+/** GET /api/cms/agendas/calendar.ics — seluruh agenda sebagai berkas .ics. */
+const getAgendaIcs = async (req, res, next) => {
+    try {
+        const agendas = await prisma_1.default.agenda.findMany({ orderBy: { date: 'asc' } });
+        const sekarang = `${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`;
+        const baris = [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            'PRODID:-//BEM FT UNAYA//Agenda//ID',
+            'CALSCALE:GREGORIAN',
+            'METHOD:PUBLISH',
+            'X-WR-CALNAME:Agenda BEM FT UNAYA',
+        ];
+        for (const a of agendas) {
+            const mulai = waktuIcsUtc(String(a.date), a.time || '00:00');
+            // DTEND: multi-hari memakai akhir endDate (23:59 WIB); satu agenda:
+            // asumsi ±2 jam dari mulai karena server hanya menyimpan jam mulai.
+            const akhir = a.endDate
+                ? waktuIcsUtc(String(a.endDate), '23:59')
+                : waktuIcsUtc(String(a.date), a.time || '00:00', 120);
+            baris.push('BEGIN:VEVENT', `UID:agenda-${a.id}@bem-ft-unaya`, `DTSTAMP:${sekarang}`, `DTSTART:${mulai}`, `DTEND:${akhir}`, `SUMMARY:${escapeIcs(a.title)}`, `DESCRIPTION:${escapeIcs(a.description || '')}`, `LOCATION:${escapeIcs(a.location || '')}`, `CATEGORIES:BEM FT UNAYA`, 'END:VEVENT');
+        }
+        baris.push('END:VCALENDAR');
+        const isi = baris.map(lipatIcs).join('\r\n') + '\r\n';
+        res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="agenda-bem-ft-unaya.ics"');
+        res.status(200).send(isi);
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.getAgendaIcs = getAgendaIcs;
 const createAgenda = async (req, res, next) => {
     try {
-        const { title, description, date, time, location, registrationLink, socialMediaLink } = req.body;
+        const { title, description, date, endDate, color, time, location, registrationLink, socialMediaLink } = req.body;
         if (!title || !date || !time || !location || !description) {
             res.status(400).json({ message: 'Semua kolom wajib diisi.' });
             return;
         }
+        const mulai = bacaTanggal(date);
+        if (!mulai) {
+            res.status(400).json({ message: 'Tanggal mulai tidak valid.' });
+            return;
+        }
+        const selesai = bacaTanggal(endDate);
+        if (endDate && !selesai) {
+            res.status(400).json({ message: 'Tanggal selesai tidak valid.' });
+            return;
+        }
+        const rentang = rentangAgenda(mulai, selesai);
+        if (!rentang.ok) {
+            res.status(400).json({ message: rentang.pesan });
+            return;
+        }
+        const warna = bacaWarna(color);
+        if (!warna) {
+            res.status(400).json({ message: 'Warna harus berupa kode heksadesimal, misalnya #F59E0B.' });
+            return;
+        }
         const newAgenda = await prisma_1.default.agenda.create({
             data: {
-                title, description, date: new Date(date), time, location,
+                title, description, date: mulai, endDate: rentang.endDate, color: warna, time, location,
                 registrationLink: registrationLink || null,
                 socialMediaLink: socialMediaLink || null,
                 authorId: req.user.id
@@ -157,7 +272,7 @@ exports.createAgenda = createAgenda;
 const updateAgenda = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { title, description, date, time, location, registrationLink, socialMediaLink } = req.body;
+        const { title, description, date, endDate, color, time, location, registrationLink, socialMediaLink } = req.body;
         const lama = await prisma_1.default.agenda.findUnique({ where: { id } });
         if (!lama) {
             res.status(404).json({ message: 'Agenda tidak ditemukan.' });
@@ -168,8 +283,36 @@ const updateAgenda = async (req, res, next) => {
             data.title = title;
         if (description !== undefined)
             data.description = description;
-        if (date)
-            data.date = new Date(date);
+        // Rentang divalidasi terhadap nilai baru yang benar-benar akan disimpan,
+        // bukan hanya field yang dikirim, supaya mengubah salah satu ujung rentang
+        // tidak menghasilkan agenda dengan tanggal selesai mendahului tanggal mulai.
+        if (date !== undefined || endDate !== undefined) {
+            const mulai = date !== undefined ? bacaTanggal(date) : lama.date;
+            if (!mulai) {
+                res.status(400).json({ message: 'Tanggal mulai tidak valid.' });
+                return;
+            }
+            const selesai = endDate === undefined ? lama.endDate : bacaTanggal(endDate);
+            if (endDate && !selesai) {
+                res.status(400).json({ message: 'Tanggal selesai tidak valid.' });
+                return;
+            }
+            const rentang = rentangAgenda(mulai, selesai);
+            if (!rentang.ok) {
+                res.status(400).json({ message: rentang.pesan });
+                return;
+            }
+            data.date = mulai;
+            data.endDate = rentang.endDate;
+        }
+        if (color !== undefined) {
+            const warna = bacaWarna(color);
+            if (!warna) {
+                res.status(400).json({ message: 'Warna harus berupa kode heksadesimal, misalnya #F59E0B.' });
+                return;
+            }
+            data.color = warna;
+        }
         if (time !== undefined)
             data.time = time;
         if (location !== undefined)

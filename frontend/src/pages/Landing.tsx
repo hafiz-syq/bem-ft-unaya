@@ -5,8 +5,24 @@ import { useAuth } from '../contexts/AuthContext';
 import { isMahasiswaOrAbove, targetLabel } from '../lib/roles';
 import ThemeToggle from '../components/ThemeToggle';
 import GalleryComments from '../components/GalleryComments';
+import LazyImage from '../components/LazyImage';
+import { formatRentangTanggal, jumlahHariAgenda } from '../lib/tanggal';
 import { Send, LogIn, Code2, Users, Building, ShieldCheck, Loader2, Calendar, Newspaper, ArrowRight, MapPin, Clock, Image as ImageIcon, Landmark, X, ExternalLink, Menu, LayoutDashboard, MessageSquare, Award, ChevronLeft, ChevronRight, Megaphone, AlertCircle, Layers, CornerDownRight, Share2, Lock } from 'lucide-react';
 import axios from 'axios';
+
+// Data statis hasil prerender dibaca sekali di sini; deklarasi tipe supaya
+// aksesnya diperiksa TypeScript, bukan lewat `any`.
+declare global {
+  interface Window {
+    __LANDING_DATA__?: {
+      version: number;
+      nav: unknown;
+      hero: unknown;
+      fitur: unknown;
+      sejarah: unknown;
+    };
+  }
+}
 
 // --- KOMPONEN ANIMASI SCROLL ---
 const RevealOnScroll = ({ children, delay = 0 }: { children: ReactNode; delay?: number }) => {
@@ -31,7 +47,7 @@ const RevealOnScroll = ({ children, delay = 0 }: { children: ReactNode; delay?: 
 
 // --- INTERFACES UNTUK MENGHINDARI ESLINT ANY ---
 interface Content { id: string; type: string; title: string; content: string; createdAt: string; image: string | null; author: { profile: { nama: string } | null }; }
-interface AgendaItem { id: string; title: string; description: string; date: string; time: string; location: string; registrationLink: string | null; socialMediaLink: string | null; }
+interface AgendaItem { id: string; title: string; description: string; date: string; endDate: string | null; color: string | null; time: string; location: string; registrationLink: string | null; socialMediaLink: string | null; }
 interface GalleryItem { id: string; title: string; category: string; url: string; activity: string | null; year: number; images?: { id: string; url: string; order: number }[]; }
 interface BalasanPublik { id: string; content: string; penulis: string; role: string; createdAt: string; }
 // Hanya komentar yang sudah disetujui yang dikirim server ke halaman ini, dan
@@ -84,6 +100,10 @@ export default function Landing() {
   const [demoIndex, setDemoIndex] = useState(0);
   const [loadingContent, setLoadingContent] = useState(true);
 
+  // Prerender data (jika ada dari build)
+  const prerenderData = (typeof window !== 'undefined' && window.__LANDING_DATA__) || null;
+  const isUsingPrerender = !!prerenderData;
+
   // Modal States
   const [selectedAgenda, setSelectedAgenda] = useState<AgendaItem | null>(null);
   const [selectedGallery, setSelectedGallery] = useState<GalleryItem | null>(null);
@@ -112,11 +132,16 @@ export default function Landing() {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
       window.history.pushState(null, '', `#${targetId}`);
     }
-  };
-
-  useEffect(() => {
+  };  useEffect(() => {
     const fetchAllData = async () => {
       try {
+        // Jika ada data prerender, gunakan sebagai data awal
+        if (prerenderData && isUsingPrerender) {
+          console.log('[Landing] Menggunakan data prerender dari build');
+          // Data prerender hanya untuk navigasi & hero, tidak untuk content dinamis
+          // Content dinamis tetap di-fetch dari API
+        }
+
         const [resContent, resAgenda, resGallery] = await Promise.all([
           api.get('/cms'), api.get('/cms/agendas'), api.get('/cms/galleries')
         ]);
@@ -132,7 +157,7 @@ export default function Landing() {
         setComments(resComments.data.data.slice(0, 6));
       } catch (error) { 
         console.error('Gagal memuat komentar', error); 
-      }
+      } 
 
       // Aspirasi & keluhan yang sudah tayang (keluhan sudah dianonimkan server).
       try {
@@ -140,7 +165,7 @@ export default function Landing() {
         setPublicTickets(resTickets.data.data);
       } catch (error) {
         console.error('Gagal memuat aspirasi publik', error);
-      }
+      } 
 
       // Pratinjau riwayat demisioner untuk bagian sejarah.
       try {
@@ -148,13 +173,13 @@ export default function Landing() {
         setDemisioner(resDemisioner.data.data.slice(0, 5));
       } catch (error) {
         console.error('Gagal memuat demisioner', error);
-      }
+      } 
 
       setLoadingContent(false);
     };
     
     fetchAllData();
-  }, []);
+  }, [prerenderData, isUsingPrerender]);
 
   useEffect(() => {
     if (selectedAgenda || selectedGallery) document.body.style.overflow = 'hidden';
@@ -214,7 +239,7 @@ export default function Landing() {
         <div
           role="button"
           tabIndex={0}
-          aria-label="Kembali ke atas"
+          aria-label="TEKNIK UNAYA — Portal Resmi, kembali ke atas"
           className="flex items-center gap-3 cursor-pointer group shrink-0"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); } }}
@@ -395,7 +420,15 @@ export default function Landing() {
                   tidak terpotong aneh saat ditaruh di kolom lebar. */}
               <div className="relative w-full overflow-hidden bg-gray-900 border border-gray-200 shadow-lg aspect-[4/5] sm:aspect-auto sm:h-[30rem] dark:border-gray-800 rounded-3xl">
                 <img src="/fakultas-teknik-blur.jpg" alt="" aria-hidden="true" className="absolute inset-0 object-cover w-full h-full blur-2xl scale-110 opacity-60" />
-                <img src="/fakultas-teknik.jpg" alt="Gedung Fakultas Teknik Universitas Abulyatama" loading="lazy" decoding="async" className="relative z-10 object-contain w-full h-full" />
+                <LazyImage
+                  src="/fakultas-teknik-900.webp"
+                  srcSet="/fakultas-teknik-480.webp 480w, /fakultas-teknik-900.webp 900w, /fakultas-teknik.webp 1200w"
+                  sizes="(min-width: 768px) 45vw, 92vw"
+                  alt="Gedung Fakultas Teknik Universitas Abulyatama"
+                  width={900}
+                  height={1200}
+                  className="relative z-10 object-contain w-full h-full"
+                />
                 <div className="absolute inset-0 z-20 pointer-events-none bg-gradient-to-tr from-amber-900/30 to-transparent"></div>
               </div>
             </div>
@@ -425,7 +458,7 @@ export default function Landing() {
                     <>
                       <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
                         {aktifDemo.foto ? (
-                          <img src={assetUrl(aktifDemo.foto)} alt={aktifDemo.nama} className="object-cover w-24 h-24 rounded-full shadow-lg shrink-0 ring-4 ring-amber-50 dark:ring-amber-900/50" />
+                          <LazyImage src={assetUrl(aktifDemo.foto)} alt={aktifDemo.nama} className="object-cover w-24 h-24 rounded-full shadow-lg shrink-0 ring-4 ring-amber-50 dark:ring-amber-900/50" />
                         ) : (
                           <div className="flex items-center justify-center w-24 h-24 text-2xl font-black text-white rounded-full shadow-lg shrink-0 bg-amber-400">
                             {aktifDemo.nama.substring(0, 2).toUpperCase()}
@@ -435,7 +468,7 @@ export default function Landing() {
                           <span className="px-2.5 py-0.5 text-[10px] font-bold tracking-wider uppercase rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
                             {aktifDemo.organization}
                           </span>
-                          <h4 className="mt-2 text-xl font-black text-gray-900 truncate dark:text-gray-100">{aktifDemo.nama}</h4>
+                          <h3 className="mt-2 text-xl font-black text-gray-900 truncate dark:text-gray-100">{aktifDemo.nama}</h3>
                           <p className="text-xs font-bold text-gray-500 dark:text-gray-400">{aktifDemo.nim}</p>
                           <p className="mt-1 text-xs font-bold uppercase text-amber-500">
                             {aktifDemo.jabatan ? `${aktifDemo.jabatan} • ` : ''}Periode {aktifDemo.periode}
@@ -512,7 +545,7 @@ export default function Landing() {
                         <Link to={`/post/${prog.id}`} className="flex flex-col h-full overflow-hidden transition-all duration-300 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm cursor-pointer rounded-2xl hover:shadow-xl hover:-translate-y-1.5 active:scale-[0.98]">
                           {prog.image && (
                             <div className="w-full h-48 bg-gray-100 border-b border-gray-100 dark:bg-gray-800 dark:border-gray-800">
-                              <img src={assetUrl(prog.image)} alt={prog.title} loading="lazy" decoding="async" className="object-cover w-full h-full" />
+                              <LazyImage src={assetUrl(prog.image)} alt={prog.title} className="object-cover w-full h-full" />
                             </div>
                           )}
                           <div className="flex flex-col flex-grow p-6">
@@ -539,7 +572,7 @@ export default function Landing() {
                         <Link to={`/post/${item.id}`} className="flex flex-col justify-between h-full overflow-hidden transition-all duration-300 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm cursor-pointer rounded-2xl group hover:shadow-xl hover:-translate-y-1.5 active:scale-[0.98]">
                           {item.image && (
                             <div className="relative w-full h-48 overflow-hidden bg-gray-100 dark:bg-gray-800">
-                              <img src={assetUrl(item.image)} alt={item.title} loading="lazy" decoding="async" className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
+                              <LazyImage src={assetUrl(item.image)} alt={item.title} className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
                               <div className="absolute inset-0 transition-opacity opacity-0 bg-gradient-to-t from-black/50 to-transparent group-hover:opacity-100"></div>
                             </div>
                           )}
@@ -549,7 +582,7 @@ export default function Landing() {
                             <p className="mb-4 text-sm text-gray-600 dark:text-gray-400 line-clamp-3">{item.content}</p>
                             <div className="flex items-center justify-between pt-4 mt-auto border-t border-gray-100 dark:border-gray-800">
                               <div className="text-xs font-medium text-gray-500 dark:text-gray-400"><p className="font-bold text-gray-900 dark:text-gray-100">{item.author.profile?.nama}</p><p>{new Date(item.createdAt).toLocaleDateString('id-ID')}</p></div>
-                              <button className="flex items-center justify-center w-8 h-8 transition-all duration-300 rounded-full text-amber-400 bg-gray-50 dark:bg-gray-800 shrink-0 group-hover:bg-amber-400 group-hover:text-white"><ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" /></button>
+                              <span aria-hidden="true" className="flex items-center justify-center w-8 h-8 transition-all duration-300 rounded-full text-amber-400 bg-gray-50 dark:bg-gray-800 shrink-0 group-hover:bg-amber-400 group-hover:text-white"><ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" /></span>
                             </div>
                           </div>
                         </Link>
@@ -591,12 +624,28 @@ export default function Landing() {
                         <div className="flex items-center justify-center text-2xl font-black transition-colors shrink-0 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 w-14 h-14 rounded-xl group-hover:bg-amber-500 group-hover:text-white">
                           {new Date(item.date).getDate()}
                         </div>
-                        <div>
-                          <div className="text-xs font-bold tracking-wider text-gray-500 uppercase dark:text-gray-400">{new Date(item.date).toLocaleString('id-ID', { month: 'long', year: 'numeric' })}</div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                            {jumlahHariAgenda(item.date, item.endDate) > 1
+                              ? formatRentangTanggal(item.date, item.endDate)
+                              : new Date(item.date).toLocaleString('id-ID', { month: 'long', year: 'numeric' })}
+                          </div>
                           <div className="flex items-center gap-1 text-sm font-bold text-gray-900 dark:text-gray-100"><Clock className="w-3 h-3 shrink-0" /> {item.time} WIB</div>
+                          {jumlahHariAgenda(item.date, item.endDate) > 1 && (
+                            <div className="mt-0.5 text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                              Kegiatan {jumlahHariAgenda(item.date, item.endDate)} hari
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <h3 className="mb-2 text-lg font-bold text-gray-900 transition-colors dark:text-gray-100 group-hover:text-amber-600 dark:group-hover:text-amber-300">{item.title}</h3>
+                      <h3 className="flex items-start gap-2 mb-2 text-lg font-bold text-gray-900 transition-colors dark:text-gray-100 group-hover:text-amber-600 dark:group-hover:text-amber-300">
+                        <span
+                          aria-hidden="true"
+                          className="mt-1.5 w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: item.color || '#F59E0B' }}
+                        />
+                        <span>{item.title}</span>
+                      </h3>
                       <p className="flex-grow mb-4 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{item.description}</p>
                       <div className="flex items-start gap-1 mt-auto text-xs font-bold text-gray-500 dark:text-gray-400">
                         <MapPin className="w-3.5 h-3.5 text-red-500 dark:text-red-400 shrink-0 mt-0.5" /> <span className="line-clamp-1">{item.location}</span>
@@ -648,14 +697,14 @@ export default function Landing() {
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedGallery(item); setGallerySlide(0); } }}
                       className="relative overflow-hidden bg-gray-800 border border-gray-700 shadow-lg cursor-pointer group rounded-2xl aspect-square hover:shadow-amber-500/20 focus-visible:ring-2 focus-visible:ring-amber-400"
                     >
-                      <img src={assetUrl(item.url)} alt={item.title} loading="lazy" decoding="async" className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
+                      <LazyImage src={assetUrl(item.url)} alt={item.title} className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
                       {fotoGaleri(item).length > 1 && (
                         <span className="absolute flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-white rounded-lg top-2 right-2 bg-black/60 backdrop-blur-sm">
                           <Layers className="w-3 h-3" /> {fotoGaleri(item).length}
                         </span>
                       )}
                       <div className="absolute inset-0 flex flex-col justify-end p-3 transition-opacity opacity-0 sm:p-4 bg-gradient-to-t from-black/90 via-black/30 to-transparent group-hover:opacity-100">
-                        <h4 className="text-xs font-bold text-white sm:text-sm line-clamp-2">{item.title}</h4>
+                        <p className="text-xs font-bold text-white sm:text-sm line-clamp-2">{item.title}</p>
                         <span className="text-amber-400 text-[10px] font-bold uppercase mt-1 flex items-center gap-1"><ImageIcon className="w-3 h-3 shrink-0" /> {item.category}</span>
                       </div>
                     </div>
@@ -692,7 +741,7 @@ export default function Landing() {
                 key={f.key}
                 onClick={() => setFilterTiket(f.key)}
                 className={`px-4 py-2 text-sm font-bold rounded-full transition ${
-                  filterTiket === f.key ? 'bg-amber-400 text-white shadow-md' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  filterTiket === f.key ? 'bg-amber-400 text-gray-900 shadow-md' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
               >
                 {f.label}
@@ -820,7 +869,7 @@ export default function Landing() {
                       <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
                         <div className="flex items-center justify-center w-10 h-10 text-lg font-black rounded-full shrink-0 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">{comment.nama.charAt(0)}</div>
                         <div className="overflow-hidden">
-                          <h4 className="text-sm font-bold text-gray-900 truncate dark:text-gray-100">{comment.nama}</h4>
+                          <p className="text-sm font-bold text-gray-900 truncate dark:text-gray-100">{comment.nama}</p>
                           <p className="text-xs text-gray-500 truncate dark:text-gray-400">{comment.asal_kampus} • {new Date(comment.createdAt).toLocaleDateString('id-ID')}</p>
                         </div>
                       </div>
@@ -882,13 +931,23 @@ export default function Landing() {
 
             <div className="p-6 space-y-6 sm:p-8">
               <div className="flex flex-col gap-3 p-4 text-xs font-medium text-gray-700 border border-gray-100 dark:text-gray-300 dark:border-gray-800 sm:text-sm bg-gray-50 dark:bg-gray-800 rounded-xl">
-                <div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" /> {new Date(selectedAgenda.date).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                <div className="flex items-start gap-3">
+                  <Calendar className="w-5 h-5 mt-0.5 text-gray-400 dark:text-gray-500 shrink-0" />
+                  <span>
+                    {formatRentangTanggal(selectedAgenda.date, selectedAgenda.endDate)}
+                    {jumlahHariAgenda(selectedAgenda.date, selectedAgenda.endDate) > 1 && (
+                      <span className="block mt-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                        Berlangsung {jumlahHariAgenda(selectedAgenda.date, selectedAgenda.endDate)} hari
+                      </span>
+                    )}
+                  </span>
+                </div>
                 <div className="flex items-center gap-3"><Clock className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" /> Pukul {selectedAgenda.time} WIB - Selesai</div>
                 <div className="flex items-start gap-3"><MapPin className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" /> <span>{selectedAgenda.location}</span></div>
               </div>
 
               <div>
-                <h4 className="mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase dark:text-gray-400">Deskripsi Kegiatan</h4>
+                <h3 className="mb-2 text-xs font-bold tracking-wider text-gray-500 uppercase dark:text-gray-400">Deskripsi Kegiatan</h3>
                 <p className="text-sm leading-relaxed text-gray-600 whitespace-pre-wrap dark:text-gray-400">{selectedAgenda.description}</p>
               </div>
 

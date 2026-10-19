@@ -54,7 +54,8 @@ const loginLimiter = (0, express_rate_limit_1.default)({
 router.post('/login', loginLimiter, auth_controller_1.login);
 // Endpoint First Login (Wajib menyertakan token dari login awal)
 // Email & no_hp wajib; foto profil opsional dikirim sebagai multipart/form-data dengan field "foto"
-router.post('/first-login', auth_middleware_1.requireAuth, upload_middleware_1.uploadPhoto.single('foto'), auth_controller_1.completeFirstLogin);
+const unggahFotoProfil = (0, upload_middleware_1.denganWebp)(upload_middleware_1.uploadPhoto);
+router.post('/first-login', auth_middleware_1.requireAuth, unggahFotoProfil.single('foto'), auth_controller_1.completeFirstLogin);
 // Endpoint verifikasi email
 // Dibatasi per PENGGUNA, bukan per alamat IP: di jaringan kampus banyak mahasiswa
 // berbagi satu IP publik, jadi batas per-IP akan memblokir semua orang sekaligus
@@ -103,11 +104,20 @@ router.post('/logout', (req, res) => {
 // Endpoint untuk mengecek status sesi aktif saat ini.
 // Dibaca langsung dari database (bukan dari isi token) supaya status first_login
 // dan status verifikasi email tidak pernah basi setelah pengguna mengubahnya.
-router.get('/me', auth_middleware_1.requireAuth, async (req, res, next) => {
+//
+// Tamu (belum punya sesi) mendapat 200 dengan `user: null`, bukan 401. Ini
+// disengaja: halaman publik memanggil endpoint ini saat pertama dibuka, dan
+// balasan 401 membuat browser mencatat error jaringan di console pengunjung.
+// Endpoint yang memang butuh login tetap memakai requireAuth dan mengembalikan 401.
+router.get('/me', auth_middleware_1.optionalAuth, async (req, res, next) => {
     try {
+        if (!req.user) {
+            res.json({ user: null });
+            return;
+        }
         const user = await prisma_1.default.user.findUnique({ where: { id: req.user.id }, include: { profile: true } });
         if (!user) {
-            res.status(401).json({ message: 'Sesi tidak valid atau telah berakhir.' });
+            res.json({ user: null });
             return;
         }
         res.json({ user: (0, auth_controller_1.buildAuthUser)(user, user.profile) });

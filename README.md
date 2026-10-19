@@ -80,8 +80,47 @@ bem-ft-unaya/
 └── README.md              # file ini
 ```
 
+## Skalabilitas & Klaster Database
+
+Kapasitas satu MySQL masih jauh lebih besar daripada beban portal ini (pembaca publik + belasan pengurus). Urutan peningkatan yang disarankan — jangan lompat ke klaster sebelum langkah murah terbukti kurang:
+
+1. **Indeks & query.** Agenda sudah berindeks pada kolom `date`; komentar galeri berindeks pada `(galleryId, status, createdAt)` dan `(guestIp, createdAt)`. Halaman publik hanya membaca data yang dibutuhkan (komentar tayang, agenda terurut).
+2. **Connection pool.** Batasi koneksi per proses lewat `connection_limit` pada `DATABASE_URL` (contoh di `backend/.env.example`). Terlalu banyak koneksi justru memperlambat MySQL.
+3. **Cache & kompresi di depan API.** Nginx/Cloudflare dengan gzip/brotli, cache aset statis (`/assets`, `/uploads`) dan `Cache-Control` panjang; API tetap dinamis. Ini biasanya menaikkan kapasitas lebih besar daripada menambah replika database.
+4. **Klaster database (bila perlu).** Pola umum MySQL: satu **primary** untuk tulis + satu/lebih **replica** untuk baca, dengan **ProxySQL** atau **MySQL Router** di depan. `DATABASE_URL` diarahkan ke proxy, bukan ke replica langsung. Catatan penting: Prisma tidak otomatis memisahkan baca/tulis. Agar replica benar-benar meringankan primary, endpoint baca berat (landing, agenda, galeri) perlu koneksi Prisma terpisah ke replica, dan Anda harus siap dengan *replication lag* (data yang baru ditulis bisa belum terlihat di replica). Untuk kebutuhan saat ini, langkah ini belum diperlukan.
+5. **Multi-instance API.** Bila API dijalankan lebih dari satu proses/server, pembatas komentar tamu yang disimpan di memori (5 komentar/10 menit per IP) berlaku per instance. Pindahkan penghitung itu ke Redis agar batasnya berlaku menyeluruh, dan aktifkan `TRUST_PROXY=1` supaya IP pengunjung terbaca benar di balik proxy.
+
+Backup rutin dan pemantauan query lambat (`slow_query_log`) lebih mendesak daripada clustering. Lakukan keduanya sebelum menambah replika.
+
+## Kunci Satu Perangkat
+
+Setiap akun hanya boleh aktif di **satu perangkat** pada satu waktu.
+
+- Login pertama (setelah migrasi ini dipasang) otomatis mengikat akun ke browser/perangkat yang dipakai. ID perangkat dibuat acak oleh frontend dan disimpan di `localStorage`, lalu dikirim lewat header `X-Device-Id`.
+- Login dari perangkat lain ditolak dengan kode `PERANGKAT_TERKUNCI`, dan percobaannya dicatat (`pendingDevice`) agar admin melihat perangkat mana yang ingin dipakai.
+- **ADMIN** dan **SUPERADMIN** membuka menu **Perangkat & Sesi** untuk:
+  - **Izinkan perangkat baru** — memindahkan akun ke perangkat yang terakhir mencoba login. Perangkat lama langsung keluar.
+  - **Tolak percobaan** — mengabaikan percobaan tanpa mengganggu perangkat lama.
+  - **Lepas kunci** — membebaskan akun; perangkat pertama yang dipakai setelahnya akan mengunci lagi. Cocok bila perangkat lama dijual/rusak dan pengguna belum mencoba login dari perangkat baru.
+- Setiap izinkan/lepas menaikkan `sessionVersion`, sehingga cookie lama langsung tidak sah tanpa menunggu token kedaluwarsa.
+- ADMIN tidak dapat mengelola perangkat akun ADMIN/SUPERADMIN lain; aturan ini hanya untuk SUPERADMIN (sejalan dengan aturan pengelolaan akun yang sudah ada).
+
+Catatan: ini penguncian praktis, bukan attestation perangkat. Menyalin nilai `bem-ft-id-perangkat` dari `localStorage` ke browser lain secara teknis bisa memindahkan "identitas perangkat"; menghapus data situs juga membuat perangkat dianggap baru. Karena itu admin tetap punya jalur izinkan/lepas.
+
+## Konversi Gambar ke WebP
+
+Saat ini **semua unggahan gambar** diproses di server sebelum disimpan:
+
+- Berlaku untuk foto profil, cover konten CMS, foto galeri (banyak sekaligus), foto demisioner, dan lampiran gambar tiket.
+- Format selain WebP (JPG, PNG, HEIC/HEIF bila didukung sharp, GIF, AVIF, TIFF, dsb.) diubah menjadi WebP kualitas 82 dan orientasi EXIF dirapikan. Gambar yang sudah WebP tidak dikompresi ulang.
+- PDF tetap disimpan sebagai PDF (lampiran tiket). SVG ditolak karena bisa memuat skrip.
+- Batas ukuran unggahan **tidak berubah**: foto profil 2 MB dan lampiran/CMS 5 MB, dihitung dari berkas asli sebelum konversi. Bila ingin menerima foto kamera HP yang lebih besar, naikkan `UPLOAD_LIMITS` di `backend/src/middlewares/upload.middleware.ts` sekaligus teks batas di frontend.
+- `sharp` sudah tercantum di `backend/package.json`; jalankan `npm install` di `backend/` setelah menarik perubahan ini.
+
 ## Keamanan Akses (ringkas)
 
 - Autentikasi memakai JWT berbasis cookie.
 - Pembatasan peran: `TAMU → MAHASISWA → PENGURUS (BEM/DPM) → ADMIN → SUPERADMIN`, ditentukan `requireRole` di route dan/atau `isAdminRole` di controller.
 - Setiap perubahan rute penting pantau lewat `npm test` (matriks akses rute) agar tidak ada endpoint yang tanpa sengaja kehilangan penjaga peran.
+- Kunci perangkat diperiksa di `requireAuth`/`optionalAuth` pada setiap permintaan, bukan hanya saat login. Rute baru otomatis ikut terlindungi selama memakai middleware tersebut.
+- Uji matriks akses kini mencakup `GET /api/devices` dan `POST /api/devices/:id/reset`.

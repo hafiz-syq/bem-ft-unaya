@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, hydrateRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
@@ -9,7 +9,7 @@ import './index.css';
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
 
-createRoot(rootEl).render(
+const aplikasi = (
   <StrictMode>
     <BrowserRouter>
       <ThemeProvider>
@@ -18,8 +18,17 @@ createRoot(rootEl).render(
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
-  </StrictMode>,
+  </StrictMode>
 );
+
+if (rootEl.hasChildNodes()) {
+  // Prerender di build sudah menempelkan markup landing ke #root. React
+  // mengambil alih markup itu tanpa merender ulang dari nol — konten tetap
+  // tampak, semua fitur interaktif (menu, tema, form, dsb.) langsung hidup.
+  hydrateRoot(rootEl, aplikasi);
+} else {
+  createRoot(rootEl).render(aplikasi);
+}
 
 if (typeof document !== 'undefined' && document.documentElement) {
   document.documentElement.setAttribute('lang', 'id');

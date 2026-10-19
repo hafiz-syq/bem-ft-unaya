@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useSyncExternalStore, type ReactNode } from 'react';
 
 type Tema = 'light' | 'dark';
 
@@ -18,24 +18,6 @@ const ThemeContext = createContext<NilaiTema | undefined>(undefined);
 function sistemGelap(): boolean {
   if (typeof window === 'undefined' || !window.matchMedia) return false;
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
-}
-
-function bacaDariStorage(): Tema | null {
-  try {
-    const dariLocal = localStorage.getItem(KUNCI_TEMA);
-    if (dariLocal === 'dark' || dariLocal === 'light') return dariLocal;
-  } catch {
-    // localStorage tidak tersedia, lanjutkan ke cookie.
-  }
-
-  try {
-    const dariCookie = bacaCookie(KUNCI_COOKIE);
-    if (dariCookie === 'dark' || dariCookie === 'light') return dariCookie;
-  } catch {
-    // Cookie tidak tersedia.
-  }
-
-  return sistemGelap() ? 'dark' : 'light';
 }
 
 function bacaCookie(name: string): string | null {
@@ -60,27 +42,73 @@ function hapusCookie(name: string) {
   document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax`;
 }
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [pilihanAwal, setPilihanAwal] = useState<Tema | null>(bacaDariStorage);
-  const [temaSistem, setTemaSistem] = useState<Tema>(() => (sistemGelap() ? 'dark' : 'light'));
-  const [gagalSimpan, setGagalSimpan] = useState(false);
+// === Toko tema (langganan eksternal) ========================================
+// Tema adalah "external store": penyimpanannya berada di luar React
+// (localStorage, cookie, preferensi sistem). Pembacaannya dipasangkan lewat
+// useSyncExternalStore sehingga:
+// - render pertama klien memakai SNAPSHOT SERVER ('light') yang sama dengan
+//   hasil prerender — tidak ada ketidakcocokan hidrasi (React #418);
+// - perubahan matchMedia/storage dipantau lewat langganan, bukan setState di
+//   dalam effect (lint react-hooks/set-state-in-effect).
 
-  const tema = pilihanAwal ?? temaSistem;
+const pendengarTema = new Set<() => void>();
+const beriGantiTema = () => pendengarTema.forEach((p) => p());
+
+/** Nilai pilihan pengguna yang tersimpan eksplisit (localStorage → cookie). */
+function bacaPilihanTersimpan(): Tema | null {
+  try {
+    const dariLocal = localStorage.getItem(KUNCI_TEMA);
+    if (dariLocal === 'dark' || dariLocal === 'light') return dariLocal;
+  } catch {
+    // localStorage tidak tersedia (prerender / blokir), lanjut ke cookie.
+  }
+  try {
+    const dariCookie = bacaCookie(KUNCI_COOKIE);
+    if (dariCookie === 'dark' || dariCookie === 'light') return dariCookie;
+  } catch {
+    // document tidak tersedia (prerender di Node).
+  }
+  return null;
+}
+
+/** Tema efektif untuk sekarang: pilihan pengguna bila ada, bila tidak sistem. */
+function temSaIni(): Tema {
+  return bacaPilihanTersimpan() ?? (sistemGelap() ? 'dark' : 'light');
+}
+
+// Catatan kegagalan simpan terakhir (dipantau lewat toko yang sama).
+let gagalSimpanToko = false;
+const bacaGagalSimpan = (): boolean => gagalSimpanToko;
+
+function langgananTema(pemberitahu: () => void): () => void {
+  pendengarTema.add(pemberitahu);
+
+  if (typeof window === 'undefined') {
+    return () => pendengarTema.delete(pemberitahu);
+  }
+
+  const media = window.matchMedia?.('(prefers-color-scheme: dark)');
+  media?.addEventListener?.('change', pemberitahu);
+  window.addEventListener('storage', pemberitahu);
+
+  return () => {
+    pendengarTema.delete(pemberitahu);
+    media?.removeEventListener?.('change', pemberitahu);
+    window.removeEventListener('storage', pemberitahu);
+  };
+}
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  // Snapshot server sengaja 'light' dan identik dengan render hasil prerender.
+  const tema = useSyncExternalStore(langgananTema, temSaIni, () => 'light' as Tema);
+  const pilihanAwal = useSyncExternalStore(langgananTema, bacaPilihanTersimpan, () => null);
+  const gagalSimpan = useSyncExternalStore(langgananTema, bacaGagalSimpan, () => false);
 
   useEffect(() => {
     terapkan(tema);
   }, [tema]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const dengar = (e: MediaQueryListEvent) => setTemaSistem(e.matches ? 'dark' : 'light');
-    media.addEventListener('change', dengar);
-    return () => media.removeEventListener('change', dengar);
-  }, []);
-
   const setTema = useCallback((baru: Tema) => {
-    setPilihanAwal(baru);
     let berhasil = false;
     try {
       localStorage.setItem(KUNCI_TEMA, baru);
@@ -104,8 +132,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         // Cookie pun tidak bisa ditulis; tema tetap berlaku untuk sesi ini.
       }
     }
-    setGagalSimpan(!berhasil);
-    terapkan(baru);
+    gagalSimpanToko = !berhasil;
+    // Beri tahu langganan: React membaca ulang snapshot dan merender ulang.
+    beriGantiTema();
   }, []);
 
   const gantiTema = useCallback(() => {

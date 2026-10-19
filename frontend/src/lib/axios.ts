@@ -13,11 +13,48 @@ import axios from 'axios';
  */
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
-  `${window.location.protocol}//${window.location.hostname}:3000/api`;
+  (typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}:3000/api`
+    // Prerender di build berjalan di Node tanpa window; nilai ini hanya
+    // digunakan komponen yang tidak pernah mengirim permintaan saat render.
+    : 'http://localhost:3000/api');
+
+// --- Identitas perangkat -----------------------------------------------
+// ID acak disimpan di localStorage dan dikirim pada setiap permintaan. Backend
+// memakainya untuk mengunci akun ke satu perangkat. Nilainya bukan sidik jari
+// browser; hanya pembeda perangkat yang stabil selama penyimpanan tidak dihapus.
+const KUNCI_PERANGKAT = 'bem-ft-id-perangkat';
+
+const buatIdPerangkat = (): string => {
+  try {
+    const tersimpan = localStorage.getItem(KUNCI_PERANGKAT);
+    if (tersimpan && /^[A-Za-z0-9_-]{8,64}$/.test(tersimpan)) return tersimpan;
+
+    const baru = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `dev-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+
+    localStorage.setItem(KUNCI_PERANGKAT, baru);
+    return baru;
+  } catch {
+    // Penyimpanan diblokir (mode privat ketat). Jangan membuat ID sementara:
+    // ID yang berubah setiap muat halaman akan mengunci pengguna dari akunnya
+    // sendiri. Tanpa header, akun baru tetap bisa dipakai dan baru akan terikat
+    // saat pengguna membuka aplikasi di browser yang mengizinkan localStorage.
+    return '';
+  }
+};
+
+export const ID_PERANGKAT = buatIdPerangkat();
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
+});
+
+api.interceptors.request.use((config) => {
+  if (ID_PERANGKAT) config.headers.set('X-Device-Id', ID_PERANGKAT);
+  return config;
 });
 
 /** Akar server (tanpa /api), dipakai untuk membentuk URL berkas unggahan. */

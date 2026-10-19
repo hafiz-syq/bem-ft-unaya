@@ -10,8 +10,8 @@ import {
   verifikasiKodeReset,
   resetPassword,
 } from '../controllers/auth.controller';
-import { requireAuth } from '../middlewares/auth.middleware';
-import { uploadPhoto } from '../middlewares/upload.middleware';
+import { optionalAuth, requireAuth } from '../middlewares/auth.middleware';
+import { denganWebp, uploadPhoto } from '../middlewares/upload.middleware';
 import prisma from '../lib/prisma';
 import { opsiHapusCookieToken, TOKEN_COOKIE } from '../lib/cookies';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
@@ -30,7 +30,8 @@ router.post('/login', loginLimiter, login);
 
 // Endpoint First Login (Wajib menyertakan token dari login awal)
 // Email & no_hp wajib; foto profil opsional dikirim sebagai multipart/form-data dengan field "foto"
-router.post('/first-login', requireAuth, uploadPhoto.single('foto'), completeFirstLogin);
+const unggahFotoProfil = denganWebp(uploadPhoto);
+router.post('/first-login', requireAuth, unggahFotoProfil.single('foto'), completeFirstLogin);
 
 // Endpoint verifikasi email
 // Dibatasi per PENGGUNA, bukan per alamat IP: di jaringan kampus banyak mahasiswa
@@ -88,11 +89,21 @@ router.post('/logout', (req: Request, res: Response) => {
 // Endpoint untuk mengecek status sesi aktif saat ini.
 // Dibaca langsung dari database (bukan dari isi token) supaya status first_login
 // dan status verifikasi email tidak pernah basi setelah pengguna mengubahnya.
-router.get('/me', requireAuth, async (req: any, res: Response, next: NextFunction): Promise<void> => {
+//
+// Tamu (belum punya sesi) mendapat 200 dengan `user: null`, bukan 401. Ini
+// disengaja: halaman publik memanggil endpoint ini saat pertama dibuka, dan
+// balasan 401 membuat browser mencatat error jaringan di console pengunjung.
+// Endpoint yang memang butuh login tetap memakai requireAuth dan mengembalikan 401.
+router.get('/me', optionalAuth, async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    if (!req.user) {
+      res.json({ user: null });
+      return;
+    }
+
     const user = await prisma.user.findUnique({ where: { id: req.user.id }, include: { profile: true } });
     if (!user) {
-      res.status(401).json({ message: 'Sesi tidak valid atau telah berakhir.' });
+      res.json({ user: null });
       return;
     }
     res.json({ user: buildAuthUser(user, user.profile) });
