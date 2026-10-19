@@ -66,6 +66,16 @@ export const sedangDiperpanjang = (
  * Urutannya penting: baris yang punya foreign key wajib dibersihkan lebih dulu.
  */
 export async function purgeStudentAccount(userId: string): Promise<void> {
+  // Penjaga terakhir: akun pengelola tidak boleh terhapus lewat jalur mana pun,
+  // termasuk job otomatis yang datanya mungkin sudah tidak sinkron.
+  const akun = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (akun && (akun.role === 'ADMIN' || akun.role === 'SUPERADMIN')) {
+    throw new Error('Akun administrator/superadmin tidak boleh dihapus oleh siklus hidup otomatis.');
+  }
+
   await prisma.$transaction(async (tx) => {
     // 1. Tiket yang ia kirim: lampiran, balasan, dan penugasan harus lebih dulu.
     const tickets = await tx.ticket.findMany({ where: { senderId: userId }, select: { id: true } });
@@ -131,6 +141,7 @@ export async function purgeStudentAccount(userId: string): Promise<void> {
 export interface LifecycleResult {
   dinonaktifkan: number;
   dihapus: number;
+  dipulihkan: number;
   gagal: string[];
   detailDinonaktifkan: string[];
 }
@@ -139,6 +150,15 @@ export interface LifecycleResult {
 export async function runAccountLifecycleJob(): Promise<LifecycleResult> {
   const sekarang = new Date();
   const batasAngkatan = sekarang.getFullYear() - MASA_STUDI_TAHUN;
+
+  // --- 0. Akun pengelola tidak pernah nonaktif ---
+  // Job ini adalah jaring pengaman terakhir: kalau status nonaktif terlanjur
+  // tertulis pada akun ADMIN/SUPERADMIN (mis. perubahan manual di database),
+  // akunnya dipulihkan di sini dan kejadiannya dicatat ke audit log.
+  const pemulihan = await prisma.user.updateMany({
+    where: { role: { in: ['ADMIN', 'SUPERADMIN'] }, isActive: false },
+    data: { isActive: true, deactivatedAt: null, deactivationType: null, tenggatHapus: null },
+  });
 
   // --- 1. Nonaktifkan otomatis mahasiswa yang masa studinya habis ---
   // Akun yang sedang dalam perpanjangan masa studi dilewati, walau angkatannya
@@ -176,6 +196,8 @@ export async function runAccountLifecycleJob(): Promise<LifecycleResult> {
     where: {
       isActive: false,
       deactivationType: 'AUTO',
+      // Akun pengelola tidak pernah ikut dihapus, walau datanya tidak sinkron.
+      role: { notIn: ['ADMIN', 'SUPERADMIN'] },
       OR: [
         { tenggatHapus: { lte: sekarang } },
         { tenggatHapus: null, deactivatedAt: { lte: batasHapus } },
@@ -198,9 +220,20 @@ export async function runAccountLifecycleJob(): Promise<LifecycleResult> {
   const hasil: LifecycleResult = {
     dinonaktifkan: akanDinonaktifkan.length,
     dihapus: akanDihapus.length - gagal.length,
+    dipulihkan: pemulihan.count,
     gagal,
     detailDinonaktifkan: akanDinonaktifkan.map((u) => u.nim),
   };
+
+  if (pemulihan.count > 0) {
+    await logSystemActivity(
+      'RESTORE_ADMIN_ACCOUNT',
+      'User',
+      `${pemulihan.count} akun administrator/superadmin yang sempat nonaktif dipulihkan otomatis`,
+      undefined,
+      { total: pemulihan.count }
+    );
+  }
 
   if (hasil.dinonaktifkan > 0 || hasil.dihapus > 0 || gagal.length > 0) {
     console.log(

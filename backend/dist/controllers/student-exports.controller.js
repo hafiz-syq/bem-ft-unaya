@@ -7,6 +7,7 @@ exports.exportMahasiswa = void 0;
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const audit_service_1 = require("../services/audit.service");
 const account_lifecycle_service_1 = require("../services/account-lifecycle.service");
+const ticket_access_1 = require("../lib/ticket-access");
 // Lokasi kolom CSV untuk tabel mahasiswa
 const HEADER_LAHAN = ['No', 'NIM', 'Nama', 'Program Studi', 'Email', 'No HP', 'Angkatan', 'Role', 'Jabatan', 'Organisasi', 'Status', 'Dilarang Login', 'Tenggat Hapus'];
 /**
@@ -16,18 +17,20 @@ const HEADER_LAHAN = ['No', 'NIM', 'Nama', 'Program Studi', 'Email', 'No HP', 'A
  */
 const exportMahasiswa = async (req, res, next) => {
     try {
-        if (!req.user || req.user.role !== 'ADMIN') {
+        if (!req.user || !(0, ticket_access_1.isAdminRole)(req.user.role)) {
             res.status(403).json({ message: 'Hanya admin yang dapat mengekspor data mahasiswa.' });
             return;
         }
         const { search, status, role } = req.query;
-        // Bangun filter
-        const where = { role: { not: 'ADMIN' } };
+        // Bangun filter. Akun SUPERADMIN tidak pernah ikut diekspor (akun pengelola
+        // web); akun ADMIN hanya ikut bila memang difilter oleh SUPERADMIN.
+        const bisaLihatAdmin = req.user.role === 'SUPERADMIN';
+        const where = { role: { notIn: bisaLihatAdmin ? ['SUPERADMIN'] : ['ADMIN', 'SUPERADMIN'] } };
         if (status === 'AKTIF')
             where.isActive = true;
         else if (status === 'NONAKTIF')
             where.isActive = false;
-        if (role && role !== 'ALL')
+        if (role && role !== 'ALL' && (role !== 'ADMIN' || bisaLihatAdmin))
             where.role = role;
         if (search) {
             where.OR = [
@@ -69,7 +72,7 @@ const exportMahasiswa = async (req, res, next) => {
                 m.nim,
                 m.profile?.nama ?? '-',
                 m.profile?.program_studi ?? '-',
-                m.profile?.email ?? '-',
+                m.email ?? m.profile?.email ?? '-',
                 m.profile?.no_hp ?? '-',
                 String(angkatan ?? '-'),
                 m.role,

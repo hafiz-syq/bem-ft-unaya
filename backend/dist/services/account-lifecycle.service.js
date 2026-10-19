@@ -64,6 +64,15 @@ exports.sedangDiperpanjang = sedangDiperpanjang;
  * Urutannya penting: baris yang punya foreign key wajib dibersihkan lebih dulu.
  */
 async function purgeStudentAccount(userId) {
+    // Penjaga terakhir: akun pengelola tidak boleh terhapus lewat jalur mana pun,
+    // termasuk job otomatis yang datanya mungkin sudah tidak sinkron.
+    const akun = await prisma_1.default.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+    });
+    if (akun && (akun.role === 'ADMIN' || akun.role === 'SUPERADMIN')) {
+        throw new Error('Akun administrator/superadmin tidak boleh dihapus oleh siklus hidup otomatis.');
+    }
     await prisma_1.default.$transaction(async (tx) => {
         // 1. Tiket yang ia kirim: lampiran, balasan, dan penugasan harus lebih dulu.
         const tickets = await tx.ticket.findMany({ where: { senderId: userId }, select: { id: true } });
@@ -122,6 +131,14 @@ async function purgeStudentAccount(userId) {
 async function runAccountLifecycleJob() {
     const sekarang = new Date();
     const batasAngkatan = sekarang.getFullYear() - exports.MASA_STUDI_TAHUN;
+    // --- 0. Akun pengelola tidak pernah nonaktif ---
+    // Job ini adalah jaring pengaman terakhir: kalau status nonaktif terlanjur
+    // tertulis pada akun ADMIN/SUPERADMIN (mis. perubahan manual di database),
+    // akunnya dipulihkan di sini dan kejadiannya dicatat ke audit log.
+    const pemulihan = await prisma_1.default.user.updateMany({
+        where: { role: { in: ['ADMIN', 'SUPERADMIN'] }, isActive: false },
+        data: { isActive: true, deactivatedAt: null, deactivationType: null, tenggatHapus: null },
+    });
     // --- 1. Nonaktifkan otomatis mahasiswa yang masa studinya habis ---
     // Akun yang sedang dalam perpanjangan masa studi dilewati, walau angkatannya
     // sudah lewat batas, supaya keputusan admin tidak langsung dibatalkan job ini.
@@ -156,6 +173,8 @@ async function runAccountLifecycleJob() {
         where: {
             isActive: false,
             deactivationType: 'AUTO',
+            // Akun pengelola tidak pernah ikut dihapus, walau datanya tidak sinkron.
+            role: { notIn: ['ADMIN', 'SUPERADMIN'] },
             OR: [
                 { tenggatHapus: { lte: sekarang } },
                 { tenggatHapus: null, deactivatedAt: { lte: batasHapus } },
@@ -177,9 +196,13 @@ async function runAccountLifecycleJob() {
     const hasil = {
         dinonaktifkan: akanDinonaktifkan.length,
         dihapus: akanDihapus.length - gagal.length,
+        dipulihkan: pemulihan.count,
         gagal,
         detailDinonaktifkan: akanDinonaktifkan.map((u) => u.nim),
     };
+    if (pemulihan.count > 0) {
+        await (0, audit_service_1.logSystemActivity)('RESTORE_ADMIN_ACCOUNT', 'User', `${pemulihan.count} akun administrator/superadmin yang sempat nonaktif dipulihkan otomatis`, undefined, { total: pemulihan.count });
+    }
     if (hasil.dinonaktifkan > 0 || hasil.dihapus > 0 || gagal.length > 0) {
         console.log(`[siklus akun] ${hasil.dinonaktifkan} dinonaktifkan otomatis, ` +
             `${hasil.dihapus} dihapus permanen, ${gagal.length} gagal.`);

@@ -3,9 +3,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requireRole = exports.requireAuth = void 0;
+exports.requireRole = exports.optionalAuth = exports.requireAuth = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const prisma_1 = __importDefault(require("../lib/prisma"));
+const ticket_access_1 = require("../lib/ticket-access");
 const requireAuth = async (req, res, next) => {
     try {
         // Membaca token dari httpOnly cookie
@@ -29,10 +30,21 @@ const requireAuth = async (req, res, next) => {
             return;
         }
         if (!akun.isActive) {
-            res.status(403).json({
-                message: 'Akun ini sudah dinonaktifkan. Silakan hubungi administrator.',
-            });
-            return;
+            // Akun pengelola tidak pernah ditolak: statusnya dipulihkan saat itu juga.
+            // Ini penjagaan terakhir supaya kesalahan status pada ADMIN/SUPERADMIN
+            // tidak bisa mengunci seluruh sistem.
+            if ((0, ticket_access_1.isAdminRole)(akun.role)) {
+                await prisma_1.default.user.update({
+                    where: { id: akun.id },
+                    data: { isActive: true, deactivatedAt: null, deactivationType: null, tenggatHapus: null },
+                });
+            }
+            else {
+                res.status(403).json({
+                    message: 'Akun ini sudah dinonaktifkan. Silakan hubungi administrator.',
+                });
+                return;
+            }
         }
         // Role diambil dari database agar keputusan otorisasi selalu mengikuti keadaan
         // terkini, bukan role saat token dibuat.
@@ -44,6 +56,37 @@ const requireAuth = async (req, res, next) => {
     }
 };
 exports.requireAuth = requireAuth;
+/**
+ * Seperti requireAuth, tetapi tamu tetap dilanjutkan tanpa `req.user`.
+ *
+ * Dipakai pada endpoint publik yang ingin mengenali pengguna login bila ada,
+ * mis. komentar galeri: tamu boleh menulis dengan nama sendiri, sedangkan
+ * pengguna login otomatis memakai identitas akunnya. Token yang tidak valid
+ * diperlakukan sebagai tamu, bukan 401, supaya sesi kedaluwarsa tidak
+ * menghalangi pengunjung biasa.
+ */
+const optionalAuth = async (req, _res, next) => {
+    const token = req.cookies?.token;
+    if (!token) {
+        next();
+        return;
+    }
+    try {
+        const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
+        const akun = await prisma_1.default.user.findUnique({
+            where: { id: decoded.id },
+            select: { id: true, nim: true, role: true, isActive: true },
+        });
+        if (akun?.isActive) {
+            req.user = { ...decoded, id: akun.id, nim: akun.nim, role: akun.role };
+        }
+    }
+    catch {
+        // Token tidak valid/kedaluwarsa: lanjut sebagai tamu.
+    }
+    next();
+};
+exports.optionalAuth = optionalAuth;
 const requireRole = (roles) => {
     return (req, res, next) => {
         if (!req.user || !roles.includes(req.user.role)) {

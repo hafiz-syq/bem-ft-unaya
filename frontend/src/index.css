@@ -17,6 +17,20 @@ html.dark {
   color-scheme: dark;
 }
 
+/* Hormati preferensi pengguna mengurangi animasi ( Web Interface Guidelines ):
+   animasi & transisi dipangkas hampir ke nol, tapi tetap disertakan agar
+   perpindahan state (mis. modal muncul/hilang) masih ter-render dengan benar. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Scrollbar diseragamkan untuk KEDUA tema: lebar, track, radius, dan
    tombol panah memakai aturan yang sama persis — hanya warnanya yang
    mengikuti tema. Sebelumnya hanya tema gelap yang distyle, sedangkan tema

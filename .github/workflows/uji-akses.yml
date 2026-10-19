@@ -202,6 +202,12 @@ jobs:
           npx prisma generate
           npx tsc --noEmit
 
+      # Unit test murni (tanpa server & tanpa DB): aturan privasi tiket dan
+      # guard peran di controller kritis. Gagal bila guard dihapus/dilunakkan.
+      - name: Backend — unit test kritis
+        working-directory: backend
+        run: npm run test:unit
+
       - name: Frontend — lint & build
         working-directory: frontend
         run: |

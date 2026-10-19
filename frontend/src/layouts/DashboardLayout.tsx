@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { api, assetUrl } from '../lib/axios';
-import { ROLE_LABEL, isStaff } from '../lib/roles';
+import { ROLE_LABEL, isAdminRole, isStaff } from '../lib/roles';
 import ThemeToggle from '../components/ThemeToggle';
-import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2 } from 'lucide-react';
+import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2, Images } from 'lucide-react';
 
 interface Notification {
   id: string; title: string; message: string; isRead: boolean; createdAt: string;
@@ -62,10 +62,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // tombol moderasi & balasan hanya muncul untuk pengurus dan admin.
     { name: 'Buku Tamu', path: '/buku-tamu', icon: MessageSquare, show: true },
     { name: 'Data Mahasiswa', path: '/students', icon: Users, show: isStaff(role) },
-    { name: 'Master Organisasi', path: '/organizations', icon: Building2, show: role === 'ADMIN' },
-    { name: 'Kepengurusan', path: '/positions', icon: UserPlus, show: role === 'ADMIN' },
+    { name: 'Master Organisasi', path: '/organizations', icon: Building2, show: isAdminRole(role) },
+    { name: 'Kepengurusan', path: '/positions', icon: UserPlus, show: isAdminRole(role) },
     { name: 'Konten Web Publik', path: '/cms', icon: Globe, show: isStaff(role) },
-    { name: 'Audit Log', path: '/audit', icon: Activity, show: role === 'ADMIN' },
+    { name: 'Komentar Galeri', path: '/galeri-komentar', icon: Images, show: isStaff(role) },
+    { name: 'Audit Log', path: '/audit', icon: Activity, show: isAdminRole(role) },
   ];
 
   const allowedMenus = menuItems.filter(item => item.show);
@@ -76,6 +77,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex w-full min-h-screen overflow-x-hidden bg-gray-50 dark:bg-gray-950">
+
+      {/* Tautan lompat: agar pengguna keyboard langsung ke konten utama */}
+      <a
+        href="#konten-utama"
+        className="sr-only focus:not-sr-only focus:fixed focus:z-[200] focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:font-bold focus:text-white focus:bg-amber-500 focus:rounded-lg"
+      >
+        Lewati ke konten utama
+      </a>
 
       {/* Sidebar Desktop */}
       <aside className="fixed z-10 flex-col hidden w-64 h-full bg-white border-r border-gray-200 dark:bg-gray-900 dark:border-gray-800 md:flex">
@@ -88,7 +97,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
             return (
-              <Link key={item.path} to={item.path} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200 ${isActive ? 'bg-amber-400 text-white shadow-md dark:bg-amber-500' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'}`}>
+              <Link key={item.path} to={item.path} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition duration-200 ${isActive ? 'bg-amber-400 text-white shadow-md dark:bg-amber-500' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'}`}>
                 <Icon className="w-5 h-5 shrink-0" /> {item.name}
               </Link>
             );
@@ -96,7 +105,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
         <Link
           to="/"
-          className="flex items-center gap-3 px-4 py-3 mx-4 mb-4 text-sm font-bold text-gray-700 transition-all border border-gray-200 rounded-lg shadow-sm bg-gray-50 hover:bg-amber-100 hover:text-amber-700 dark:text-gray-300 dark:border-gray-800 dark:bg-gray-800 dark:hover:bg-amber-900/40 dark:hover:text-amber-300"
+          className="flex items-center gap-3 px-4 py-3 mx-4 mb-4 text-sm font-bold text-gray-700 transition border border-gray-200 rounded-lg shadow-sm bg-gray-50 hover:bg-amber-100 hover:text-amber-700 dark:text-gray-300 dark:border-gray-800 dark:bg-gray-800 dark:hover:bg-amber-900/40 dark:hover:text-amber-300"
         >
           <Home className="w-5 h-5 shrink-0" />
           Lihat Halaman Utama
@@ -246,7 +255,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        <main className="flex-1 w-full min-w-0 overflow-x-hidden">{children}</main>
+        <main id="konten-utama" tabIndex={-1} className="flex-1 w-full min-w-0 overflow-x-hidden outline-none">{children}</main>
       </div>
     </div>
   );

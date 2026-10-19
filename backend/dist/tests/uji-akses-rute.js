@@ -24,6 +24,29 @@ const BARIS = [
     { metode: 'POST', jalur: '/auth/verify-email', harapan: { tamu: 401 } },
     { metode: 'POST', jalur: '/auth/resend-verification', harapan: { tamu: 401 } },
     { metode: 'POST', jalur: '/auth/logout', harapan: { tamu: 'DIIZINKAN' }, amanDiuji: true },
+    // ── Ganti password & lupa password (fitur baru) ────────────────────────
+    { metode: 'POST', jalur: '/auth/change-password', harapan: { tamu: 401 } },
+    {
+        metode: 'POST',
+        jalur: '/auth/lupa-password',
+        harapan: { tamu: 'DIIZINKAN' },
+        amanDiuji: true,
+        catatan: 'body kosong ditolak validasi (400) sebelum menyentuh database atau mengirim email',
+    },
+    {
+        metode: 'POST',
+        jalur: '/auth/lupa-password/verifikasi',
+        harapan: { tamu: 'DIIZINKAN' },
+        amanDiuji: true,
+        catatan: 'body kosong ditolak validasi (400)',
+    },
+    {
+        metode: 'POST',
+        jalur: '/auth/reset-password',
+        harapan: { tamu: 'DIIZINKAN' },
+        amanDiuji: true,
+        catatan: 'tanpa token ditolak validasi (400)',
+    },
     // ── profile.routes.ts ───────────────────────────────────────────────────
     { metode: 'GET', jalur: '/profile/me', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
     { metode: 'PUT', jalur: '/profile/me', harapan: { tamu: 401 } },
@@ -54,13 +77,13 @@ const BARIS = [
         metode: 'POST',
         jalur: '/positions/slots',
         harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 },
-        temuan: 'route hanya memakai requireAuth tanpa penjaga peran, jadi akun mana pun yang login bisa membuat slot jabatan (probe body kosong ditolak 400 oleh validasi, bukan oleh pemeriksaan peran).',
+        catatan: 'penjaga peran ada di controller (createPositionSlot) via isAdminRole.',
     },
     {
         metode: 'POST',
         jalur: '/positions/assign',
         harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 },
-        temuan: 'route hanya memakai requireAuth; dengan body yang sah akun mana pun bisa mengangkat pengurus (bahkan menaikkan dirinya dari MAHASISWA menjadi PENGURUS).',
+        catatan: 'penjaga peran ada di controller (assignPosition) via isAdminRole.',
     },
     {
         metode: 'DELETE',
@@ -75,14 +98,14 @@ const BARIS = [
         metode: 'PUT',
         jalur: '/data-requests/:id/process',
         harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 },
-        temuan: 'route hanya memakai requireAuth dan controller tidak memeriksa peran maupun kepemilikan, jadi akun mana pun bisa memproses pengajuan perubahan data orang lain (seharusnya admin/pengurus).',
+        catatan: 'penjaga peran ada di controller (processRequest) via isAdminRole.',
     },
     // ── audit.routes.ts ─────────────────────────────────────────────────────
     {
         metode: 'GET',
         jalur: '/audit',
         harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
-        temuan: 'route hanya memakai requireAuth, sehingga mahasiswa bisa membaca seluruh audit log, padahal menu Audit Log hanya ditampilkan untuk admin di antarmuka.',
+        catatan: 'penjaga peran ada di controller (getAuditLogs) via isAdminRole.',
     },
     // ── notification.routes.ts ──────────────────────────────────────────────
     { metode: 'GET', jalur: '/notifications', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
@@ -105,6 +128,10 @@ const BARIS = [
     { metode: 'POST', jalur: '/public-comments/:commentId/report', harapan: { tamu: 401 } },
     // ── dashboard.routes.ts ─────────────────────────────────────────────────
     { metode: 'GET', jalur: '/dashboard/stats', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
+    { metode: 'GET', jalur: '/dashboard/statistik', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
+    // ── dashboard-charts.routes.ts ───────────────────────────────────────────
+    { metode: 'GET', jalur: '/dashboard/charts', harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
+    { metode: 'GET', jalur: '/dashboard/charts/export-impor', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' } },
     // ── cms.routes.ts ───────────────────────────────────────────────────────
     { metode: 'GET', jalur: '/cms/settings', harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' } },
     { metode: 'PUT', jalur: '/cms/settings', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
@@ -117,6 +144,23 @@ const BARIS = [
     { metode: 'POST', jalur: '/cms/galleries', harapan: { tamu: 401, mahasiswa: 403 } },
     { metode: 'PUT', jalur: '/cms/galleries/:id', harapan: { tamu: 401, mahasiswa: 403 } },
     { metode: 'DELETE', jalur: '/cms/galleries/:id', harapan: { tamu: 401, mahasiswa: 403 } },
+    // Komentar galeri: membaca & mengirim publik (tamu mengisi nama), moderasi pengurus/admin.
+    {
+        metode: 'GET',
+        jalur: '/cms/galleries/:id/comments',
+        harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+        catatan: 'galeri uji tidak ada, jadi 404 tetap dianggap diizinkan (bukan 401/403)',
+    },
+    {
+        metode: 'POST',
+        jalur: '/cms/galleries/:id/comments',
+        harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' },
+        amanDiuji: true,
+        catatan: 'isi komentar kosong ditolak validasi (400) sebelum menulis apa pun',
+    },
+    { metode: 'GET', jalur: '/cms/gallery-comments', harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
+    { metode: 'PATCH', jalur: '/cms/gallery-comments/:id/status', harapan: { tamu: 401, mahasiswa: 403 } },
+    { metode: 'DELETE', jalur: '/cms/gallery-comments/:id', harapan: { tamu: 401, mahasiswa: 403 } },
     { metode: 'GET', jalur: '/cms', harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' } },
     { metode: 'POST', jalur: '/cms', harapan: { tamu: 401, mahasiswa: 403 } },
     { metode: 'GET', jalur: '/cms/:id', harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' } },

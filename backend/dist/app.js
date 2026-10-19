@@ -21,6 +21,7 @@ const notification_routes_1 = __importDefault(require("./routes/notification.rou
 const cms_routes_1 = __importDefault(require("./routes/cms.routes"));
 const demisioner_routes_1 = __importDefault(require("./routes/demisioner.routes"));
 const faq_routes_1 = __importDefault(require("./routes/faq.routes"));
+const dashboard_charts_routes_1 = __importDefault(require("./routes/dashboard-charts.routes"));
 const student_exports_routes_1 = __importDefault(require("./routes/student-exports.routes"));
 const notifikasi_perpanjangan_routes_1 = __importDefault(require("./routes/notifikasi-perpanjangan.routes"));
 const upload_middleware_1 = require("./middlewares/upload.middleware");
@@ -73,6 +74,7 @@ app.use('/api/data-requests', data_request_routes_1.default);
 app.use('/api/audit', audit_routes_1.default);
 app.use('/api/public-comments', public_comment_routes_1.default);
 app.use('/api/dashboard', dashboard_routes_1.default);
+app.use('/api/dashboard', dashboard_charts_routes_1.default);
 app.use('/api/notifications', notification_routes_1.default);
 app.use('/api/cms', cms_routes_1.default);
 app.use('/api/demisioner', demisioner_routes_1.default);

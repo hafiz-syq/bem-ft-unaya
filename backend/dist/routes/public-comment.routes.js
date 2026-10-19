@@ -7,7 +7,7 @@ const ticket_access_1 = require("../lib/ticket-access");
 const router = (0, express_1.Router)();
 // --- Pengurus & admin: meninjau dan membalas -----------------------------
 // Didaftarkan lebih dulu agar /manage tidak pernah tertutup rute publik di bawah.
-const pengelola = [auth_middleware_1.requireAuth, (0, auth_middleware_1.requireRole)(['ADMIN', ...ticket_access_1.OFFICER_ROLES])];
+const pengelola = [auth_middleware_1.requireAuth, (0, auth_middleware_1.requireRole)(['ADMIN', 'SUPERADMIN', ...ticket_access_1.OFFICER_ROLES])];
 router.get('/manage', ...pengelola, public_comment_controller_1.getCommentsForManagement);
 router.patch('/manage/:id/status', ...pengelola, public_comment_controller_1.ubahStatusKomentar);
 router.post('/manage/:id/replies', ...pengelola, public_comment_controller_1.balasKomentar);

@@ -11,7 +11,7 @@ import { requireAuth, requireRole } from '../middlewares/auth.middleware';
 const router = Router();
 
 // Master organisasi adalah area admin (lihat menu "Master Organisasi").
-router.use(requireAuth, requireRole(['ADMIN']));
+router.use(requireAuth, requireRole(['ADMIN', 'SUPERADMIN']));
 
 router.get('/', getOrganizations);
 router.post('/', createOrganization);

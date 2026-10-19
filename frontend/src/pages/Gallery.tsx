@@ -1,8 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, assetUrl } from '../lib/axios';
-import { Loader2, Code2, ArrowLeft, ChevronLeft, ChevronRight, Images, X, Layers } from 'lucide-react';
+import {
+  Loader2, Code2, ArrowLeft, ChevronLeft, ChevronRight, Images, X, Layers,
+} from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
+import GalleryComments from '../components/GalleryComments';
 
 interface GalleryImage {
   id: string;
@@ -26,6 +29,9 @@ export default function Gallery() {
   const [selected, setSelected] = useState<GalleryItem | null>(null);
   const [slide, setSlide] = useState(0);
 
+  const trackRef = useRef<HTMLDivElement>(null);
+  const thumbRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
   useEffect(() => {
     api.get('/cms/galleries')
       .then(res => setGalleries(res.data.data))
@@ -47,10 +53,54 @@ export default function Gallery() {
     setSlide(0);
   };
 
-  const geser = (arah: number) => {
-    if (fotoTerpilih.length === 0) return;
-    setSlide((prev) => (prev + arah + fotoTerpilih.length) % fotoTerpilih.length);
+  /**
+   * Menggeser carousel satu foto ke kiri/kanan dengan animasi halus.
+   * Carousel-nya sendiri adalah kontainer scroll ber-snap, jadi geseran jari
+   * di layar sentuh dan swipe trackpad sudah mulus tanpa kode tambahan.
+   */
+  const geser = useCallback((arah: number) => {
+    const el = trackRef.current;
+    if (!el || fotoTerpilih.length === 0) return;
+
+    const berikutnya = (slide + arah + fotoTerpilih.length) % fotoTerpilih.length;
+    el.scrollTo({ left: berikutnya * el.clientWidth, behavior: 'smooth' });
+    setSlide(berikutnya);
+  }, [slide, fotoTerpilih.length]);
+
+  /** Sinkronkan nomor slide saat pengguna menggeser sendiri. */
+  const saatScroll = () => {
+    const el = trackRef.current;
+    if (!el || el.clientWidth === 0) return;
+    const indeks = Math.round(el.scrollLeft / el.clientWidth);
+    setSlide(Math.min(Math.max(indeks, 0), Math.max(fotoTerpilih.length - 1, 0)));
   };
+
+  /** Lompat ke foto tertentu (thumbnail) dengan scroll halus. */
+  const pilihSlide = (indeks: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    el.scrollTo({ left: indeks * el.clientWidth, behavior: 'smooth' });
+    setSlide(indeks);
+  };
+
+  // Panah kiri/kanan di keyboard saat modal terbuka.
+  useEffect(() => {
+    if (!selected) return;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelected(null);
+      if (e.key === 'ArrowLeft') geser(-1);
+      if (e.key === 'ArrowRight') geser(1);
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selected, geser]);
+
+  // Thumbnail aktif ikut digulir ke area terlihat.
+  useEffect(() => {
+    thumbRefs.current[slide]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  }, [slide]);
 
   return (
     <div className="min-h-screen font-sans bg-gray-50 dark:bg-gray-950">
@@ -81,7 +131,7 @@ export default function Gallery() {
                     className="overflow-hidden text-left transition-all bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-2xl group hover:shadow-xl hover:-translate-y-1"
                   >
                     <div className="relative h-56 overflow-hidden bg-gray-200 dark:bg-gray-700">
-                      <img src={assetUrl(item.url)} alt={item.title} className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
+                      <img src={assetUrl(item.url)} alt={item.title} loading="lazy" decoding="async" className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
                       <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold rounded-lg uppercase tracking-wider">{item.category}</div>
                       {jumlah > 1 && (
                         <div className="absolute bottom-3 right-3 flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-white rounded-lg bg-black/60 backdrop-blur-sm">
@@ -102,28 +152,41 @@ export default function Gallery() {
             </div>}
       </main>
 
-      {/* MODAL CAROUSEL */}
+      {/* MODAL CAROUSEL + KOMENTAR */}
       {selected && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-gray-900/90 backdrop-blur-md" onClick={() => setSelected(null)}>
-          <button onClick={() => setSelected(null)} className="absolute z-10 p-2 text-white transition-colors rounded-full top-4 right-4 sm:top-6 sm:right-6 bg-white/10 hover:bg-red-500 backdrop-blur-sm"><X className="w-6 h-6" /></button>
+        <div className="fixed inset-0 z-[100] flex items-start justify-center p-2 overflow-y-auto sm:p-4 bg-gray-900/90 backdrop-blur-md sm:items-center" onClick={() => setSelected(null)}>
+          <button onClick={() => setSelected(null)} className="fixed z-20 p-2 text-white transition-colors rounded-full top-4 right-4 sm:top-6 sm:right-6 bg-white/10 hover:bg-red-500 backdrop-blur-sm" aria-label="Tutup"><X className="w-6 h-6" /></button>
 
-          <div className="flex flex-col w-full max-w-5xl overflow-hidden bg-black shadow-2xl rounded-2xl" onClick={e => e.stopPropagation()}>
-            <div className="relative flex items-center justify-center w-full h-[50vh] bg-black sm:h-[70vh]">
-              <img
-                src={assetUrl(fotoTerpilih[slide])}
-                alt={`${selected.title} ${slide + 1}`}
-                className="object-contain max-w-full max-h-full"
-              />
+          <div role="dialog" aria-modal="true" aria-label="Foto galeri" className="flex flex-col w-full max-w-5xl my-8 overflow-hidden bg-black shadow-2xl rounded-2xl sm:my-0" onClick={e => e.stopPropagation()}>
+            <div className="relative flex items-center justify-center w-full h-[45vh] bg-black sm:h-[60vh]">
+              {/* Track carousel: scroll-snap + scroll halus */}
+              <div
+                ref={trackRef}
+                onScroll={saatScroll}
+                className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                style={{ scrollbarWidth: 'none' }}
+              >
+                {fotoTerpilih.map((url, i) => (
+                  <div key={`${url}-${i}`} className="flex items-center justify-center w-full h-full shrink-0 snap-center">
+                    <img
+                      src={assetUrl(url)}
+                      alt={`${selected.title} ${i + 1}`}
+                      className="object-contain max-w-full max-h-full"
+                      draggable={false}
+                    />
+                  </div>
+                ))}
+              </div>
 
               {fotoTerpilih.length > 1 && (
                 <>
-                  <button onClick={() => geser(-1)} aria-label="Foto sebelumnya" className="absolute p-2 text-white transition rounded-full left-3 bg-white/10 hover:bg-amber-400 hover:text-gray-900 dark:hover:text-gray-100">
+                  <button onClick={() => geser(-1)} aria-label="Foto sebelumnya" className="absolute z-10 p-2 text-white transition rounded-full left-3 bg-white/10 hover:bg-amber-400 hover:text-gray-900">
                     <ChevronLeft className="w-6 h-6" />
                   </button>
-                  <button onClick={() => geser(1)} aria-label="Foto berikutnya" className="absolute p-2 text-white transition rounded-full right-3 bg-white/10 hover:bg-amber-400 hover:text-gray-900 dark:hover:text-gray-100">
+                  <button onClick={() => geser(1)} aria-label="Foto berikutnya" className="absolute z-10 p-2 text-white transition rounded-full right-3 bg-white/10 hover:bg-amber-400 hover:text-gray-900">
                     <ChevronRight className="w-6 h-6" />
                   </button>
-                  <span className="absolute px-3 py-1 text-xs font-bold text-white rounded-full bottom-3 right-3 bg-black/60 backdrop-blur-sm">
+                  <span className="absolute z-10 px-3 py-1 text-xs font-bold text-white rounded-full bottom-3 right-3 bg-black/60 backdrop-blur-sm">
                     {slide + 1} / {fotoTerpilih.length}
                   </span>
                 </>
@@ -132,11 +195,13 @@ export default function Gallery() {
 
             {/* Thumbnail carousel */}
             {fotoTerpilih.length > 1 && (
-              <div className="flex gap-2 p-3 overflow-x-auto bg-gray-900 border-t border-gray-800">
+              <div className="flex gap-2 p-3 overflow-x-auto bg-gray-900 border-t border-gray-800 scroll-smooth">
                 {fotoTerpilih.map((url, i) => (
                   <button
                     key={`${url}-${i}`}
-                    onClick={() => setSlide(i)}
+                    ref={(el) => { thumbRefs.current[i] = el; }}
+                    onClick={() => pilihSlide(i)}
+                    aria-label={`Lihat foto ${i + 1}`}
                     className={`w-16 h-16 overflow-hidden rounded-lg shrink-0 border-2 transition ${i === slide ? 'border-amber-400' : 'border-transparent opacity-60 hover:opacity-100'}`}
                   >
                     <img src={assetUrl(url)} alt={`Thumbnail ${i + 1}`} className="object-cover w-full h-full" />
@@ -148,12 +213,14 @@ export default function Gallery() {
             <div className="flex flex-col items-start justify-between gap-4 p-5 bg-gray-900 border-t border-gray-800 sm:p-6 sm:flex-row sm:items-center">
               <div className="w-full">
                 <h3 className="text-base font-bold text-white sm:text-lg lg:text-xl line-clamp-2">{selected.title}</h3>
-                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500 sm:text-sm">{selected.activity || 'Dokumentasi Umum'} • {selected.year}</p>
+                <p className="mt-1 text-xs text-gray-400 sm:text-sm">{selected.activity || 'Dokumentasi Umum'} • {selected.year}</p>
               </div>
               <span className="flex items-center gap-1 px-3 py-1 text-[10px] sm:text-xs font-bold tracking-wider uppercase border rounded-full shrink-0 bg-amber-400/10 text-amber-400 border-amber-400/20 whitespace-nowrap">
                 <Images className="w-3.5 h-3.5" /> {selected.category}
               </span>
             </div>
+
+            <GalleryComments key={selected.id} galleryId={selected.id} />
           </div>
         </div>
       )}

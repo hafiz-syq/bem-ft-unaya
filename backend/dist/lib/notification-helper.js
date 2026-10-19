@@ -39,7 +39,7 @@ async function checkAndNotifyExpiringExtensions() {
     const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const admins = await prisma_1.default.user.findMany({
-        where: { role: 'ADMIN' },
+        where: { role: { in: ['ADMIN', 'SUPERADMIN'] } },
         include: { profile: true },
     });
     const expiringStudents = await prisma_1.default.user.findMany({

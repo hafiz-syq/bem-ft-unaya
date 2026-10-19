@@ -68,6 +68,33 @@ const verifikasiLimiter = (0, express_rate_limit_1.default)({
 });
 router.post('/verify-email', auth_middleware_1.requireAuth, verifikasiLimiter, auth_controller_1.verifyEmail);
 router.post('/resend-verification', auth_middleware_1.requireAuth, verifikasiLimiter, auth_controller_1.resendVerification);
+// Ganti password mandiri untuk SEMUA role yang sudah login.
+// Dibatasi per PENGGUNA (bukan per IP) supaya mahasiswa di jaringan kampus yang
+// berbagi IP tidak saling memblokir, sementara tebakan password tetap dibatasi.
+const gantiPasswordLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    keyGenerator: (req) => req.user?.id || (0, express_rate_limit_1.ipKeyGenerator)(req.ip),
+    message: { message: 'Terlalu banyak percobaan ganti password. Silakan coba lagi setelah 15 menit.' }
+});
+router.post('/change-password', auth_middleware_1.requireAuth, gantiPasswordLimiter, auth_controller_1.changePassword);
+// --- Lupa password (tanpa login) ---------------------------------------
+// Permintaan OTP dibatasi per IP karena pelakunya belum punya sesi. Endpoint
+// verifikasi OTP memakai batas lebih longgar: penebakan kode sudah dibatasi
+// 5 percobaan per akun di dalam controller.
+const lupaPasswordLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: { message: 'Terlalu banyak permintaan reset password. Silakan coba lagi setelah 15 menit.' }
+});
+const verifikasiResetLimiter = (0, express_rate_limit_1.default)({
+    windowMs: 15 * 60 * 1000,
+    max: 15,
+    message: { message: 'Terlalu banyak percobaan. Silakan coba lagi setelah 15 menit.' }
+});
+router.post('/lupa-password', lupaPasswordLimiter, auth_controller_1.mintaResetPassword);
+router.post('/lupa-password/verifikasi', verifikasiResetLimiter, auth_controller_1.verifikasiKodeReset);
+router.post('/reset-password', verifikasiResetLimiter, auth_controller_1.resetPassword);
 // Endpoint Logout
 router.post('/logout', (req, res) => {
     res.clearCookie(cookies_1.TOKEN_COOKIE, (0, cookies_1.opsiHapusCookieToken)(req));

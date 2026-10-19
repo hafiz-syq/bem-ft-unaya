@@ -30,14 +30,25 @@ export const ROLE_TARGET: Record<string, TicketTarget> = {
 /** Semua role yang dianggap "pengurus" (boleh mengelola tiket). */
 export const OFFICER_ROLES: string[] = ['PENGURUS', ...Object.keys(ROLE_TARGET)];
 
+/**
+ * Role pengelola tingkat atas.
+ * ADMIN = pengelola fakultas; SUPERADMIN = pengelola web yang satu tingkat di
+ * atasnya. Keduanya diperlakukan sama pada hampir semua pemeriksaan, jadi
+ * daftar ini dipakai bersama supaya tidak ada endpoint yang "lupa" SUPERADMIN.
+ */
+export const ADMIN_ROLES: string[] = ['ADMIN', 'SUPERADMIN'];
+
+export const isAdminRole = (role: string | null | undefined): boolean =>
+  !!role && ADMIN_ROLES.includes(role);
+
 /** Role yang boleh ditetapkan admin pada seorang pengurus. */
 export const ASSIGNABLE_ROLES: string[] = ['MAHASISWA', ...OFFICER_ROLES, 'ADMIN'];
 
 export const isOfficer = (role: string): boolean => OFFICER_ROLES.includes(role);
 
-/** Hanya ADMIN dan PENGURUS DPM yang boleh mengaudit data keluhan ke Excel. */
+/** Hanya ADMIN/SUPERADMIN dan PENGURUS DPM yang boleh mengaudit keluhan ke Excel. */
 export const canExportKeluhan = (role: string): boolean =>
-  role === 'ADMIN' || role === 'PENGURUS_DPM';
+  isAdminRole(role) || role === 'PENGURUS_DPM';
 
 /** Label organisasi untuk ditampilkan di UI maupun di berkas ekspor. */
 export const TARGET_LABEL: Record<TicketTarget, string> = {
@@ -62,7 +73,7 @@ export const isTicketTarget = (value: unknown): value is TicketTarget =>
  * - Siapa pun yang ditugaskan pada sebuah tiket selalu bisa membaca tiket itu.
  */
 export function ticketVisibilityWhere(user: { id: string; role: string }): Record<string, unknown> {
-  if (user.role === 'ADMIN' || user.role === 'PENGURUS') return {};
+  if (isAdminRole(user.role) || user.role === 'PENGURUS') return {};
   if (user.role === 'MAHASISWA') return { senderId: user.id };
 
   const or: Record<string, unknown>[] = [
@@ -85,7 +96,7 @@ export function canAccessTicket(
   user: { id: string; role: string },
   ticket: { type: string; targetOrganization: string | null; senderId: string; assignments?: { assigneeId: string; isActive: boolean }[] }
 ): boolean {
-  if (user.role === 'ADMIN' || user.role === 'PENGURUS') return true;
+  if (isAdminRole(user.role) || user.role === 'PENGURUS') return true;
   if (user.role === 'MAHASISWA') return ticket.senderId === user.id;
   if (ticket.assignments?.some((a) => a.isActive && a.assigneeId === user.id)) return true;
   if (user.role === 'PENGURUS_DPM') return ticket.type === 'KELUHAN';

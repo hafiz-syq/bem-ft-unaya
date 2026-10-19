@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs';
 import prisma from '../lib/prisma';
 import { sendEmailNotification, generateTicketNotificationEmail } from '../services/email.service';
 import {
+  ADMIN_ROLES,
   OFFICER_ROLES,
   ROLE_TARGET,
   TARGET_LABEL,
@@ -19,7 +20,7 @@ import {
  * bukan seluruh pengurus seperti sebelumnya.
  */
 const roleYangMenerima = (type: string, target: TicketTarget | null): string[] => {
-  const roles: string[] = ['ADMIN'];
+  const roles: string[] = [...ADMIN_ROLES];
 
   if (type === 'KELUHAN' && target && target !== 'BEM') {
     const peran = Object.keys(ROLE_TARGET).find((r) => ROLE_TARGET[r] === target);
@@ -186,7 +187,7 @@ export const getPublicTickets = async (req: any, res: Response, next: NextFuncti
       include: {
         sender: { select: { nim: true, profile: { select: { nama: true } } } },
         replies: {
-          where: { author: { role: { in: ['ADMIN', ...OFFICER_ROLES] as any } } },
+          where: { author: { role: { in: [...ADMIN_ROLES, ...OFFICER_ROLES] as any } } },
           select: { id: true, content: true, createdAt: true },
           orderBy: { createdAt: 'asc' },
         },
@@ -265,7 +266,7 @@ export const replyTicket = async (req: any, res: Response, next: NextFunction): 
 export const getAssignees = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
     const pengurus = await prisma.user.findMany({
-      where: { role: { in: ['ADMIN', ...OFFICER_ROLES] as any }, isActive: true },
+      where: { role: { in: [...ADMIN_ROLES, ...OFFICER_ROLES] as any }, isActive: true },
       select: {
         id: true,
         nim: true,

@@ -199,6 +199,7 @@ export default function Tickets() {
       case 'PENGURUS_TEKNIK_SIPIL':
         return `Anda melihat tiket yang ditujukan ke ${ROLE_LABEL[user.role]} serta tiket yang ditugaskan kepada Anda.`;
       case 'ADMIN':
+      case 'SUPERADMIN':
         return 'Anda melihat seluruh tiket, dapat menugaskan pengurus dari organisasi mana pun, dan menetapkan role pengurus di halaman Data Mahasiswa.';
       default:
         return 'Anda melihat tiket milik sendiri. Aspirasi tampil publik dengan identitas, keluhan tampil anonim.';
@@ -434,7 +435,7 @@ export default function Tickets() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity bg-gray-900/50 backdrop-blur-sm">
+        <div role="dialog" aria-modal="true" aria-label="Buat tiket baru" className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity bg-gray-900/50 backdrop-blur-sm">
           <div className="flex flex-col w-full max-w-lg overflow-hidden bg-white dark:bg-gray-900 shadow-2xl rounded-2xl max-h-[92vh]">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
               <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Buat Tiket Baru</h2>

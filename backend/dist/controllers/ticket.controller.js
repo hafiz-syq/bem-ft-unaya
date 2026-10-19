@@ -14,7 +14,7 @@ const ticket_access_1 = require("../lib/ticket-access");
  * bukan seluruh pengurus seperti sebelumnya.
  */
 const roleYangMenerima = (type, target) => {
-    const roles = ['ADMIN'];
+    const roles = [...ticket_access_1.ADMIN_ROLES];
     if (type === 'KELUHAN' && target && target !== 'BEM') {
         const peran = Object.keys(ticket_access_1.ROLE_TARGET).find((r) => ticket_access_1.ROLE_TARGET[r] === target);
         if (peran)
@@ -154,7 +154,7 @@ const getPublicTickets = async (req, res, next) => {
             include: {
                 sender: { select: { nim: true, profile: { select: { nama: true } } } },
                 replies: {
-                    where: { author: { role: { in: ['ADMIN', ...ticket_access_1.OFFICER_ROLES] } } },
+                    where: { author: { role: { in: [...ticket_access_1.ADMIN_ROLES, ...ticket_access_1.OFFICER_ROLES] } } },
                     select: { id: true, content: true, createdAt: true },
                     orderBy: { createdAt: 'asc' },
                 },
@@ -234,7 +234,7 @@ exports.replyTicket = replyTicket;
 const getAssignees = async (req, res, next) => {
     try {
         const pengurus = await prisma_1.default.user.findMany({
-            where: { role: { in: ['ADMIN', ...ticket_access_1.OFFICER_ROLES] }, isActive: true },
+            where: { role: { in: [...ticket_access_1.ADMIN_ROLES, ...ticket_access_1.OFFICER_ROLES] }, isActive: true },
             select: {
                 id: true,
                 nim: true,

@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/axios';
-import { Clock, MapPin, Link as LinkIcon, Loader2, Code2, ArrowLeft } from 'lucide-react';
+import { Clock, MapPin, Link as LinkIcon, Loader2, Code2, ArrowLeft, Share2, Lock } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { useAuth } from '../contexts/AuthContext';
+import { isMahasiswaOrAbove } from '../lib/roles';
 
 interface AgendaItem {
-  id: string; title: string; description: string; date: string; time: string; location: string; registrationLink: string | null;
+  id: string; title: string; description: string; date: string; time: string; location: string; registrationLink: string | null; socialMediaLink: string | null;
 }
 
 export default function Agenda() {
+  const { user } = useAuth();
   const [agendas, setAgendas] = useState<AgendaItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,11 +55,26 @@ export default function Agenda() {
                     <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-blue-500 dark:text-blue-400"/> {item.time} WIB</span>
                     <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4 text-red-500 dark:text-red-400"/> {item.location}</span>
                   </div>
-                  {item.registrationLink && (
-                    <a href={item.registrationLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 font-bold text-amber-500 transition-colors rounded-lg bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/40">
-                      <LinkIcon className="w-4 h-4"/> Daftar Sekarang
-                    </a>
-                  )}
+                  <div className="flex flex-wrap items-center gap-3">
+                    {/* Media sosial: terbuka untuk semua pengunjung, tanpa login. */}
+                    {item.socialMediaLink && (
+                      <a href={item.socialMediaLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 font-bold text-gray-600 transition-colors border border-gray-200 rounded-lg dark:text-gray-300 dark:border-gray-700 hover:border-amber-400 hover:text-amber-500">
+                        <Share2 className="w-4 h-4" /> Media Sosial
+                      </a>
+                    )}
+                    {/* Pendaftaran: hanya untuk akun minimal mahasiswa (sudah login). */}
+                    {item.registrationLink && (
+                      isMahasiswaOrAbove(user?.role) ? (
+                        <a href={item.registrationLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 font-bold text-amber-500 transition-colors rounded-lg bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/40">
+                          <LinkIcon className="w-4 h-4"/> Daftar Sekarang
+                        </a>
+                      ) : (
+                        <Link to="/login" className="inline-flex items-center gap-2 px-4 py-2 font-bold text-gray-500 transition-colors border border-gray-200 rounded-lg dark:text-gray-400 dark:border-gray-700 hover:border-amber-400 hover:text-amber-500">
+                          <Lock className="w-4 h-4" /> Masuk untuk mendaftar
+                        </Link>
+                      )
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

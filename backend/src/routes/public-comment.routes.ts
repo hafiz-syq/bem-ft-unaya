@@ -17,7 +17,7 @@ const router = Router();
 
 // --- Pengurus & admin: meninjau dan membalas -----------------------------
 // Didaftarkan lebih dulu agar /manage tidak pernah tertutup rute publik di bawah.
-const pengelola = [requireAuth, requireRole(['ADMIN', ...OFFICER_ROLES])];
+const pengelola = [requireAuth, requireRole(['ADMIN', 'SUPERADMIN', ...OFFICER_ROLES])];
 
 router.get('/manage', ...pengelola, getCommentsForManagement);
 router.patch('/manage/:id/status', ...pengelola, ubahStatusKomentar);

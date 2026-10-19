@@ -36,7 +36,7 @@ export async function checkAndNotifyExpiringExtensions() {
   const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const admins = await prisma.user.findMany({
-    where: { role: 'ADMIN' },
+    where: { role: { in: ['ADMIN', 'SUPERADMIN'] } },
     include: { profile: true },
   });
 

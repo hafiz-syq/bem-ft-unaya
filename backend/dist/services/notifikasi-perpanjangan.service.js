@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cariPerpanjanganYangMauHabis = cariPerpanjanganYangMauHabis;
 exports.kirimNotifikasiPerpanjangan = kirimNotifikasiPerpanjangan;
+exports.kirimNotifikasiPerpanjanganGabungan = kirimNotifikasiPerpanjanganGabungan;
 exports.pemeriksaanPerpanjanganHarian = pemeriksaanPerpanjanganHarian;
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const email_service_1 = require("./email.service");
@@ -109,20 +110,74 @@ async function kirimNotifikasiPerpanjangan(akunYangMauHabis, hariSisa) {
         daftarNim: akunYangMauHabis.map((a) => a.nim),
     });
 }
+/** Penanda tanggal (YYYY-MM-DD) terakhir email peringatan dikirim, dalam memori proses server. */
+let hariTerakhirEmailDikirim = null;
+/**
+ * Kirim SATU email gabungan untuk semua akun yang mau habis (30 & 7 hari sekaligus),
+ * diurutkan dari yang paling mendesak (sisa hari paling sedikit).
+ */
+async function kirimNotifikasiPerpanjanganGabungan(akunYangMauHabis) {
+    if (akunYangMauHabis.length === 0)
+        return;
+    const adminEmail = process.env.ADMIN_EMAIL || '';
+    const urut = [...akunYangMauHabis].sort((a, b) => a.sisaHari - b.sisaHari);
+    const mendesak = urut.filter((a) => a.sisaHari <= PERTAHANAN_7_HARI);
+    const listString = urut
+        .map((a) => {
+        const nama = a.nama ?? a.nim;
+        const tgl = a.perpanjanganHingga ? a.perpanjanganHingga.toLocaleDateString('id-ID') : '-';
+        const lencana = a.sisaHari <= PERTAHANAN_7_HARI
+            ? ' <strong style="color:#dc2626;">[MENDESAK]</strong>'
+            : '';
+        return `<li><strong>${nama}</strong> (${a.nim}) — ${a.program_studi} — Tinggal ${a.sisaHari} hari lagi (perpanjangan sampai ${tgl})${lencana}</li>`;
+    })
+        .join('\n');
+    const subject = `Peringatan: ${urut.length} akun mahasiswa perpanjangan mau habis (${mendesak.length} tinggal ≤${PERTAHANAN_7_HARI} hari)`;
+    const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px;">
+      <h2 style="color: #333;">Peringatan Perpanjangan Mahasiswa</h2>
+      <p>Ada <strong>${urut.length} akun mahasiswa</strong> yang masa perpanjangannya akan segera habis, dengan rincian:</p>
+      <ul>
+        <li><strong>${urut.length - mendesak.length} akun</strong> masih tersisa 8–${PERTAHANAN_30_HARI} hari</li>
+        <li><strong>${mendesak.length} akun</strong> tinggal ≤${PERTAHANAN_7_HARI} hari (ditandai MENDESAK)</li>
+      </ul>
+      <p>Silakan tindak lanjuti akun ini sebelum masa perpanjangannya berakhir:</p>
+      <ul style="background: #f5f5f5; padding: 15px; border-radius: 5px;">
+        ${listString}
+      </ul>
+      <p style="color: #666; font-size: 12px; margin-top: 20px;">
+        Notifikasi ini otomatis dikirim oleh sistem (maksimal satu kali sehari). Jika ada pertanyaan, hubungi administrator.
+      </p>
+    </div>
+  `;
+    if (adminEmail) {
+        await (0, email_service_1.sendEmailNotification)(adminEmail, subject, html);
+    }
+    await (0, audit_service_1.logSystemActivity)('NOTIFICATION_PERPANJANGAN_HABIS', 'System', `Notifikasi otomatis (email gabungan): ${urut.length} akun mahasiswa mendekati akhir masa perpanjangan (${mendesak.length} di antaranya ≤${PERTAHANAN_7_HARI} hari).`, undefined, {
+        jumlahAkun: urut.length,
+        jumlahMendesak: mendesak.length,
+        daftarNim: urut.map((a) => a.nim),
+    });
+}
 /**
  * Jalankan pemeriksaan dan kirim notifikasi bila ada akun yang perpanjangan mau habis.
+ * Email paling banyak sekali per hari (guard in-memory per tanggal server).
  */
 async function pemeriksaanPerpanjanganHarian() {
     // Gunakan helper untuk pengecekan utama dan kirim notifikasi
     const { checked } = await (0, notifikasi_perpanjangan_helper_1.checkAndNotifyExpiringExtensions)();
-    // Sekarang lakukan pemeriksaan spesifik untuk 30 dan 7 hari
+    // Jendela 30 hari sudah mencakup akun 7 hari, jadi cukup satu query.
     const akun30Hari = await cariPerpanjanganYangMauHabis(PERTAHANAN_30_HARI);
     const akun7Hari = await cariPerpanjanganYangMauHabis(PERTAHANAN_7_HARI);
-    if (akun30Hari.length > 0) {
-        await kirimNotifikasiPerpanjangan(akun30Hari, PERTAHANAN_30_HARI);
+    const hariIni = new Date().toISOString().slice(0, 10);
+    const sudahDikirimHariIni = hariTerakhirEmailDikirim === hariIni;
+    if (!sudahDikirimHariIni && akun30Hari.length > 0) {
+        await kirimNotifikasiPerpanjanganGabungan(akun30Hari);
+        hariTerakhirEmailDikirim = hariIni;
     }
-    if (akun7Hari.length > 0) {
-        await kirimNotifikasiPerpanjangan(akun7Hari, PERTAHANAN_7_HARI);
-    }
-    return { '30_hari': akun30Hari.length, '7_hari': akun7Hari.length };
+    return {
+        '30_hari': akun30Hari.length,
+        '7_hari': akun7Hari.length,
+        ...(sudahDikirimHariIni ? { 'lewati_sudah_dikirim': 1 } : {}),
+    };
 }

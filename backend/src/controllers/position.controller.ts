@@ -1,9 +1,16 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
+import { isAdminRole } from '../lib/ticket-access';
 
 // 1. Membuat Slot Jabatan (Contoh: "Menteri Kominfo")
 export const createPositionSlot = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    // [PERBAIKAN KEAMANAN] Hanya ADMIN/SUPERADMIN yang boleh membuat slot jabatan.
+    if (!isAdminRole(req.user?.role)) {
+      res.status(403).json({ message: 'Akses ditolak: khusus Admin.' });
+      return;
+    }
+
     const { organizationId, departmentId, title } = req.body;
 
     if (!organizationId || !title) {
@@ -28,6 +35,12 @@ export const createPositionSlot = async (req: any, res: Response, next: NextFunc
 // 2. Mengangkat Mahasiswa ke dalam Jabatan
 export const assignPosition = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    // [PERBAIKAN KEAMANAN] Hanya ADMIN/SUPERADMIN yang boleh mengangkat pengurus.
+    if (!isAdminRole(req.user?.role)) {
+      res.status(403).json({ message: 'Akses ditolak: khusus Admin.' });
+      return;
+    }
+
     const { positionSlotId, nim } = req.body;
 
     if (!positionSlotId || !nim) {
@@ -114,8 +127,8 @@ export const removePosition = async (req: any, res: Response, next: NextFunction
       return;
     }
 
-    // Hanya ADMIN yang bisa menurunkan pengurus
-    if (req.user.role !== 'ADMIN') {
+    // Hanya ADMIN/SUPERADMIN yang bisa menurunkan pengurus
+    if (!isAdminRole(req.user.role)) {
       res.status(403).json({ message: 'Hanya ADMIN yang bisa menurunkan pengurus.' });
       return;
     }
@@ -131,7 +144,7 @@ export const removePosition = async (req: any, res: Response, next: NextFunction
       where: { userId: position.userId, isActive: true }
     });
 
-    if (!otherActivePositions && position.user.role !== 'ADMIN') {
+    if (!otherActivePositions && !isAdminRole(position.user.role)) {
       await prisma.user.update({
         where: { id: position.userId },
         data: { role: 'MAHASISWA' }

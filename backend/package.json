@@ -8,7 +8,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "ts-node src/tests/uji-akses-rute.ts",
+    "test:unit": "ts-node src/tests/uji-unit-kritis.ts",
     "seed": "ts-node src/scripts/seed.ts",
+    "superadmin": "ts-node src/scripts/buat-superadmin.ts",
     "verifikasi:akses": "ts-node src/scripts/verifikasi-akses-non-admin.ts",
     "migrate": "prisma migrate dev"
   },

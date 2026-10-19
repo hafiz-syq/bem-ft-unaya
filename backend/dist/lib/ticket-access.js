@@ -6,7 +6,7 @@
  * privasi tidak tercecer di banyak endpoint dan tidak pernah saling berbeda.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isTicketTarget = exports.TARGET_LABEL = exports.canExportKeluhan = exports.isOfficer = exports.ASSIGNABLE_ROLES = exports.OFFICER_ROLES = exports.ROLE_TARGET = exports.KELUHAN_TARGETS = exports.TICKET_TARGETS = void 0;
+exports.isTicketTarget = exports.TARGET_LABEL = exports.canExportKeluhan = exports.isOfficer = exports.ASSIGNABLE_ROLES = exports.isAdminRole = exports.ADMIN_ROLES = exports.OFFICER_ROLES = exports.ROLE_TARGET = exports.KELUHAN_TARGETS = exports.TICKET_TARGETS = void 0;
 exports.ticketVisibilityWhere = ticketVisibilityWhere;
 exports.canAccessTicket = canAccessTicket;
 exports.TICKET_TARGETS = [
@@ -28,12 +28,21 @@ exports.ROLE_TARGET = {
 };
 /** Semua role yang dianggap "pengurus" (boleh mengelola tiket). */
 exports.OFFICER_ROLES = ['PENGURUS', ...Object.keys(exports.ROLE_TARGET)];
+/**
+ * Role pengelola tingkat atas.
+ * ADMIN = pengelola fakultas; SUPERADMIN = pengelola web yang satu tingkat di
+ * atasnya. Keduanya diperlakukan sama pada hampir semua pemeriksaan, jadi
+ * daftar ini dipakai bersama supaya tidak ada endpoint yang "lupa" SUPERADMIN.
+ */
+exports.ADMIN_ROLES = ['ADMIN', 'SUPERADMIN'];
+const isAdminRole = (role) => !!role && exports.ADMIN_ROLES.includes(role);
+exports.isAdminRole = isAdminRole;
 /** Role yang boleh ditetapkan admin pada seorang pengurus. */
 exports.ASSIGNABLE_ROLES = ['MAHASISWA', ...exports.OFFICER_ROLES, 'ADMIN'];
 const isOfficer = (role) => exports.OFFICER_ROLES.includes(role);
 exports.isOfficer = isOfficer;
-/** Hanya ADMIN dan PENGURUS DPM yang boleh mengaudit data keluhan ke Excel. */
-const canExportKeluhan = (role) => role === 'ADMIN' || role === 'PENGURUS_DPM';
+/** Hanya ADMIN/SUPERADMIN dan PENGURUS DPM yang boleh mengaudit keluhan ke Excel. */
+const canExportKeluhan = (role) => (0, exports.isAdminRole)(role) || role === 'PENGURUS_DPM';
 exports.canExportKeluhan = canExportKeluhan;
 /** Label organisasi untuk ditampilkan di UI maupun di berkas ekspor. */
 exports.TARGET_LABEL = {
@@ -56,7 +65,7 @@ exports.isTicketTarget = isTicketTarget;
  * - Siapa pun yang ditugaskan pada sebuah tiket selalu bisa membaca tiket itu.
  */
 function ticketVisibilityWhere(user) {
-    if (user.role === 'ADMIN' || user.role === 'PENGURUS')
+    if ((0, exports.isAdminRole)(user.role) || user.role === 'PENGURUS')
         return {};
     if (user.role === 'MAHASISWA')
         return { senderId: user.id };
@@ -76,7 +85,7 @@ function ticketVisibilityWhere(user) {
 }
 /** Apakah pemilik sesi boleh membaca/membalas satu tiket tertentu. */
 function canAccessTicket(user, ticket) {
-    if (user.role === 'ADMIN' || user.role === 'PENGURUS')
+    if ((0, exports.isAdminRole)(user.role) || user.role === 'PENGURUS')
         return true;
     if (user.role === 'MAHASISWA')
         return ticket.senderId === user.id;

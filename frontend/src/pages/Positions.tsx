@@ -194,7 +194,7 @@ export default function Positions() {
 
             {/* Modal Buat Jabatan */}
             {isSlotModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+                <div role="dialog" aria-modal="true" aria-label="Buat jabatan baru" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
                     <div className="w-full max-w-md overflow-hidden bg-white dark:bg-gray-900 shadow-2xl rounded-2xl">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Buat Jabatan Baru</h2>
@@ -232,7 +232,7 @@ export default function Positions() {
 
             {/* Modal Konfirmasi Turunkan Pengurus */}
             {isRemoveModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+                <div role="dialog" aria-modal="true" aria-label="Konfirmasi turunkan jabatan" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
                     <div className="w-full max-w-sm overflow-hidden bg-white dark:bg-gray-900 shadow-2xl rounded-2xl">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Konfirmasi Turunkan</h2>
@@ -271,7 +271,7 @@ export default function Positions() {
 
             {/* Modal Angkat Pengurus */}
             {isAssignModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+                <div role="dialog" aria-modal="true" aria-label="Angkat pengurus" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
                     <div className="w-full max-w-md overflow-hidden bg-white dark:bg-gray-900 shadow-2xl rounded-2xl">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Angkat Pengurus</h2>

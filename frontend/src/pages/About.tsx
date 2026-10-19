@@ -49,6 +49,16 @@ export default function About() {
   const [loading, setLoading] = useState(true);
   const [kartu, setKartu] = useState<KartuPengurus | null>(null);
 
+  // Tutup modal biodata dengan tombol Escape (atasan keyboard).
+  useEffect(() => {
+    if (!kartu) return;
+    const padaEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setKartu(null);
+    };
+    window.addEventListener('keydown', padaEscape);
+    return () => window.removeEventListener('keydown', padaEscape);
+  }, [kartu]);
+
   useEffect(() => {
     Promise.all([api.get('/cms/structure'), api.get('/cms/settings')])
       .then(([resStructure, resSettings]) => {
@@ -170,8 +180,8 @@ export default function About() {
       {/* MODAL BIODATA PENGURUS (tanpa email) */}
       {kartu && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm" onClick={() => setKartu(null)}>
-          <div className="relative w-full max-w-md overflow-hidden bg-white dark:bg-gray-900 shadow-2xl rounded-2xl" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setKartu(null)} className="absolute z-10 p-2 text-gray-500 dark:text-gray-400 transition rounded-full top-4 right-4 bg-white/70 hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400">
+          <div role="dialog" aria-modal="true" aria-label="Biodata pengurus" className="relative w-full max-w-md overflow-hidden bg-white dark:bg-gray-900 shadow-2xl rounded-2xl" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setKartu(null)} aria-label="Tutup" className="absolute z-10 p-2 text-gray-500 dark:text-gray-400 transition rounded-full top-4 right-4 bg-white/70 hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400">
               <X className="w-5 h-5" />
             </button>
 

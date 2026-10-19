@@ -5,9 +5,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.removePosition = exports.getPositions = exports.assignPosition = exports.createPositionSlot = void 0;
 const prisma_1 = __importDefault(require("../lib/prisma"));
+const ticket_access_1 = require("../lib/ticket-access");
 // 1. Membuat Slot Jabatan (Contoh: "Menteri Kominfo")
 const createPositionSlot = async (req, res, next) => {
     try {
+        // [PERBAIKAN KEAMANAN] Hanya ADMIN/SUPERADMIN yang boleh membuat slot jabatan.
+        if (!(0, ticket_access_1.isAdminRole)(req.user?.role)) {
+            res.status(403).json({ message: 'Akses ditolak: khusus Admin.' });
+            return;
+        }
         const { organizationId, departmentId, title } = req.body;
         if (!organizationId || !title) {
             res.status(400).json({ message: 'ID Organisasi dan Nama Jabatan wajib diisi.' });
@@ -30,6 +36,11 @@ exports.createPositionSlot = createPositionSlot;
 // 2. Mengangkat Mahasiswa ke dalam Jabatan
 const assignPosition = async (req, res, next) => {
     try {
+        // [PERBAIKAN KEAMANAN] Hanya ADMIN/SUPERADMIN yang boleh mengangkat pengurus.
+        if (!(0, ticket_access_1.isAdminRole)(req.user?.role)) {
+            res.status(403).json({ message: 'Akses ditolak: khusus Admin.' });
+            return;
+        }
         const { positionSlotId, nim } = req.body;
         if (!positionSlotId || !nim) {
             res.status(400).json({ message: 'ID Jabatan dan NIM wajib diisi.' });
@@ -107,8 +118,8 @@ const removePosition = async (req, res, next) => {
             res.status(404).json({ message: 'Jabatan tidak ditemukan.' });
             return;
         }
-        // Hanya ADMIN yang bisa menurunkan pengurus
-        if (req.user.role !== 'ADMIN') {
+        // Hanya ADMIN/SUPERADMIN yang bisa menurunkan pengurus
+        if (!(0, ticket_access_1.isAdminRole)(req.user.role)) {
             res.status(403).json({ message: 'Hanya ADMIN yang bisa menurunkan pengurus.' });
             return;
         }
@@ -121,7 +132,7 @@ const removePosition = async (req, res, next) => {
         const otherActivePositions = await prisma_1.default.position.findFirst({
             where: { userId: position.userId, isActive: true }
         });
-        if (!otherActivePositions && position.user.role !== 'ADMIN') {
+        if (!otherActivePositions && !(0, ticket_access_1.isAdminRole)(position.user.role)) {
             await prisma_1.default.user.update({
                 where: { id: position.userId },
                 data: { role: 'MAHASISWA' }

@@ -405,7 +405,8 @@ const getPublicStructure = async (req, res, next) => {
                                         profile: {
                                             // email SENGAJA tidak diambil: biodata pengurus yang tampil
                                             // ke publik tidak boleh menyertakan alamat email.
-                                            select: { nama: true, program_studi: true }
+                                            // no_hp ikut diambil karena diminta tampil di kartu biodata.
+                                            select: { nama: true, program_studi: true, no_hp: true }
                                         }
                                     }
                                 }

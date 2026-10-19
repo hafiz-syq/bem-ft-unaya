@@ -5,8 +5,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getAuditLogs = void 0;
 const prisma_1 = __importDefault(require("../lib/prisma"));
+const ticket_access_1 = require("../lib/ticket-access");
 const getAuditLogs = async (req, res, next) => {
     try {
+        // [PERBAIKAN KEAMANAN] Log audit hanya boleh dibaca ADMIN/SUPERADMIN.
+        if (!(0, ticket_access_1.isAdminRole)(req.user?.role)) {
+            res.status(403).json({ message: 'Akses ditolak: khusus Admin.' });
+            return;
+        }
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 15;
         const skip = (page - 1) * limit;

@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { logActivity } from '../services/audit.service';
 import prisma from '../lib/prisma';
+import { isAdminRole } from '../lib/ticket-access';
 
 // 1. Mahasiswa mengajukan perubahan data
 export const createRequest = async (req: any, res: Response, next: NextFunction): Promise<void> => {
@@ -85,6 +86,12 @@ export const processRequest = async (req: any, res: Response, next: NextFunction
   try {
     const { id } = req.params;
     const { status } = req.body; // <-- Typo kurawal ekstra sudah dihapus di sini
+    // [PERBAIKAN KEAMANAN] Hanya ADMIN/SUPERADMIN yang boleh memproses pengajuan perubahan data.
+    if (!isAdminRole(req.user?.role)) {
+      res.status(403).json({ message: 'Akses ditolak: khusus Admin.' });
+      return;
+    }
+
     const reviewerId = req.user.id;
 
     if (!['APPROVED', 'REJECTED'].includes(status)) {

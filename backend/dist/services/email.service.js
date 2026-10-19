@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendEmailNotification = sendEmailNotification;
 exports.sendVerificationEmail = sendVerificationEmail;
 exports.generateEmailVerificationEmail = generateEmailVerificationEmail;
+exports.sendPasswordResetEmail = sendPasswordResetEmail;
+exports.generatePasswordResetEmail = generatePasswordResetEmail;
 exports.generateTicketNotificationEmail = generateTicketNotificationEmail;
 const nodemailer_1 = __importDefault(require("nodemailer"));
 // Konfigurasi Transporter SMTP
@@ -107,6 +109,95 @@ function generateEmailVerificationEmail(recipientName, code, ttlMinutes) {
           </p>
           <p style="color: #6b7280; font-size: 13px;">
             Kalau Anda tidak merasa mendaftarkan alamat ini, cukup abaikan email ini.
+            Jangan berikan kode ini kepada siapa pun.
+          </p>
+        </div>
+        <div class="footer">
+          <p>© 2026 BEM-FT UNAYA. Semua hak dilindungi.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+/**
+ * Kirim kode OTP + tautan reset password.
+ * Berbeda dari sendEmailNotification, fungsi ini mengembalikan status supaya
+ * pengguna tahu kalau email tidak terkirim (tanpa itu, ia akan menunggu kode
+ * yang tidak pernah datang).
+ */
+async function sendPasswordResetEmail(to, recipientName, code, link, ttlMinutes) {
+    const mailOptions = {
+        from: `"BEM-FT UNAYA" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+        to,
+        subject: `🔑 ${code} adalah kode reset password Anda`,
+        html: generatePasswordResetEmail(recipientName, code, link, ttlMinutes),
+    };
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        // Kode & tautan sengaja TIDAK dicatat di log.
+        console.log(`✅ Kode reset password dikirim ke ${to} (id: ${info.messageId})`);
+        return true;
+    }
+    catch (error) {
+        console.error('❌ Gagal mengirim kode reset password:', error);
+        return false;
+    }
+}
+/**
+ * Template email berisi kode OTP dan tautan reset password.
+ * Tautan membawa token sekali pakai, jadi pengguna bisa langsung membuka form
+ * password baru tanpa mengetik kode.
+ */
+function generatePasswordResetEmail(recipientName, code, link, ttlMinutes) {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #fbbf24, #f59e0b); padding: 24px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 22px; }
+        .header p { color: #fef3c7; margin: 5px 0 0 0; font-size: 13px; }
+        .content { padding: 24px; }
+        .code-box { background: #fef3c7; border: 1px solid #fde68a; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0; }
+        .code { font-family: 'Courier New', monospace; font-size: 34px; font-weight: 700; letter-spacing: 9px; color: #92400e; margin: 0; }
+        .code-label { font-size: 12px; text-transform: uppercase; color: #b45309; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .btn { display: inline-block; padding: 12px 22px; background: #f59e0b; color: white; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 14px; }
+        .footer { background: #f9fafb; padding: 16px 24px; text-align: center; color: #9ca3af; font-size: 12px; border-top: 1px solid #e5e7eb; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🔑 Reset Password</h1>
+          <p>BEM-FT UNAYA • Portal Resmi Mahasiswa</p>
+        </div>
+        <div class="content">
+          <p>Halo <strong>${recipientName}</strong>,</p>
+          <p style="color: #4b5563; line-height: 1.6;">
+            Kami menerima permintaan untuk mengatur ulang password akun portal Anda.
+            Masukkan kode di bawah ini pada halaman lupa password, atau klik tombol
+            di bawah untuk langsung membuka form password baru.
+          </p>
+
+          <div class="code-box">
+            <div class="code-label">Kode OTP</div>
+            <p class="code">${code}</p>
+          </div>
+
+          <p style="text-align: center; margin: 24px 0;">
+            <a class="btn" href="${link}">Buat Password Baru</a>
+          </p>
+
+          <p style="color: #6b7280; font-size: 13px;">
+            Kode berlaku <strong>${ttlMinutes} menit</strong> dan tautan di atas hanya bisa dipakai sekali.
+          </p>
+          <p style="color: #6b7280; font-size: 13px;">
+            Kalau Anda tidak meminta reset password, abaikan email ini — password lama Anda tetap berlaku.
             Jangan berikan kode ini kepada siapa pun.
           </p>
         </div>

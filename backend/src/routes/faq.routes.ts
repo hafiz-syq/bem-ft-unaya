@@ -8,8 +8,8 @@ const router = Router();
 router.get('/', requireAuth, getFaqs);
 
 // Pengelolaan FAQ khusus admin.
-router.post('/', requireAuth, requireRole(['ADMIN']), createFaq);
-router.put('/:id', requireAuth, requireRole(['ADMIN']), updateFaq);
-router.delete('/:id', requireAuth, requireRole(['ADMIN']), deleteFaq);
+router.post('/', requireAuth, requireRole(['ADMIN', 'SUPERADMIN']), createFaq);
+router.put('/:id', requireAuth, requireRole(['ADMIN', 'SUPERADMIN']), updateFaq);
+router.delete('/:id', requireAuth, requireRole(['ADMIN', 'SUPERADMIN']), deleteFaq);
 
 export default router;

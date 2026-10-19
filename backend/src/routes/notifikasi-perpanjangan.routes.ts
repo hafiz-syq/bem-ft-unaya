@@ -6,7 +6,7 @@ import { requireRole } from '../middlewares/auth.middleware';
 const router = Router();
 
 // Endpoint khusus admin untuk menjalankan pemeriksaan notifikasi perpanjangan
-router.post('/check', requireAuth, requireRole(['ADMIN']), async (req, res) => {
+router.post('/check', requireAuth, requireRole(['ADMIN', 'SUPERADMIN']), async (req, res) => {
   try {
     const result = await pemeriksaanPerpanjanganHarian();
     res.status(200).json({

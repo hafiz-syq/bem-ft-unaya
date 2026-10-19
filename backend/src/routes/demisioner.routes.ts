@@ -14,8 +14,8 @@ const router = Router();
 router.get('/', getDemisioner);
 
 // Admin: mengelola riwayat demisioner.
-router.post('/', requireAuth, requireRole(['ADMIN']), uploadPhoto.single('foto'), createDemisioner);
-router.put('/:id', requireAuth, requireRole(['ADMIN']), uploadPhoto.single('foto'), updateDemisioner);
-router.delete('/:id', requireAuth, requireRole(['ADMIN']), deleteDemisioner);
+router.post('/', requireAuth, requireRole(['ADMIN', 'SUPERADMIN']), uploadPhoto.single('foto'), createDemisioner);
+router.put('/:id', requireAuth, requireRole(['ADMIN', 'SUPERADMIN']), uploadPhoto.single('foto'), updateDemisioner);
+router.delete('/:id', requireAuth, requireRole(['ADMIN', 'SUPERADMIN']), deleteDemisioner);
 
 export default router;

@@ -16,6 +16,10 @@ enum Role {
   PENGURUS_TEKNIK_MESIN
   PENGURUS_TEKNIK_SIPIL
   ADMIN
+  // Pengelola web: satu tingkat di atas ADMIN. Akun ini yang boleh mengubah
+  // role akun ADMIN lain, sehingga sistem tidak bisa terkunci karena seluruh
+  // admin diturunkan/dinonaktifkan. Tidak pernah bisa dinonaktifkan.
+  SUPERADMIN
 }
 
 /// Tujuan organisasi sebuah tiket.
@@ -66,6 +70,12 @@ model User {
   first_login          Boolean             @default(true)
   isActive             Boolean             @default(true)
 
+  // Email akun untuk SEMUA role. Diperlukan karena akun ADMIN/SUPERADMIN tidak
+  // punya StudentProfile, sehingga tanpa kolom ini mereka tidak punya alamat
+  // email sama sekali dan fitur lupa password tidak bisa menjangkaunya.
+  // Untuk mahasiswa/pengurus nilainya disalin dari StudentProfile.email.
+  email                String?             @unique
+
   // --- Siklus hidup akun mahasiswa ---
   // deactivatedAt dipakai job otomatis untuk menghitung "sudah nonaktif 1 tahun".
   // deactivationType membedakan nonaktif MANUAL (oleh admin/pengurus) dengan AUTO
@@ -111,6 +121,13 @@ model User {
   commentsModerated    PublicComment[]     @relation("CommentModerator")
   commentReplies       PublicCommentReply[] @relation("CommentReplier")
   auditLogs            AuditLog[]          @relation("AuditActor")
+
+  // Komentar galeri (fitur komentar publik pada halaman Galeri).
+  galleryComments      GalleryComment[]    @relation("GalleryCommentAuthor")
+  galleryCommentsModerated GalleryComment[] @relation("GalleryCommentModerator")
+
+  // Satu permintaan reset password aktif per akun.
+  passwordReset        PasswordReset?
   
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -369,10 +386,10 @@ model Gallery {
   activity   String?
   year       Int
   uploaderId String
-  uploader   User     @relation(fields: [uploaderId], references: [id])
-  // Satu postingan galeri boleh memuat banyak foto (carousel).
+  uploader   User     @relation(fields: [uploaderId], references: [id])  // Satu postingan galeri boleh memuat banyak foto (carousel).
   images     GalleryImage[]
-  createdAt  DateTime @default(now())
+  comments   GalleryComment[]
+  createdAt  DateTime      @default(now())
 }
 
 /// Satu foto di dalam sebuah postingan galeri.
@@ -405,6 +422,49 @@ model SiteSetting {
   key       String   @id
   value     String   @db.Text
   updatedAt DateTime @updatedAt
+}
+
+/// Komentar pengunjung pada satu postingan galeri.
+/// Dipisah dari PublicComment (buku tamu) supaya komentar galeri tidak pernah
+/// tercampur dengan pesan buku tamu yang sudah tayang, dan ikut terhapus
+/// otomatis saat postingan galerinya dihapus.
+model GalleryComment {
+  id            String              @id @default(uuid())
+  galleryId     String
+  gallery       Gallery             @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+  // Komentar boleh datang dari tamu tanpa akun, jadi penulis akun opsional.
+  // Salah satu dari authorId / guestName selalu terisi (dijaga controller).
+  authorId      String?
+  author        User?               @relation("GalleryCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  guestName     String?
+  content       String              @db.Text
+  // Default PENDING: komentar tampil setelah disetujui admin/pengurus.
+  status        PublicCommentStatus @default(PENDING)
+  moderatedById String?
+  moderator     User?               @relation("GalleryCommentModerator", fields: [moderatedById], references: [id])
+  moderatedAt   DateTime?
+  createdAt     DateTime            @default(now())
+
+  @@index([galleryId, status, createdAt])
+}
+
+/// Kode OTP & token sekali pakai untuk fitur lupa password.
+/// Token disimpan sebagai hash SHA-256 (deterministik) supaya barisnya bisa
+/// dicari langsung dari tautan; kode OTP disimpan sebagai hash bcrypt karena
+/// selalu dicocokkan untuk satu pengguna yang sudah diketahui.
+model PasswordReset {
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  otp_hash         String?
+  otp_expires_at   DateTime?
+  token_hash       String?   @unique
+  token_expires_at DateTime?
+  attempts         Int       @default(0)
+  last_sent_at     DateTime?
+  used_at          DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 }
 
 /// Pertanyaan yang sering diajukan (halaman FAQ dashboard).

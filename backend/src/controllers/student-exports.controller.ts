@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
 import { hitungAngkatan } from '../services/account-lifecycle.service';
 import type { Prisma } from '@prisma/client';
+import { isAdminRole } from '../lib/ticket-access';
 
 
 // Lokasi kolom CSV untuk tabel mahasiswa
@@ -15,19 +16,21 @@ const HEADER_LAHAN = ['No', 'NIM', 'Nama', 'Program Studi', 'Email', 'No HP', 'A
  */
 export const exportMahasiswa = async (req: any, res: Response, next: NextFunction) => {
   try {
-    if (!req.user || req.user.role !== 'ADMIN') {
+    if (!req.user || !isAdminRole(req.user.role)) {
       res.status(403).json({ message: 'Hanya admin yang dapat mengekspor data mahasiswa.' });
       return;
     }
 
     const { search, status, role } = req.query;
 
-    // Bangun filter
-    const where: any = { role: { not: 'ADMIN' } };
+    // Bangun filter. Akun SUPERADMIN tidak pernah ikut diekspor (akun pengelola
+    // web); akun ADMIN hanya ikut bila memang difilter oleh SUPERADMIN.
+    const bisaLihatAdmin = req.user.role === 'SUPERADMIN';
+    const where: any = { role: { notIn: bisaLihatAdmin ? ['SUPERADMIN'] : ['ADMIN', 'SUPERADMIN'] } };
     if (status === 'AKTIF') where.isActive = true;
     else if (status === 'NONAKTIF') where.isActive = false;
 
-    if (role && role !== 'ALL') where.role = role;
+    if (role && role !== 'ALL' && (role !== 'ADMIN' || bisaLihatAdmin)) where.role = role;
 
     if (search) {
       where.OR = [
@@ -74,7 +77,7 @@ export const exportMahasiswa = async (req: any, res: Response, next: NextFunctio
         m.nim,
         m.profile?.nama ?? '-',
         m.profile?.program_studi ?? '-',
-        m.profile?.email ?? '-',
+        m.email ?? m.profile?.email ?? '-',
         m.profile?.no_hp ?? '-',
         String(angkatan ?? '-'),
         m.role,

@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/axios';
-import { LayoutDashboard, Users, UserCheck, MessageSquare, AlertCircle, Clock, CheckCircle, Activity, Loader2, ShieldAlert } from 'lucide-react';
+import {
+  LayoutDashboard, Users, UserCheck, MessageSquare, AlertCircle, Clock, CheckCircle,
+  Activity, Loader2, ShieldAlert, BarChart3, Timer, Inbox, UserMinus,
+} from 'lucide-react';
+import { isAdminRole, targetLabel } from '../lib/roles';
 
 // Ringkasan penolakan permintaan dari origin web yang tidak dikenal.
 // Hanya dikirim backend kepada ADMIN (lihat cors-monitor.service.ts).
@@ -38,16 +42,34 @@ interface DashboardStats {
   keamananCors?: KeamananCors;
 }
 
+interface DeretGrafik {
+  label: string;
+  nilai: number;
+}
+
+interface Statistik {
+  role: string;
+  kartu: Record<string, number>;
+  trenTiket: DeretGrafik[];
+  distribusi?: DeretGrafik[];
+  statusTiket?: DeretGrafik[];
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [statistik, setStatistik] = useState<Statistik | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await api.get('/dashboard/stats');
+        const [res, resStatistik] = await Promise.all([
+          api.get('/dashboard/stats'),
+          api.get('/dashboard/statistik'),
+        ]);
         setStats(res.data.data);
+        setStatistik(resStatistik.data.data);
       } catch (error) {
         // Menggunakan variabel error agar terbaca oleh sistem log dan menghilangkan warning
         console.error('Gagal memuat statistik:', error);
@@ -61,6 +83,27 @@ export default function Dashboard() {
   if (loading) {
     return <div className="flex items-center justify-center h-[70vh]"><Loader2 className="w-10 h-10 text-amber-400 animate-spin" /></div>;
   }
+
+  const kartuStatistik = statistik?.kartu ?? {};
+  const pengelola = user?.role !== 'MAHASISWA';
+
+  const kartuTambahan = pengelola
+    ? [
+        { label: 'Rata-rata Respons', nilai: `${kartuStatistik.rataResponsJam ?? 0} jam`, icon: Timer },
+        { label: 'Tiket Perlu Moderasi', nilai: kartuStatistik.tiketMenungguModerasi ?? 0, icon: Inbox },
+        { label: 'Komentar Galeri Menunggu', nilai: kartuStatistik.menungguKomentarGaleri ?? 0, icon: MessageSquare },
+        { label: 'Akun Nonaktif Menunggu Hapus', nilai: kartuStatistik.akunNonaktif ?? 0, icon: UserMinus },
+      ]
+    : [
+        { label: 'Rata-rata Respons', nilai: `${kartuStatistik.rataResponsJam ?? 0} jam`, icon: Timer },
+        { label: 'Tiket Ditanggapi', nilai: kartuStatistik.ditanggapi ?? 0, icon: CheckCircle },
+        { label: 'Komentar Galeri Saya', nilai: kartuStatistik.totalKomentarGaleri ?? 0, icon: MessageSquare },
+      ];
+
+  const tren = statistik?.trenTiket ?? [];
+  const maxTren = Math.max(1, ...tren.map((t) => t.nilai));
+  const distribusi = statistik?.distribusi ?? [];
+  const maxDistribusi = Math.max(1, ...distribusi.map((d) => d.nilai));
 
   return (
     // [PERBAIKAN]: Menambahkan w-full, overflow-x-hidden, dan mengecilkan padding mobile (p-4)
@@ -128,8 +171,111 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* STATISTIK TAMBAHAN & GRAFIK (SEMUA ROLE) */}
+      {statistik && (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800 dark:text-gray-100 sm:text-xl">
+              <BarChart3 className="w-5 h-5 text-amber-400" /> Statistik Aktivitas
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
+              {pengelola ? 'Angka layanan tiket, moderasi, dan siklus akun.' : 'Angka tiket dan komentar milik Anda.'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {kartuTambahan.map((kartu) => {
+              const Icon = kartu.icon;
+              return (
+                <div key={kartu.label} className="flex items-center gap-3 p-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm sm:p-5 rounded-xl">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0 bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300">
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-gray-500 dark:text-gray-400 truncate">{kartu.label}</p>
+                    <p className="text-lg font-black text-gray-900 dark:text-gray-100 truncate">{kartu.nilai}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            {/* Grafik batang tren tiket */}
+            <div className="p-5 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-xl lg:col-span-2">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100">
+                  Tren Tiket {pengelola ? '12 Bulan' : '6 Bulan'} Terakhir
+                </h3>
+                <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
+                  Total: {tren.reduce((a, b) => a + b.nilai, 0)}
+                </span>
+              </div>
+
+              <div className="flex items-end gap-1 h-40 sm:gap-2">
+                {tren.map((t) => (
+                  <div key={t.label} className="flex flex-col items-center flex-1 min-w-0 h-full gap-1 group">
+                    <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400">{t.nilai > 0 ? t.nilai : ''}</span>
+                    <div className="flex items-end w-full h-full">
+                      <div
+                        role="img"
+                        aria-label={`${t.label}: ${t.nilai} tiket`}
+                        title={`${t.label}: ${t.nilai} tiket`}
+                        style={{ height: `${Math.max(3, (t.nilai / maxTren) * 100)}%` }}
+                        className="w-full transition-all duration-500 rounded-t-md bg-amber-400 hover:bg-amber-500 dark:bg-amber-500/80 dark:hover:bg-amber-400"
+                      />
+                    </div>
+                    <span className="text-[9px] text-gray-500 dark:text-gray-400 truncate w-full text-center">{t.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Distribusi / status */}
+            <div className="p-5 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-xl">
+              <h3 className="mb-4 text-sm font-bold text-gray-800 dark:text-gray-100">
+                {pengelola ? 'Tiket per Organisasi Tujuan' : 'Status Tiket Saya'}
+              </h3>
+
+              {pengelola ? (
+                distribusi.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Belum ada tiket dalam 12 bulan terakhir.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {distribusi.slice(0, 5).map((d) => (
+                      <li key={d.label}>
+                        <div className="flex items-center justify-between gap-2 text-xs font-bold text-gray-600 dark:text-gray-300">
+                          <span className="truncate">{d.label === 'TIDAK_DITENTUKAN' ? 'Tidak ditentukan' : targetLabel(d.label)}</span>
+                          <span className="shrink-0">{d.nilai}</span>
+                        </div>
+                        <div className="h-2 mt-1 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                          <div style={{ width: `${(d.nilai / maxDistribusi) * 100}%` }} className="h-full rounded-full bg-amber-400" />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              ) : (
+                <ul className="space-y-2">
+                  {(statistik.statusTiket ?? []).length === 0 ? (
+                    <li className="text-sm text-gray-500 dark:text-gray-400">Belum ada tiket.</li>
+                  ) : (
+                    (statistik.statusTiket ?? []).map((s) => (
+                      <li key={s.label} className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-gray-600 dark:text-gray-400">{s.label}</span>
+                        <span className="font-black text-gray-900 dark:text-gray-100">{s.nilai}</span>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Ringkasan keamanan: percobaan akses dari origin web tak dikenal. */}
-      {user?.role === 'ADMIN' && stats?.keamananCors && (
+      {isAdminRole(user?.role) && stats?.keamananCors && (
         <section className="pt-2 space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800 dark:text-gray-100 sm:text-xl">

@@ -7,7 +7,8 @@ exports.ubahStatusKomentar = exports.getCommentsForManagement = exports.getPubli
 const zod_1 = require("zod");
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const audit_service_1 = require("../services/audit.service");
-const ALLOWED_ROLES_FOR_MODERATION = ['ADMIN', 'PENGURUS_BEM', 'PENGURUS_DPM', 'PENGURUS_SI', 'PENGURUS_TM', 'PENGURUS_TS'];
+const ticket_access_1 = require("../lib/ticket-access");
+const ALLOWED_ROLES_FOR_MODERATION = ['ADMIN', 'SUPERADMIN', 'PENGURUS_BEM', 'PENGURUS_DPM', 'PENGURUS_SI', 'PENGURUS_TM', 'PENGURUS_TS'];
 exports.validateReplyContent = zod_1.z.object({
     content: zod_1.z.string().min(1).max(5000),
 });
@@ -97,7 +98,7 @@ const updateReply = async (req, res, next) => {
             res.status(404).json({ message: 'Balasan tidak ditemukan.' });
             return;
         }
-        if (reply.authorId !== req.user?.id && req.user?.role !== 'ADMIN') {
+        if (reply.authorId !== req.user?.id && !(0, ticket_access_1.isAdminRole)(req.user?.role)) {
             res.status(403).json({ message: 'Anda tidak berhak mengedit balasan ini.' });
             return;
         }
@@ -147,7 +148,7 @@ const deleteReply = async (req, res, next) => {
             res.status(404).json({ message: 'Balasan tidak ditemukan.' });
             return;
         }
-        if (reply.authorId !== req.user?.id && req.user?.role !== 'ADMIN') {
+        if (reply.authorId !== req.user?.id && !(0, ticket_access_1.isAdminRole)(req.user?.role)) {
             res.status(403).json({ message: 'Anda tidak berhak menghapus balasan ini.' });
             return;
         }
@@ -190,7 +191,7 @@ const reportComment = async (req, res, next) => {
             return;
         }
         const admins = await prisma_1.default.user.findMany({
-            where: { role: 'ADMIN' },
+            where: { role: { in: ['ADMIN', 'SUPERADMIN'] } },
             select: { id: true, profile: { select: { nama: true } } },
         });
         for (const admin of admins) {

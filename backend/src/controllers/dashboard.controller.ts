@@ -1,15 +1,18 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { ringkasanPenolakanCors } from '../services/cors-monitor.service';
+import { isAdminRole } from '../lib/ticket-access';
 
 export const getDashboardStats = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
     const user = req.user;
 
-    if (user.role === 'ADMIN' || user.role === 'PENGURUS') {
-      // --- STATISTIK UNTUK ADMIN & PENGURUS ---
+    if (isAdminRole(user.role) || user.role === 'PENGURUS') {
+      // --- STATISTIK UNTUK ADMIN, SUPERADMIN & PENGURUS ---
       const totalMahasiswa = await prisma.user.count({ where: { role: 'MAHASISWA' } });
-      const totalPengurus = await prisma.user.count({ where: { role: { in: ['PENGURUS', 'ADMIN'] } } });
+      const totalPengurus = await prisma.user.count({
+        where: { role: { in: ['PENGURUS', 'ADMIN', 'SUPERADMIN'] } },
+      });
       
       const totalAspirasi = await prisma.ticket.count({ where: { type: 'ASPIRASI' } });
       const totalKeluhan = await prisma.ticket.count({ where: { type: 'KELUHAN' } });
@@ -20,7 +23,7 @@ export const getDashboardStats = async (req: any, res: Response, next: NextFunct
 
       // Ringkasan percobaan akses dari origin tak dikenal hanya untuk ADMIN:
       // ini telemetri keamanan, bukan bagian dari pekerjaan kepengurusan.
-      const keamananCors = user.role === 'ADMIN' ? await ringkasanPenolakanCors() : null;
+      const keamananCors = isAdminRole(user.role) ? await ringkasanPenolakanCors() : null;
 
       res.status(200).json({
         role: user.role,

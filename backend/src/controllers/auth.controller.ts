@@ -5,8 +5,10 @@ import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { logActivity } from '../services/audit.service';
-import { sendVerificationEmail } from '../services/email.service';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../services/email.service';
 import { opsiCookieToken, TOKEN_COOKIE } from '../lib/cookies';
+import { frontendBaseUrl, samarkanEmail } from '../lib/frontend-url';
+import { isAdminRole } from '../lib/ticket-access';
 import crypto from 'crypto';
 
 export const loginSchema = z.object({
@@ -86,11 +88,22 @@ export const login = async (req: any, res: any, next: any): Promise<void> => {
     // 3. Tolak akun yang sudah dinonaktifkan (mis. habis masa studi 5 tahun).
     // Pesannya dibedakan dari "NIM atau Password salah" supaya pengguna tidak
     // mengira lupa password padahal akunnya memang dinonaktifkan.
+    //
+    // Akun ADMIN/SUPERADMIN adalah pengecualian: statusnya dipulihkan di sini,
+    // bukan ditolak. Dengan begitu akun pengelola tidak pernah bisa terkunci
+    // karena status nonaktif yang tertulis keliru.
     if (!user.isActive) {
-      res.status(403).json({
-        message: 'Akun ini sudah dinonaktifkan. Silakan hubungi administrator fakultas.',
-      });
-      return;
+      if (isAdminRole(user.role)) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { isActive: true, deactivatedAt: null, deactivationType: null, tenggatHapus: null },
+        });
+      } else {
+        res.status(403).json({
+          message: 'Akun ini sudah dinonaktifkan. Silakan hubungi administrator fakultas.',
+        });
+        return;
+      }
     }
 
     // 4. Buat JWT Token
@@ -159,6 +172,18 @@ export const completeFirstLogin = async (req: any, res: any, next: any): Promise
       return;
     }
 
+    // Email harus unik antar akun karena dipakai untuk lupa password. Tanpa
+    // pemeriksaan ini, dua mahasiswa yang mengetik email sama akan membuat
+    // penyimpanan gagal dengan pesan server yang tidak jelas.
+    const emailDipakai = await prisma.user.findFirst({
+      where: { email: email.toLowerCase(), id: { not: userId } },
+      select: { id: true }
+    });
+    if (emailDipakai) {
+      res.status(409).json({ message: 'Email ini sudah dipakai akun lain. Gunakan alamat email lain.' });
+      return;
+    }
+
     // 3. Hash password baru
     const password_hash = await bcrypt.hash(password_baru, 10);
 
@@ -171,7 +196,10 @@ export const completeFirstLogin = async (req: any, res: any, next: any): Promise
         where: { id: userId },
         data: {
           password_hash,
-          first_login: false
+          first_login: false,
+          // Email akun ikut disimpan di tabel User supaya lupa password berjalan
+          // untuk SEMUA role, termasuk akun yang tidak punya StudentProfile.
+          email: email.toLowerCase()
         }
       });
 
@@ -358,9 +386,23 @@ export const resendVerification = async (req: any, res: any, next: any): Promise
         return;
       }
 
-      profile = await prisma.studentProfile.update({
-        where: { userId },
-        data: { email: emailBaru, email_verified_at: null }
+      // Email akun (User.email) harus ikut diperbarui, kalau tidak lupa password
+      // akan mengirim kode ke alamat lama yang sudah tidak dipakai.
+      const dipakaiAkunLain = await prisma.user.findFirst({
+        where: { email: emailBaru, id: { not: userId } },
+        select: { id: true }
+      });
+      if (dipakaiAkunLain) {
+        res.status(409).json({ message: 'Email ini sudah dipakai akun lain.' });
+        return;
+      }
+
+      profile = await prisma.$transaction(async (tx) => {
+        await tx.user.update({ where: { id: userId }, data: { email: emailBaru } });
+        return tx.studentProfile.update({
+          where: { userId },
+          data: { email: emailBaru, email_verified_at: null }
+        });
       });
 
       await logActivity(
@@ -405,6 +447,373 @@ export const resendVerification = async (req: any, res: any, next: any): Promise
       email: profile.email,
       user: buildAuthUser(user, profile)
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================================================
+// GANTI PASSWORD MANDIRI (SEMUA ROLE)
+// ==========================================================================
+
+export const changePasswordSchema = z
+  .object({
+    password_lama: z.string().min(1, { message: 'Password lama wajib diisi.' }),
+    password_baru: z.string().min(8, { message: 'Password baru minimal 8 karakter.' }),
+    konfirmasi_password: z.string(),
+  })
+  .refine((data) => data.password_baru === data.konfirmasi_password, {
+    message: 'Konfirmasi password tidak cocok.',
+    path: ['konfirmasi_password'],
+  });
+
+/**
+ * Mengganti password akun yang sedang login. Berlaku untuk SEMUA role
+ * (mahasiswa, pengurus, admin, superadmin) dan tidak memerlukan email.
+ * Password lama wajib benar supaya sesi yang dicuri tidak bisa mengganti
+ * password tanpa diketahui pemiliknya.
+ */
+export const changePassword = async (req: any, res: any, next: any): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ message: 'Sesi tidak valid atau telah berakhir.' });
+      return;
+    }
+
+    const parsed = changePasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: parsed.error.issues[0]?.message || 'Data yang dikirim tidak valid.' });
+      return;
+    }
+
+    const { password_lama, password_baru } = parsed.data;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404).json({ message: 'Data pengguna tidak ditemukan.' });
+      return;
+    }
+
+    const passwordLamaBenar = await bcrypt.compare(password_lama, user.password_hash);
+    if (!passwordLamaBenar) {
+      res.status(400).json({ message: 'Password lama salah.' });
+      return;
+    }
+
+    const samaDenganLama = await bcrypt.compare(password_baru, user.password_hash);
+    if (samaDenganLama) {
+      res.status(400).json({ message: 'Password baru harus berbeda dari password lama.' });
+      return;
+    }
+
+    const password_hash = await bcrypt.hash(password_baru, 10);
+    await prisma.user.update({ where: { id: userId }, data: { password_hash } });
+
+    await logActivity(
+      userId,
+      'CHANGE_PASSWORD',
+      'User',
+      'Pengguna mengganti password akunnya sendiri',
+      userId
+    );
+
+    res.status(200).json({ message: 'Password berhasil diganti. Gunakan password baru pada login berikutnya.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================================================
+// LUPA PASSWORD: OTP ke email + tautan reset sekali pakai
+// ==========================================================================
+
+const RESET_OTP_TTL_MINUTES = 15;
+const RESET_TOKEN_TTL_MINUTES = 30;
+const MAX_RESET_ATTEMPTS = 5;
+const RESET_COOLDOWN_SECONDS = 60;
+
+/** Pesan netral: tidak membocorkan apakah akun dengan data itu ada. */
+const PESAN_RESET_NETRAL =
+  'Jika nama, NIM, dan email yang Anda masukkan cocok dengan akun kami, kode OTP dan tautan reset password sudah dikirim ke email terdaftar.';
+
+/** Token disimpan sebagai hash SHA-256 agar tautannya bisa dicari tanpa menyimpan token asli. */
+const hashTokenReset = (token: string): string =>
+  crypto.createHash('sha256').update(token).digest('hex');
+
+const rapikan = (nilai: unknown): string => String(nilai ?? '').trim();
+const rapikanNama = (nilai: string): string => nilai.trim().replace(/\s+/g, ' ').toLowerCase();
+
+/** Email yang dipakai untuk reset: kolom User.email didahulukan, lalu profil. */
+const emailAkun = (user: { email: string | null; profile: { email: string | null } | null }): string =>
+  (user.email || user.profile?.email || '').trim().toLowerCase();
+
+/**
+ * Langkah 1 lupa password: cocokkan nama + NIM + email, lalu kirim OTP dan
+ * tautan reset ke email terdaftar. Selalu menjawab dengan pesan netral jika
+ * data tidak cocok, supaya endpoint ini tidak bisa dipakai menebak data akun.
+ */
+export const mintaResetPassword = async (req: any, res: any, next: any): Promise<void> => {
+  try {
+    const nama = rapikan(req.body?.nama);
+    const nim = rapikan(req.body?.nim).toUpperCase();
+    const email = rapikan(req.body?.email).toLowerCase();
+
+    if (!nama || !nim || !email) {
+      res.status(400).json({ message: 'Nama, NIM, dan email wajib diisi.' });
+      return;
+    }
+
+    if (!z.string().email().safeParse(email).success) {
+      res.status(400).json({ message: 'Format email tidak valid.' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { nim },
+      include: { profile: true },
+    });
+
+    // Akun tanpa profil (ADMIN/SUPERADMIN) tidak punya nama, jadi hanya email
+    // dan NIM yang dicocokkan. Akun dengan profil wajib cocok ketiganya.
+    const namaCocok = user?.profile ? rapikanNama(user.profile.nama) === rapikanNama(nama) : true;
+    const emailCocok = user ? emailAkun(user) === email : false;
+
+    if (!user || !namaCocok || !emailCocok || !email) {
+      res.status(200).json({ message: PESAN_RESET_NETRAL });
+      return;
+    }
+
+    // Batas frekuensi kirim supaya endpoint ini tidak dijadikan alat spam.
+    const dataReset = await prisma.passwordReset.findUnique({ where: { userId: user.id } });
+    if (dataReset?.last_sent_at) {
+      const lewatDetik = Math.floor((Date.now() - dataReset.last_sent_at.getTime()) / 1000);
+      const sisaDetik = RESET_COOLDOWN_SECONDS - lewatDetik;
+      if (sisaDetik > 0) {
+        res.status(429).json({ message: `Mohon tunggu ${sisaDetik} detik sebelum meminta kode baru.` });
+        return;
+      }
+    }
+
+    const kode = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
+    const token = crypto.randomBytes(32).toString('hex');
+
+    const isiReset = {
+      otp_hash: await bcrypt.hash(kode, 10),
+      otp_expires_at: new Date(Date.now() + RESET_OTP_TTL_MINUTES * 60 * 1000),
+      // Token dari permintaan sebelumnya otomatis diganti: tautan lama tidak
+      // berlaku lagi begitu pengguna meminta kode baru.
+      token_hash: hashTokenReset(token),
+      token_expires_at: new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000),
+      attempts: 0,
+      last_sent_at: new Date(),
+      used_at: null,
+    };
+
+    await prisma.passwordReset.upsert({
+      where: { userId: user.id },
+      create: { userId: user.id, ...isiReset },
+      update: isiReset,
+    });
+
+    const link = `${frontendBaseUrl()}/reset-password?token=${token}`;
+    const namaPenerima = user.profile?.nama || user.nim;
+    const terkirim = await sendPasswordResetEmail(
+      email,
+      namaPenerima,
+      kode,
+      link,
+      RESET_OTP_TTL_MINUTES
+    );
+
+    if (!terkirim) {
+      res.status(502).json({
+        message: `Kode gagal dikirim ke ${samarkanEmail(email)}. Coba lagi beberapa saat lagi.`,
+      });
+      return;
+    }
+
+    await logActivity(
+      user.id,
+      'REQUEST_PASSWORD_RESET',
+      'User',
+      'Permintaan reset password: kode OTP dikirim ke email terdaftar',
+      user.id
+    );
+
+    res.status(200).json({
+      message: `Kode OTP dan tautan reset sudah dikirim ke ${samarkanEmail(email)}.`,
+      email: samarkanEmail(email),
+      berlakuMenit: RESET_OTP_TTL_MINUTES,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Langkah 2 lupa password: memasukkan kode OTP. Kalau benar, server
+ * mengembalikan token sekali pakai untuk membuka form password baru.
+ */
+export const verifikasiKodeReset = async (req: any, res: any, next: any): Promise<void> => {
+  try {
+    const nim = rapikan(req.body?.nim).toUpperCase();
+    const kode = rapikan(req.body?.kode);
+
+    if (!nim || !/^\d{6}$/.test(kode)) {
+      res.status(400).json({ message: 'NIM wajib diisi dan kode OTP harus 6 digit angka.' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { nim } });
+    if (!user) {
+      res.status(400).json({ message: 'NIM atau kode OTP tidak valid.' });
+      return;
+    }
+
+    const dataReset = await prisma.passwordReset.findUnique({ where: { userId: user.id } });
+    if (!dataReset?.otp_hash || !dataReset.otp_expires_at) {
+      res.status(400).json({ message: 'Belum ada kode aktif. Silakan minta kode baru.' });
+      return;
+    }
+
+    if (dataReset.otp_expires_at.getTime() < Date.now()) {
+      res.status(400).json({ message: 'Kode OTP sudah kedaluwarsa. Silakan minta kode baru.' });
+      return;
+    }
+
+    if (dataReset.attempts >= MAX_RESET_ATTEMPTS) {
+      res.status(429).json({ message: 'Terlalu banyak percobaan salah. Silakan minta kode baru.' });
+      return;
+    }
+
+    const cocok = await bcrypt.compare(kode, dataReset.otp_hash);
+    if (!cocok) {
+      const attempts = dataReset.attempts + 1;
+      const habis = attempts >= MAX_RESET_ATTEMPTS;
+      await prisma.passwordReset.update({
+        where: { userId: user.id },
+        data: {
+          attempts,
+          ...(habis ? { otp_hash: null, otp_expires_at: null, token_hash: null, token_expires_at: null } : {}),
+        },
+      });
+      res.status(400).json({
+        message: habis
+          ? 'Kode salah. Batas percobaan habis, silakan minta kode baru.'
+          : `Kode OTP salah. Sisa percobaan: ${MAX_RESET_ATTEMPTS - attempts}.`,
+      });
+      return;
+    }
+
+    // Kode benar: terbitkan token baru untuk form password baru.
+    const token = crypto.randomBytes(32).toString('hex');
+    await prisma.passwordReset.update({
+      where: { userId: user.id },
+      data: {
+        otp_hash: null,
+        otp_expires_at: null,
+        attempts: 0,
+        token_hash: hashTokenReset(token),
+        token_expires_at: new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000),
+        used_at: null,
+      },
+    });
+
+    res.status(200).json({
+      message: 'Kode OTP benar. Silakan buat password baru.',
+      token,
+      berlakuMenit: RESET_TOKEN_TTL_MINUTES,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Langkah 3 lupa password: simpan password baru memakai token dari email/
+ * verifikasi OTP. Token sekali pakai dan langsung hangus setelah dipakai.
+ */
+export const resetPassword = async (req: any, res: any, next: any): Promise<void> => {
+  try {
+    const token = rapikan(req.body?.token);
+    const passwordBaru = String(req.body?.password_baru ?? '');
+    const konfirmasi = String(req.body?.konfirmasi_password ?? '');
+
+    if (!token) {
+      res.status(400).json({ message: 'Tautan reset tidak valid. Silakan minta tautan baru.' });
+      return;
+    }
+
+    if (passwordBaru.length < 8) {
+      res.status(400).json({ message: 'Password baru minimal 8 karakter.' });
+      return;
+    }
+
+    if (passwordBaru !== konfirmasi) {
+      res.status(400).json({ message: 'Konfirmasi password tidak cocok.' });
+      return;
+    }
+
+    const dataReset = await prisma.passwordReset.findUnique({
+      where: { token_hash: hashTokenReset(token) },
+    });
+
+    if (!dataReset || dataReset.used_at || !dataReset.token_expires_at) {
+      res.status(400).json({ message: 'Tautan reset tidak valid atau sudah dipakai. Silakan minta tautan baru.' });
+      return;
+    }
+
+    if (dataReset.token_expires_at.getTime() < Date.now()) {
+      res.status(400).json({ message: 'Tautan reset sudah kedaluwarsa. Silakan minta tautan baru.' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: dataReset.userId } });
+    if (!user) {
+      res.status(404).json({ message: 'Akun tidak ditemukan.' });
+      return;
+    }
+
+    if (!user.isActive && !isAdminRole(user.role)) {
+      res.status(403).json({
+        message: 'Akun ini sudah dinonaktifkan. Silakan hubungi administrator fakultas.',
+      });
+      return;
+    }
+
+    const samaDenganLama = await bcrypt.compare(passwordBaru, user.password_hash);
+    if (samaDenganLama) {
+      res.status(400).json({ message: 'Password baru harus berbeda dari password lama.' });
+      return;
+    }
+
+    const password_hash = await bcrypt.hash(passwordBaru, 10);
+
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: user.id }, data: { password_hash } }),
+      prisma.passwordReset.update({
+        where: { userId: user.id },
+        data: {
+          used_at: new Date(),
+          otp_hash: null,
+          otp_expires_at: null,
+          token_hash: null,
+          token_expires_at: null,
+          attempts: 0,
+        },
+      }),
+    ]);
+
+    await logActivity(
+      user.id,
+      'RESET_PASSWORD',
+      'User',
+      'Password diatur ulang melalui tautan lupa password',
+      user.id
+    );
+
+    res.status(200).json({ message: 'Password berhasil diatur ulang. Silakan login dengan password baru.' });
   } catch (error) {
     next(error);
   }

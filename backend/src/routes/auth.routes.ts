@@ -1,5 +1,15 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { login, completeFirstLogin, verifyEmail, resendVerification, buildAuthUser } from '../controllers/auth.controller';
+import {
+  login,
+  completeFirstLogin,
+  verifyEmail,
+  resendVerification,
+  buildAuthUser,
+  changePassword,
+  mintaResetPassword,
+  verifikasiKodeReset,
+  resetPassword,
+} from '../controllers/auth.controller';
 import { requireAuth } from '../middlewares/auth.middleware';
 import { uploadPhoto } from '../middlewares/upload.middleware';
 import prisma from '../lib/prisma';
@@ -36,6 +46,38 @@ const verifikasiLimiter = rateLimit({
 
 router.post('/verify-email', requireAuth, verifikasiLimiter, verifyEmail);
 router.post('/resend-verification', requireAuth, verifikasiLimiter, resendVerification);
+
+// Ganti password mandiri untuk SEMUA role yang sudah login.
+// Dibatasi per PENGGUNA (bukan per IP) supaya mahasiswa di jaringan kampus yang
+// berbagi IP tidak saling memblokir, sementara tebakan password tetap dibatasi.
+const gantiPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyGenerator: (req: any) => req.user?.id || ipKeyGenerator(req.ip),
+  message: { message: 'Terlalu banyak percobaan ganti password. Silakan coba lagi setelah 15 menit.' }
+});
+
+router.post('/change-password', requireAuth, gantiPasswordLimiter, changePassword);
+
+// --- Lupa password (tanpa login) ---------------------------------------
+// Permintaan OTP dibatasi per IP karena pelakunya belum punya sesi. Endpoint
+// verifikasi OTP memakai batas lebih longgar: penebakan kode sudah dibatasi
+// 5 percobaan per akun di dalam controller.
+const lupaPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { message: 'Terlalu banyak permintaan reset password. Silakan coba lagi setelah 15 menit.' }
+});
+
+const verifikasiResetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: { message: 'Terlalu banyak percobaan. Silakan coba lagi setelah 15 menit.' }
+});
+
+router.post('/lupa-password', lupaPasswordLimiter, mintaResetPassword);
+router.post('/lupa-password/verifikasi', verifikasiResetLimiter, verifikasiKodeReset);
+router.post('/reset-password', verifikasiResetLimiter, resetPassword);
 
 // Endpoint Logout
 router.post('/logout', (req: Request, res: Response) => {

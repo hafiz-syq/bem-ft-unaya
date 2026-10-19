@@ -79,7 +79,10 @@ export default function PublicContentDetail() {
       <footer className="px-6 py-10 mt-auto text-sm text-center text-gray-400 dark:text-gray-500 bg-gray-900">
         <div className="flex flex-col items-center justify-between max-w-4xl gap-4 mx-auto md:flex-row">
           <div className="text-left"><h3 className="text-lg font-bold text-white">BEM FT UNAYA</h3></div>
-          <div className="text-right"><p>© 2026 Hak Cipta Dilindungi.</p></div>
+          <div className="text-center md:text-right">
+            <p>© 2026 Hak Cipta Dilindungi.</p>
+            <p className="mt-1">Dibuat oleh <span className="font-bold text-amber-400">Hafiz Syauqi</span></p>
+          </div>
         </div>
       </footer>
     </div>

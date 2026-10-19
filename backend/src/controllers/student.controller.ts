@@ -7,7 +7,7 @@ import {
   runAccountLifecycleJob,
   tenggatHapusEfektif,
 } from '../services/account-lifecycle.service';
-import { ASSIGNABLE_ROLES, OFFICER_ROLES } from '../lib/ticket-access';
+import { ASSIGNABLE_ROLES, OFFICER_ROLES, isAdminRole } from '../lib/ticket-access';
 
 /**
  * Data akun yang ditampilkan di halaman Data Mahasiswa.
@@ -55,11 +55,18 @@ export const getStudents = async (req: any, res: Response, next: NextFunction): 
     const role = (req.query.role as string) || 'ALL';
     const skip = (page - 1) * limit;
 
-    // Role ADMIN tidak pernah muncul di daftar ini.
-    const where: any = { role: { not: 'ADMIN' } };
+    // Akun pengelola tidak tampil di daftar ini, kecuali bagi SUPERADMIN yang
+    // memang bertugas mengelola akun ADMIN. SUPERADMIN sendiri tidak pernah
+    // ditampilkan dan tidak bisa diubah dari halaman ini.
+    const bisaLihatAdmin = req.user?.role === 'SUPERADMIN';
+    const where: any = {
+      role: { notIn: bisaLihatAdmin ? ['SUPERADMIN'] : ['ADMIN', 'SUPERADMIN'] },
+    };
 
     if (role !== 'ALL' && ASSIGNABLE_ROLES.includes(role)) {
-      where.role = role === 'ADMIN' ? { not: 'ADMIN' } : role;
+      if (role !== 'ADMIN' || bisaLihatAdmin) {
+        where.role = role;
+      }
     }
 
     if (status === 'AKTIF') where.isActive = true;
@@ -182,8 +189,10 @@ export const updateStudentStatus = async (req: any, res: Response, next: NextFun
       return;
     }
 
-    if (target.role === 'ADMIN') {
-      res.status(403).json({ message: 'Akun administrator tidak dapat dinonaktifkan dari halaman ini.' });
+    // Akun pengelola (ADMIN & SUPERADMIN) tidak pernah boleh dinonaktifkan:
+    // satu klik keliru bisa mengunci seluruh sistem.
+    if (isAdminRole(target.role)) {
+      res.status(403).json({ message: 'Akun administrator dan superadmin tidak dapat dinonaktifkan.' });
       return;
     }
 
@@ -240,10 +249,10 @@ export const perpanjangAkun = async (req: any, res: Response, next: NextFunction
       return;
     }
 
-    // Siklus hidup hanya mengatur mahasiswa. Akun administrator tidak pernah
-    // nonaktif, jadi tidak ada yang bisa diperpanjang di sana.
-    if (target.role === 'ADMIN') {
-      res.status(403).json({ message: 'Akun administrator tidak mengikuti siklus hidup ini.' });
+    // Siklus hidup hanya mengatur mahasiswa. Akun administrator/superadmin
+    // tidak pernah nonaktif, jadi tidak ada yang bisa diperpanjang di sana.
+    if (isAdminRole(target.role)) {
+      res.status(403).json({ message: 'Akun administrator dan superadmin tidak mengikuti siklus hidup ini.' });
       return;
     }
 
@@ -344,7 +353,8 @@ export const updateStudentRole = async (req: any, res: Response, next: NextFunct
     const { id } = req.params;
     const role = String(req.body.role || '').trim().toUpperCase();
 
-    if (!ASSIGNABLE_ROLES.includes(role)) {
+    // SUPERADMIN boleh ditetapkan, tetapi hanya oleh sesama SUPERADMIN.
+    if (!ASSIGNABLE_ROLES.includes(role) && role !== 'SUPERADMIN') {
       res.status(400).json({ message: 'Role tidak dikenali.' });
       return;
     }
@@ -359,13 +369,37 @@ export const updateStudentRole = async (req: any, res: Response, next: NextFunct
       return;
     }
 
-    // Akun administrator tidak boleh diubah dari halaman ini. Tanpa penjaga ini,
-    // satu klik bisa menurunkan admin terakhir dan mengunci seluruh sistem.
-    if (target.role === 'ADMIN') {
+    // Tidak ada yang boleh mengubah role akunnya sendiri. Tanpa penjaga ini,
+    // admin terakhir bisa menurunkan dirinya dan mengunci seluruh sistem.
+    if (target.id === req.user.id) {
+      res.status(403).json({ message: 'Anda tidak dapat mengubah role akun sendiri.' });
+      return;
+    }
+
+    // Mengubah role akun pengelola adalah wewenang SUPERADMIN saja.
+    if (isAdminRole(target.role) && req.user.role !== 'SUPERADMIN') {
       res.status(403).json({
-        message: 'Role akun administrator tidak dapat diubah dari halaman ini.',
+        message: 'Role akun administrator hanya dapat diubah oleh superadmin.',
       });
       return;
+    }
+
+    // Menetapkan SUPERADMIN juga hanya boleh dilakukan SUPERADMIN.
+    if (role === 'SUPERADMIN' && req.user.role !== 'SUPERADMIN') {
+      res.status(403).json({ message: 'Hanya superadmin yang dapat menetapkan role superadmin.' });
+      return;
+    }
+
+    // SUPERADMIN yang sedang diubah harus menyisakan minimal satu superadmin
+    // lain, supaya sistem tidak pernah kehilangan pengelola webnya.
+    if (target.role === 'SUPERADMIN') {
+      const jumlahSuperadmin = await prisma.user.count({ where: { role: 'SUPERADMIN' } });
+      if (jumlahSuperadmin <= 1) {
+        res.status(403).json({
+          message: 'Minimal harus ada satu superadmin. Tetapkan superadmin lain sebelum mengubah yang terakhir.',
+        });
+        return;
+      }
     }
 
     const updated = await prisma.user.update({
@@ -428,7 +462,7 @@ const bacaTanggal = (nilai: unknown): Date | null | 'INVALID' => {
 
 /** Penjaga khusus: hanya pengurus & admin yang boleh menyentuh data mahasiswa. */
 export const requireOfficer = (req: any, res: Response, next: NextFunction): void => {
-  if (!req.user || !(OFFICER_ROLES.includes(req.user.role) || req.user.role === 'ADMIN')) {
+  if (!req.user || !(OFFICER_ROLES.includes(req.user.role) || isAdminRole(req.user.role))) {
     res.status(403).json({ message: 'Hanya pengurus dan admin yang dapat mengakses data ini.' });
     return;
   }
@@ -436,7 +470,7 @@ export const requireOfficer = (req: any, res: Response, next: NextFunction): voi
 };
 
 export const requireAdmin = (req: any, res: Response, next: NextFunction): void => {
-  if (!req.user || req.user.role !== 'ADMIN') {
+  if (!req.user || !isAdminRole(req.user.role)) {
     res.status(403).json({ message: 'Hanya admin yang dapat melakukan tindakan ini.' });
     return;
   }

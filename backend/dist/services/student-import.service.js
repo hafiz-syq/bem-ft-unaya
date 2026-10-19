@@ -26,10 +26,13 @@ const prisma_1 = __importDefault(require("../lib/prisma"));
 // sehingga admin yang mengunggah PDF bisa menerima pesan "berkas tidak dapat
 // dibaca" padahal berkasnya sahih. Karena jalur impor ini menyentuh data akun,
 // pemakaiannya diganti pdfjs-dist yang masih dirawat.
-// Pemberitahuan "Cannot polyfill DOMMatrix/Path2D" dari pdfjs tidak berpengaruh:
-// poligon itu hanya dipakai saat merender gambar, bukan saat membaca teks.
+// Build "modern" dipakai, bukan "legacy". Build legacy, saat modul diimpor,
+// mencoba memuat paket native `canvas` untuk mem-polyfill DOMMatrix/Path2D dan
+// mencetak peringatan "Cannot polyfill ..." di setiap start server. Jalur ini
+// hanya membaca teks PDF (tidak pernah merender halaman), jadi polyfill tersebut
+// tidak dibutuhkan dan build modern tidak menyentuh `canvas` sama sekali.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
+const pdfjs = require('pdfjs-dist/build/pdf.js');
 /** NIM yang dikenali sistem: 8 digit, boleh diakhiri satu huruf. */
 const POLA_NIM = /^\d{8}[A-Za-z]?$/;
 /**

@@ -4,6 +4,7 @@ import { KeyRound, ShieldAlert, Loader2, Mail, Phone, Camera, X } from 'lucide-r
 import axios from 'axios';
 import { api } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
+import PasswordInput from '../components/PasswordInput';
 
 export default function FirstLogin() {
   const [email, setEmail] = useState('');
@@ -115,21 +116,25 @@ export default function FirstLogin() {
         </div>
 
         {error && (
-          <div className="bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm text-center">
+          <div role="alert" className="bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 p-3 rounded-lg text-sm text-center">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+            <label htmlFor="fl-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Mail className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               </div>
               <input
+                id="fl-email"
+                name="email"
                 type="email"
                 required
+                autoComplete="email"
+                spellCheck={false}
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 placeholder="nama@contoh.com"
                 value={email}
@@ -139,14 +144,17 @@ export default function FirstLogin() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">No. HP / WhatsApp</label>
+            <label htmlFor="fl-nohp" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">No. HP / WhatsApp</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Phone className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               </div>
               <input
+                id="fl-nohp"
+                name="nohp"
                 type="tel"
                 required
+                autoComplete="tel"
                 className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 placeholder="08xxxxxxxxxx"
                 value={noHp}
@@ -156,9 +164,9 @@ export default function FirstLogin() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" id="fl-foto">
               Foto Profil <span className="font-normal text-gray-400 dark:text-gray-500">(opsional)</span>
-            </label>
+            </span>
             {photoPreview ? (
               <div className="flex items-center gap-4">
                 <img
@@ -188,15 +196,18 @@ export default function FirstLogin() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password Baru</label>
+            <label htmlFor="fl-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password Baru</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <KeyRound className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               </div>
-              <input
-                type="password"
+              <PasswordInput
+                id="fl-password"
+                name="password"
                 required
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                autoComplete="new-password"
+                spellCheck={false}
+                className="block w-full pl-10 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 placeholder="Minimal 8 karakter"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -205,15 +216,18 @@ export default function FirstLogin() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Konfirmasi Password Baru</label>
+            <label htmlFor="fl-konfirmasi" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Konfirmasi Password Baru</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <KeyRound className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               </div>
-              <input
-                type="password"
+              <PasswordInput
+                id="fl-konfirmasi"
+                name="konfirmasi"
                 required
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                autoComplete="new-password"
+                spellCheck={false}
+                className="block w-full pl-10 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-500 focus:border-amber-500 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 placeholder="Ketik ulang password baru"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}

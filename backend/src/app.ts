@@ -80,6 +80,7 @@ app.use('/api/data-requests', dataRequestRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/public-comments', publicCommentRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/dashboard', dashboardChartsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/cms', cmsRoutes);
 app.use('/api/demisioner', demisionerRoutes);

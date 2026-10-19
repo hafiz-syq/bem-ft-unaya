@@ -7,6 +7,7 @@ import {
 import { ThemeToggle } from '../components/ThemeToggle';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { isAdminRole } from '../lib/roles';
 
 interface Content {
   id: string; type: string; title: string; content: string; createdAt: string; image: string | null;
@@ -37,7 +38,7 @@ const KATEGORI_GALERI = ['FOTO', 'INFOGRAFIS', 'VIDEO', 'DOKUMENTASI'];
 
 export default function CMSManager() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = isAdminRole(user?.role);
 
   const [activeTab, setActiveTab] = useState<Tab>('KONTEN');
 
@@ -493,7 +494,7 @@ export default function CMSManager() {
 
       {/* MODAL MULTI-FUNGSI */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity bg-gray-900/50 backdrop-blur-sm">
+        <div role="dialog" aria-modal="true" aria-label="Form konten CMS" className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity bg-gray-900/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden transform transition-all max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800">
               <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-gray-100">

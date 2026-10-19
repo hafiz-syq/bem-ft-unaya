@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom'; // 1. Tambahkan Link di sini
 import { User, Lock, Loader2, ArrowLeft } from 'lucide-react'; // Ditambahkan ArrowLeft opsional untuk ikon
+import PasswordInput from '../components/PasswordInput';
 import axios from 'axios';
 import { api } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -54,21 +55,25 @@ export default function Login() {
         </div>
 
         {error && (
-          <div className="p-3 text-sm text-center text-red-600 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">
+          <div role="alert" className="p-3 text-sm text-center text-red-600 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">
             {error}
           </div>
         )}
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">NIM / Username</label>
+            <label htmlFor="login-nim" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">NIM / Username</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                 <User className="w-5 h-5 text-gray-400 dark:text-gray-500" />
               </div>
               <input
+                id="login-nim"
+                name="nim"
                 type="text"
                 required
+                autoComplete="username"
+                spellCheck={false}
                 className="block w-full py-2 pl-10 pr-3 text-gray-900 border border-gray-300 rounded-lg focus:ring-amber-400 focus:border-amber-400 bg-gray-50 dark:text-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:placeholder:text-gray-500"
                 placeholder="Masukkan NIM Anda"
                 value={nim}
@@ -78,15 +83,18 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+            <label htmlFor="login-password" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                 <Lock className="w-5 h-5 text-gray-400 dark:text-gray-500" />
               </div>
-              <input
-                type="password"
+              <PasswordInput
+                id="login-password"
+                name="password"
                 required
-                className="block w-full py-2 pl-10 pr-3 text-gray-900 border border-gray-300 rounded-lg focus:ring-amber-400 focus:border-amber-400 bg-gray-50 dark:text-gray-100 dark:border-gray-700 dark:bg-gray-800"
+                autoComplete="current-password"
+                spellCheck={false}
+                className="block w-full py-2 pl-10 text-gray-900 border border-gray-300 rounded-lg focus:ring-amber-400 focus:border-amber-400 bg-gray-50 dark:text-gray-100 dark:border-gray-700 dark:bg-gray-800"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -101,6 +109,15 @@ export default function Login() {
           >
             {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Masuk'}
           </button>
+
+          <div className="text-right">
+            <Link
+              to="/lupa-password"
+              className="text-sm font-medium text-amber-600 hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-200"
+            >
+              Lupa password?
+            </Link>
+          </div>
         </form>
 
         {/* 2. Tombol Kembali dengan React Router Link & Styling Tailwind */}

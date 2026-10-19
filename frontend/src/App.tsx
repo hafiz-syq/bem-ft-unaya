@@ -2,6 +2,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { type ReactNode } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
+import LupaPassword from './pages/LupaPassword';
+import ResetPassword from './pages/ResetPassword';
 import FirstLogin from './pages/FirstLogin';
 import VerifyEmail from './pages/VerifyEmail';
 import Dashboard from './pages/Dashboard';
@@ -22,6 +24,7 @@ import PublicContentDetail from './pages/PublicContentDetail';
 import PublicComments from './pages/PublicComments';
 import Faq from './pages/Faq';
 import Demisioner from './pages/Demisioner';
+import GalleryCommentsAdmin from './pages/GalleryCommentsAdmin';
 
 /**
  * Penjaga dasar: hanya memastikan pengguna sudah login.
@@ -60,6 +63,8 @@ function App() {
       <Route path="/" element={<Landing />} />
 
       <Route path="/login" element={<Login />} />
+      <Route path="/lupa-password" element={<LupaPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       <Route path="/first-login" element={
         <AuthOnlyRoute>
@@ -134,6 +139,14 @@ function App() {
         <ProtectedRoute>
           <DashboardLayout>
             <DataRequests />
+          </DashboardLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/galeri-komentar" element={
+        <ProtectedRoute>
+          <DashboardLayout>
+            <GalleryCommentsAdmin />
           </DashboardLayout>
         </ProtectedRoute>
       } />

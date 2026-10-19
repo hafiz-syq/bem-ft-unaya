@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.processRequest = exports.getRequests = exports.createRequest = void 0;
 const audit_service_1 = require("../services/audit.service");
 const prisma_1 = __importDefault(require("../lib/prisma"));
+const ticket_access_1 = require("../lib/ticket-access");
 // 1. Mahasiswa mengajukan perubahan data
 const createRequest = async (req, res, next) => {
     try {
@@ -85,6 +86,11 @@ const processRequest = async (req, res, next) => {
     try {
         const { id } = req.params;
         const { status } = req.body; // <-- Typo kurawal ekstra sudah dihapus di sini
+        // [PERBAIKAN KEAMANAN] Hanya ADMIN/SUPERADMIN yang boleh memproses pengajuan perubahan data.
+        if (!(0, ticket_access_1.isAdminRole)(req.user?.role)) {
+            res.status(403).json({ message: 'Akses ditolak: khusus Admin.' });
+            return;
+        }
         const reviewerId = req.user.id;
         if (!['APPROVED', 'REJECTED'].includes(status)) {
             res.status(400).json({ message: 'Status tidak valid.' });

@@ -33,6 +33,9 @@ export const getMyProfile = async (req: any, res: Response, next: NextFunction):
       nim: user.nim,
       role: user.role,
       isActive: user.isActive,
+      // Email akun untuk semua role: kolom User.email (admin/superadmin) atau
+      // email profil (mahasiswa/pengurus). Dipakai form lupa password.
+      email: user.email ?? user.profile?.email ?? null,
       // Angkatan dibaca dari 2 digit pertama NIM (misal: 2214... -> Angkatan 2022)
       angkatan: hitungAngkatan(user.nim),
       // Foto profil diprioritaskan dari tabel User supaya berlaku untuk SEMUA role,
@@ -89,21 +92,56 @@ export const updateMyEmail = async (req: any, res: Response, next: NextFunction)
       return;
     }
 
+    // Email yang sama tidak boleh dipakai dua akun, karena lupa password
+    // mencocokkan email ke akun. Diperiksa lebih dulu agar balasannya jelas.
+    const dipakaiAkunLain = await prisma.user.findFirst({
+      where: { email, id: { not: userId } },
+      select: { id: true }
+    });
+    if (dipakaiAkunLain) {
+      res.status(409).json({ message: 'Email ini sudah dipakai akun lain.' });
+      return;
+    }
+
+    // Akun tanpa StudentProfile (ADMIN/SUPERADMIN) menyimpan emailnya di tabel
+    // User, supaya fitur lupa password juga berlaku untuk mereka.
     if (!user.profile) {
-      res.status(404).json({ message: 'Profil pengguna tidak ditemukan sehingga email tidak dapat disimpan.' });
+      const emailBerubah = (user.email ?? null) !== email;
+      await prisma.user.update({ where: { id: userId }, data: { email } });
+
+      await logActivity(
+        userId,
+        'UPDATE_EMAIL',
+        'User',
+        emailBerubah ? 'Pengguna mengubah email akunnya.' : 'Pengguna menyimpan ulang email akunnya.',
+        userId
+      );
+
+      res.status(200).json({
+        message: 'Email akun berhasil diperbarui.',
+        emailBerubah,
+        email,
+        profile: null
+      });
       return;
     }
 
     const emailBerubah = user.profile.email !== email;
 
-    const updated = await prisma.studentProfile.update({
-      where: { userId },
-      data: {
-        email,
-        // Email baru belum terbukti benar, jadi status verifikasi lama DIBATALKAN.
-        // Tanpa ini, sekali terverifikasi akan berlaku selamanya untuk alamat apa pun.
-        ...(emailBerubah ? { email_verified_at: null } : {})
-      }
+    const updated = await prisma.$transaction(async (tx) => {
+      // Email akun di tabel User ikut disamakan supaya lupa password membaca
+      // alamat yang sama dengan yang tampil di profil.
+      await tx.user.update({ where: { id: userId }, data: { email } });
+
+      return tx.studentProfile.update({
+        where: { userId },
+        data: {
+          email,
+          // Email baru belum terbukti benar, jadi status verifikasi lama DIBATALKAN.
+          // Tanpa ini, sekali terverifikasi akan berlaku selamanya untuk alamat apa pun.
+          ...(emailBerubah ? { email_verified_at: null } : {})
+        }
+      });
     });
 
     if (emailBerubah) {

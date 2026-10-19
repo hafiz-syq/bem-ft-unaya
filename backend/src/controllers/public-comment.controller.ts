@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
+import { isAdminRole } from '../lib/ticket-access';
 
 /**
  * Permintaan dari pengguna yang sudah melewati `requireAuth`.
@@ -18,7 +19,7 @@ type Permintaan = Request<Record<string, string>, unknown, unknown, Record<strin
   user?: { id: string; role: string };
 };
 
-const ALLOWED_ROLES_FOR_MODERATION = ['ADMIN', 'PENGURUS_BEM', 'PENGURUS_DPM', 'PENGURUS_SI', 'PENGURUS_TM', 'PENGURUS_TS'];
+const ALLOWED_ROLES_FOR_MODERATION = ['ADMIN', 'SUPERADMIN', 'PENGURUS_BEM', 'PENGURUS_DPM', 'PENGURUS_SI', 'PENGURUS_TM', 'PENGURUS_TS'];
 
 export const validateReplyContent = z.object({
   content: z.string().min(1).max(5000),
@@ -119,7 +120,7 @@ export const updateReply = async (req: Permintaan, res: Response, next: NextFunc
       return;
     }
 
-    if (reply.authorId !== req.user?.id && req.user?.role !== 'ADMIN') {
+    if (reply.authorId !== req.user?.id && !isAdminRole(req.user?.role)) {
       res.status(403).json({ message: 'Anda tidak berhak mengedit balasan ini.' });
       return;
     }
@@ -140,7 +141,7 @@ export const updateReply = async (req: Permintaan, res: Response, next: NextFunc
     });
 
     await logActivity(
-      req.user.id,
+      req.user!.id,
       'UPDATE_PUBLIC_REPLY',
       'PublicCommentReply',
       `Memperbarui balasan "${reply.content.substring(0, 80)}${reply.content.length > 80 ? '...' : ''}" -> "${updated.content.substring(0, 80)}${updated.content.length > 80 ? '...' : ''}"`,
@@ -181,7 +182,7 @@ export const deleteReply = async (req: Permintaan, res: Response, next: NextFunc
       return;
     }
 
-    if (reply.authorId !== req.user?.id && req.user?.role !== 'ADMIN') {
+    if (reply.authorId !== req.user?.id && !isAdminRole(req.user?.role)) {
       res.status(403).json({ message: 'Anda tidak berhak menghapus balasan ini.' });
       return;
     }
@@ -238,7 +239,7 @@ export const reportComment = async (req: Permintaan, res: Response, next: NextFu
     }
 
     const admins = await prisma.user.findMany({
-      where: { role: 'ADMIN' },
+      where: { role: { in: ['ADMIN', 'SUPERADMIN'] } },
       select: { id: true, profile: { select: { nama: true } } },
     });
 

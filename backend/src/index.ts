@@ -29,4 +29,15 @@ import('./services/notifikasi-perpanjangan.service')
   })
   .catch((error) => {
     console.error('[notifikasi-perpanjangan] Gagal pemeriksaan awal:', error);
+
+    // P2022 = kolom yang dipakai Prisma Client belum ada di database. Hampir
+    // selalu berarti migrasi belum dijalankan, dan pesan Prisma tidak
+    // menyebutkan langkah perbaikannya. Server tetap berjalan; hanya
+    // pemeriksaan awal ini yang terlewat.
+    if (error?.code === 'P2022' || error?.code === 'P2021') {
+      console.error(
+        '[notifikasi-perpanjangan] Skema database tertinggal dari schema.prisma. ' +
+          'Jalankan "npx prisma migrate deploy" di folder backend, lalu restart server.'
+      );
+    }
   });

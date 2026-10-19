@@ -8,6 +8,7 @@ import {
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { ROLE_LABEL } from '../lib/roles';
+import PasswordInput from '../components/PasswordInput';
 
 interface Jabatan {
   id: string;
@@ -28,6 +29,8 @@ interface ProfileData {
   deactivationType: string | null;
   createdAt: string;
   email_verified: boolean;
+  // Email akun (kolom User.email) — dipakai akun tanpa profil seperti admin.
+  email: string | null;
   profile: {
     nama: string;
     nim: string;
@@ -60,6 +63,14 @@ export default function Profile() {
   const [photoErr, setPhotoErr] = useState('');
   const photoInputRef = useRef<HTMLInputElement>(null);
 
+  // State untuk ganti password (berlaku untuk SEMUA role)
+  const [passwordLama, setPasswordLama] = useState('');
+  const [passwordBaru, setPasswordBaru] = useState('');
+  const [konfirmasiPassword, setKonfirmasiPassword] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordMsg, setPasswordMsg] = useState('');
+  const [passwordErr, setPasswordErr] = useState('');
+
   const fetchProfile = async () => {
     try {
       const response = await api.get('/profile/me');
@@ -90,7 +101,9 @@ export default function Profile() {
       const me = await api.get('/auth/me');
       login(me.data.user);
 
-      if (res.data.emailBerubah) {
+      // Hanya akun yang punya profil yang perlu verifikasi email. Admin hanya
+      // menyimpan email akun untuk keperluan lupa password.
+      if (res.data.emailBerubah && data?.profile) {
         navigate('/verify-email');
         return;
       }
@@ -100,6 +113,39 @@ export default function Profile() {
       else setEmailErr('Terjadi kesalahan yang tidak terduga.');
     } finally {
       setSavingEmail(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordMsg('');
+    setPasswordErr('');
+
+    if (passwordBaru.length < 8) {
+      setPasswordErr('Password baru minimal 8 karakter.');
+      return;
+    }
+    if (passwordBaru !== konfirmasiPassword) {
+      setPasswordErr('Konfirmasi password tidak cocok.');
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      const res = await api.post('/auth/change-password', {
+        password_lama: passwordLama,
+        password_baru: passwordBaru,
+        konfirmasi_password: konfirmasiPassword,
+      });
+      setPasswordMsg(res.data.message || 'Password berhasil diganti.');
+      setPasswordLama('');
+      setPasswordBaru('');
+      setKonfirmasiPassword('');
+    } catch (err) {
+      if (axios.isAxiosError(err)) setPasswordErr(err.response?.data?.message || 'Gagal mengganti password.');
+      else setPasswordErr('Terjadi kesalahan yang tidak terduga.');
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -153,6 +199,8 @@ export default function Profile() {
 
   const nama = data.profile?.nama || 'Administrator Sistem';
   const inisial = nama.substring(0, 2).toUpperCase();
+  // Akun admin/superadmin tidak punya profil, jadi emailnya ada di data.email.
+  const emailAktif = data.profile?.email ?? data.email ?? null;
 
   const biodata = [
     { label: 'Nomor Induk Mahasiswa (NIM)', value: data.nim, icon: Hash },
@@ -311,7 +359,9 @@ export default function Profile() {
           <div>
             <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">Email Pribadi</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Dipakai untuk menerima notifikasi resmi. Harus diverifikasi agar notifikasi benar-benar sampai.
+              {data.profile
+                ? 'Dipakai untuk menerima notifikasi resmi. Harus diverifikasi agar notifikasi benar-benar sampai.'
+                : 'Dipakai untuk menerima notifikasi dan memulihkan password akun pengelola.'}
             </p>
           </div>
         </div>
@@ -333,9 +383,9 @@ export default function Profile() {
               <div className="space-y-1">
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Email Terdaftar</p>
                 <p className="text-lg font-semibold text-gray-900 dark:text-gray-100 break-all">
-                  {data.profile?.email || <span className="italic font-normal text-gray-400 dark:text-gray-500">Belum ada email</span>}
+                  {emailAktif || <span className="italic font-normal text-gray-400 dark:text-gray-500">Belum ada email</span>}
                 </p>
-                {data.profile?.email ? (
+                {emailAktif && data.profile ? (
                   <span className={`inline-flex items-center gap-1 px-2.5 py-1 mt-1 text-xs font-bold rounded-full ${
                     data.profile.email_verified ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200'
                   }`}>
@@ -345,7 +395,7 @@ export default function Profile() {
                 ) : null}
               </div>
               <button
-                onClick={() => { setEmailMsg(''); setEmailErr(''); setEmailInput(data.profile?.email || ''); setIsEditingEmail(true); }}
+                onClick={() => { setEmailMsg(''); setEmailErr(''); setEmailInput(emailAktif || ''); setIsEditingEmail(true); }}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 font-bold text-white transition rounded-lg bg-amber-400 hover:bg-amber-500 active:scale-95"
               >
                 <Pencil className="w-4 h-4" /> Ubah Email
@@ -354,10 +404,14 @@ export default function Profile() {
           ) : (
             <form onSubmit={handleSaveEmail} className="space-y-4">
               <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email Baru</label>
+                <label htmlFor="prof-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email Baru</label>
                 <input
+                  id="prof-email"
+                  name="email"
                   type="email"
                   required
+                  autoComplete="email"
+                  spellCheck={false}
                   placeholder="nama@contoh.com"
                   value={emailInput}
                   onChange={(e) => setEmailInput(e.target.value)}
@@ -383,6 +437,91 @@ export default function Profile() {
             </form>
           )}
         </div>
+      </div>
+
+      {/* KARTU KEAMANAN: GANTI PASSWORD (SEMUA ROLE) */}
+      <div className="overflow-hidden bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-xl">
+        <div className="flex items-center gap-3 px-8 py-5 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-950/60">
+            <ShieldCheck className="w-5 h-5 text-amber-500" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">Keamanan Akun</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Ganti password Anda kapan saja. Berlaku untuk semua role, termasuk admin.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleChangePassword} className="p-8 space-y-4">
+          {passwordMsg && (
+            <div role="status" className="flex items-center gap-2 p-3 text-sm font-bold text-green-800 dark:text-green-300 bg-green-100 dark:bg-green-900/40 border border-green-200 dark:border-green-800 rounded-lg">
+              <Check className="w-4 h-4" /> {passwordMsg}
+            </div>
+          )}
+          {passwordErr && (
+            <div role="alert" className="p-3 text-sm font-bold text-red-800 dark:text-red-300 bg-red-100 dark:bg-red-900/40 border border-red-200 dark:border-red-800 rounded-lg">
+              {passwordErr}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="space-y-1">
+              <label htmlFor="prof-password-lama" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password Lama</label>
+              <PasswordInput
+                id="prof-password-lama"
+                name="passwordLama"
+                required
+                autoComplete="current-password"
+                spellCheck={false}
+                value={passwordLama}
+                onChange={(e) => setPasswordLama(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="prof-password-baru" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password Baru</label>
+              <PasswordInput
+                id="prof-password-baru"
+                name="passwordBaru"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                spellCheck={false}
+                value={passwordBaru}
+                onChange={(e) => setPasswordBaru(e.target.value)}
+                placeholder="Minimal 8 karakter"
+                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="prof-password-konfirmasi" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Ulangi Password Baru</label>
+              <PasswordInput
+                id="prof-password-konfirmasi"
+                name="konfirmasiPassword"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                spellCheck={false}
+                value={konfirmasiPassword}
+                onChange={(e) => setKonfirmasiPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={savingPassword}
+              className="inline-flex items-center gap-2 px-5 py-2.5 font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
+            >
+              {savingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan Password Baru'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

@@ -2,9 +2,10 @@ import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api, assetUrl } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
-import { targetLabel } from '../lib/roles';
+import { isMahasiswaOrAbove, targetLabel } from '../lib/roles';
 import ThemeToggle from '../components/ThemeToggle';
-import { Send, LogIn, Code2, Users, Building, ShieldCheck, Loader2, Calendar, Newspaper, ArrowRight, MapPin, Clock, Image as ImageIcon, Landmark, X, ExternalLink, Menu, LayoutDashboard, MessageSquare, Award, ChevronLeft, ChevronRight, Megaphone, AlertCircle, Layers, CornerDownRight } from 'lucide-react';
+import GalleryComments from '../components/GalleryComments';
+import { Send, LogIn, Code2, Users, Building, ShieldCheck, Loader2, Calendar, Newspaper, ArrowRight, MapPin, Clock, Image as ImageIcon, Landmark, X, ExternalLink, Menu, LayoutDashboard, MessageSquare, Award, ChevronLeft, ChevronRight, Megaphone, AlertCircle, Layers, CornerDownRight, Share2, Lock } from 'lucide-react';
 import axios from 'axios';
 
 // --- KOMPONEN ANIMASI SCROLL ---
@@ -30,7 +31,7 @@ const RevealOnScroll = ({ children, delay = 0 }: { children: ReactNode; delay?: 
 
 // --- INTERFACES UNTUK MENGHINDARI ESLINT ANY ---
 interface Content { id: string; type: string; title: string; content: string; createdAt: string; image: string | null; author: { profile: { nama: string } | null }; }
-interface AgendaItem { id: string; title: string; description: string; date: string; time: string; location: string; registrationLink: string | null; }
+interface AgendaItem { id: string; title: string; description: string; date: string; time: string; location: string; registrationLink: string | null; socialMediaLink: string | null; }
 interface GalleryItem { id: string; title: string; category: string; url: string; activity: string | null; year: number; images?: { id: string; url: string; order: number }[]; }
 interface BalasanPublik { id: string; content: string; penulis: string; role: string; createdAt: string; }
 // Hanya komentar yang sudah disetujui yang dikirim server ke halaman ini, dan
@@ -86,6 +87,19 @@ export default function Landing() {
   // Modal States
   const [selectedAgenda, setSelectedAgenda] = useState<AgendaItem | null>(null);
   const [selectedGallery, setSelectedGallery] = useState<GalleryItem | null>(null);
+
+  // Tutup modal agenda/galeri dengan tombol Escape (atasan keyboard).
+  useEffect(() => {
+    if (!selectedAgenda && !selectedGallery) return;
+    const padaEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedAgenda(null);
+        setSelectedGallery(null);
+      }
+    };
+    window.addEventListener('keydown', padaEscape);
+    return () => window.removeEventListener('keydown', padaEscape);
+  }, [selectedAgenda, selectedGallery]);
   const [gallerySlide, setGallerySlide] = useState(0);
   const [filterTiket, setFilterTiket] = useState<'ALL' | 'ASPIRASI' | 'KELUHAN'>('ALL');
 
@@ -180,6 +194,13 @@ export default function Landing() {
   return (
     // Penambahan overflow-x-hidden dan w-full untuk mencegah layar scroll ke samping
     <div className="relative flex flex-col min-h-screen font-sans bg-gray-50 dark:bg-gray-950 selection:bg-amber-50 dark:selection:bg-amber-950/60">
+      {/* Tautan lompat: agar pengguna keyboard langsung ke konten utama */}
+      <a
+        href="#konten-utama"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[200] focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:font-bold focus:text-white focus:bg-amber-500 focus:rounded-lg"
+      >
+        Lewati ke konten utama
+      </a>
 
       {/* --- OVERLAY MASK --- */}
       <div
@@ -190,7 +211,14 @@ export default function Landing() {
 
       {/* --- NAVBAR LENGKAP --- */}        
       <nav className="sticky top-0 z-50 flex items-center justify-between px-4 py-4 bg-white border-b border-gray-200 shadow-sm dark:bg-gray-900/90 dark:border-gray-800 sm:px-6 backdrop-blur-md bg-white/90" style={{ paddingBottom: '0px' }} aria-label="Navigasi utama">
-        <div className="flex items-center gap-3 cursor-pointer group shrink-0" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Kembali ke atas"
+          className="flex items-center gap-3 cursor-pointer group shrink-0"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); } }}
+        >
           <div className="flex items-center justify-center w-10 h-10 transition-transform duration-300 rounded-lg shadow-lg bg-amber-400 group-hover:rotate-12 group-active:scale-90">
             <Code2 className="w-6 h-6 text-white" />
           </div>
@@ -285,6 +313,7 @@ export default function Landing() {
         </div>
       </nav>
 
+      <main id="konten-utama" tabIndex={-1} className="outline-none">
       {/* HERO SECTION */}
       <section className="px-4 py-20 overflow-hidden text-white sm:px-6 sm:py-24 bg-gradient-to-br from-neutral-700 via-neutral-800 to-zinc-900">
         <div className="max-w-4xl mx-auto space-y-6 text-center">
@@ -361,9 +390,13 @@ export default function Landing() {
               </div>
             </div>
             <div className="w-full md:w-1/2">
-              <div className="relative w-full overflow-hidden bg-gray-100 border border-gray-200 shadow-lg dark:bg-gray-800 dark:border-gray-800 h-72 sm:h-80 rounded-3xl">
-                <img src="https://images.unsplash.com/photo-1541339907198-e08756dedf3f?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Kampus Teknik" className="object-cover w-full h-full" />
-                <div className="absolute inset-0 bg-gradient-to-tr from-amber-900/40 to-transparent"></div>
+              {/* Foto profil fakultas berbentuk potret. Foto ditampilkan utuh
+                  (object-contain) dengan latar buram dari foto yang sama, supaya
+                  tidak terpotong aneh saat ditaruh di kolom lebar. */}
+              <div className="relative w-full overflow-hidden bg-gray-900 border border-gray-200 shadow-lg aspect-[4/5] sm:aspect-auto sm:h-[30rem] dark:border-gray-800 rounded-3xl">
+                <img src="/fakultas-teknik-blur.jpg" alt="" aria-hidden="true" className="absolute inset-0 object-cover w-full h-full blur-2xl scale-110 opacity-60" />
+                <img src="/fakultas-teknik.jpg" alt="Gedung Fakultas Teknik Universitas Abulyatama" loading="lazy" decoding="async" className="relative z-10 object-contain w-full h-full" />
+                <div className="absolute inset-0 z-20 pointer-events-none bg-gradient-to-tr from-amber-900/30 to-transparent"></div>
               </div>
             </div>
           </div>
@@ -442,7 +475,7 @@ export default function Landing() {
                       }`}
                     >
                       {item.foto ? (
-                        <img src={assetUrl(item.foto)} alt={item.nama} className="object-cover w-10 h-10 rounded-full shrink-0" />
+                        <img src={assetUrl(item.foto)} alt={item.nama} loading="lazy" decoding="async" className="object-cover w-10 h-10 rounded-full shrink-0" />
                       ) : (
                         <div className="flex items-center justify-center w-10 h-10 text-xs font-black text-white rounded-full shrink-0 bg-amber-400">
                           {item.nama.substring(0, 2).toUpperCase()}
@@ -479,7 +512,7 @@ export default function Landing() {
                         <Link to={`/post/${prog.id}`} className="flex flex-col h-full overflow-hidden transition-all duration-300 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm cursor-pointer rounded-2xl hover:shadow-xl hover:-translate-y-1.5 active:scale-[0.98]">
                           {prog.image && (
                             <div className="w-full h-48 bg-gray-100 border-b border-gray-100 dark:bg-gray-800 dark:border-gray-800">
-                              <img src={assetUrl(prog.image)} alt={prog.title} className="object-cover w-full h-full" />
+                              <img src={assetUrl(prog.image)} alt={prog.title} loading="lazy" decoding="async" className="object-cover w-full h-full" />
                             </div>
                           )}
                           <div className="flex flex-col flex-grow p-6">
@@ -506,7 +539,7 @@ export default function Landing() {
                         <Link to={`/post/${item.id}`} className="flex flex-col justify-between h-full overflow-hidden transition-all duration-300 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm cursor-pointer rounded-2xl group hover:shadow-xl hover:-translate-y-1.5 active:scale-[0.98]">
                           {item.image && (
                             <div className="relative w-full h-48 overflow-hidden bg-gray-100 dark:bg-gray-800">
-                              <img src={assetUrl(item.image)} alt={item.title} className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
+                              <img src={assetUrl(item.image)} alt={item.title} loading="lazy" decoding="async" className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
                               <div className="absolute inset-0 transition-opacity opacity-0 bg-gradient-to-t from-black/50 to-transparent group-hover:opacity-100"></div>
                             </div>
                           )}
@@ -546,7 +579,13 @@ export default function Landing() {
               : <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                 {agendas.map((item, index) => (
                   <RevealOnScroll key={item.id} delay={index * 200}>
-                    <div onClick={() => setSelectedAgenda(item)} className="flex flex-col h-full p-6 transition-all border border-gray-100 cursor-pointer dark:border-gray-800 bg-gray-50 dark:bg-gray-800 rounded-2xl hover:shadow-lg hover:-translate-y-1 group">
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedAgenda(item)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedAgenda(item); } }}
+                      className="flex flex-col h-full p-6 transition-all border border-gray-100 cursor-pointer dark:border-gray-800 bg-gray-50 dark:bg-gray-800 rounded-2xl hover:shadow-lg hover:-translate-y-1 group focus-visible:ring-2 focus-visible:ring-amber-400"
+                    >
                       <div className="flex items-center gap-4 pb-4 mb-4 border-b border-gray-200 dark:border-gray-800">
                         {/* Menambahkan shrink-0 agar kotak tanggal tidak menyusut */}
                         <div className="flex items-center justify-center text-2xl font-black transition-colors shrink-0 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 w-14 h-14 rounded-xl group-hover:bg-amber-500 group-hover:text-white">
@@ -562,6 +601,18 @@ export default function Landing() {
                       <div className="flex items-start gap-1 mt-auto text-xs font-bold text-gray-500 dark:text-gray-400">
                         <MapPin className="w-3.5 h-3.5 text-red-500 dark:text-red-400 shrink-0 mt-0.5" /> <span className="line-clamp-1">{item.location}</span>
                       </div>
+                      {/* Tautan media sosial agenda terbuka untuk semua pengunjung. */}
+                      {item.socialMediaLink && (
+                        <a
+                          href={item.socialMediaLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1.5 mt-3 text-xs font-bold text-amber-600 transition-colors dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:underline"
+                        >
+                          <Share2 className="w-3.5 h-3.5 shrink-0" /> Lihat di media sosial
+                        </a>
+                      )}
                     </div>
                   </RevealOnScroll>
                 ))}
@@ -590,8 +641,14 @@ export default function Landing() {
               : <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
                 {galleries.map((item, index) => (
                   <RevealOnScroll key={item.id} delay={index * 150}>
-                    <div onClick={() => { setSelectedGallery(item); setGallerySlide(0); }} className="relative overflow-hidden bg-gray-800 border border-gray-700 shadow-lg cursor-pointer group rounded-2xl aspect-square hover:shadow-amber-500/20">
-                      <img src={assetUrl(item.url)} alt={item.title} className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => { setSelectedGallery(item); setGallerySlide(0); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedGallery(item); setGallerySlide(0); } }}
+                      className="relative overflow-hidden bg-gray-800 border border-gray-700 shadow-lg cursor-pointer group rounded-2xl aspect-square hover:shadow-amber-500/20 focus-visible:ring-2 focus-visible:ring-amber-400"
+                    >
+                      <img src={assetUrl(item.url)} alt={item.title} loading="lazy" decoding="async" className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
                       {fotoGaleri(item).length > 1 && (
                         <span className="absolute flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-white rounded-lg top-2 right-2 bg-black/60 backdrop-blur-sm">
                           <Layers className="w-3 h-3" /> {fotoGaleri(item).length}
@@ -794,13 +851,17 @@ export default function Landing() {
           </div>
         </RevealOnScroll>
       </section>
+      </main>
 
       {/* --- FOOTER --- */}
       <footer className="px-4 py-8 mt-auto text-sm text-center text-gray-400 bg-gray-900 border-t border-gray-800 dark:text-gray-500 sm:px-6 sm:py-10">
         <RevealOnScroll>
           <div className="flex flex-col items-center justify-between max-w-6xl gap-4 mx-auto md:flex-row">
             <div className="text-center md:text-left"><h3 className="text-lg font-bold text-white">BEM FT UNAYA</h3></div>
-            <div className="text-center md:text-right"><p>© 2026 Hak Cipta Dilindungi.</p></div>
+            <div className="text-center md:text-right">
+              <p>© 2026 Hak Cipta Dilindungi.</p>
+              <p className="mt-1">Dibuat oleh <span className="font-bold text-amber-400">Hafiz Syauqi</span></p>
+            </div>
           </div>
         </RevealOnScroll>
       </footer>
@@ -808,8 +869,8 @@ export default function Landing() {
       {/* --- MODAL AGENDA --- */}
       {selectedAgenda && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm transition-opacity" onClick={() => setSelectedAgenda(null)}>
-          <div className="relative w-full max-w-lg overflow-hidden duration-200 bg-white shadow-2xl dark:bg-gray-900 rounded-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setSelectedAgenda(null)} className="absolute z-10 p-2 text-gray-500 transition-colors bg-gray-100 rounded-full dark:text-gray-400 dark:bg-gray-800 top-4 right-4 hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400"><X className="w-5 h-5" /></button>
+          <div role="dialog" aria-modal="true" aria-label="Detail agenda" className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto duration-200 bg-white shadow-2xl dark:bg-gray-900 rounded-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setSelectedAgenda(null)} aria-label="Tutup" className="absolute z-10 p-2 text-gray-500 transition-colors bg-gray-100 rounded-full dark:text-gray-400 dark:bg-gray-800 top-4 right-4 hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400"><X className="w-5 h-5" /></button>
 
             <div className="p-6 pt-10 text-center sm:p-8 bg-amber-400">
               <div className="flex flex-col items-center justify-center w-20 h-20 mx-auto mb-4 text-3xl font-black bg-white shadow-lg dark:bg-gray-900 sm:w-24 sm:h-24 sm:text-4xl text-amber-600 dark:text-amber-300 rounded-2xl">
@@ -831,10 +892,35 @@ export default function Landing() {
                 <p className="text-sm leading-relaxed text-gray-600 whitespace-pre-wrap dark:text-gray-400">{selectedAgenda.description}</p>
               </div>
 
-              {selectedAgenda.registrationLink && (
-                <a href={selectedAgenda.registrationLink} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-full gap-2 py-3 mt-4 font-bold text-white transition-all shadow-md bg-amber-400 rounded-xl hover:bg-amber-500 active:scale-95">
-                  Daftar / Ikuti Kegiatan <ExternalLink className="w-4 h-4" />
+              {selectedAgenda.socialMediaLink && (
+                <a
+                  href={selectedAgenda.socialMediaLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center w-full gap-2 py-3 font-bold transition-colors border-2 border-amber-400 rounded-xl text-amber-600 dark:text-amber-400 hover:bg-amber-400 hover:text-white dark:hover:text-gray-900"
+                >
+                  Lihat Postingan Media Sosial <Share2 className="w-4 h-4" />
                 </a>
+              )}
+
+              {selectedAgenda.registrationLink && (
+                isMahasiswaOrAbove(user?.role) ? (
+                  <a href={selectedAgenda.registrationLink} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-full gap-2 py-3 mt-4 font-bold text-white transition-all shadow-md bg-amber-400 rounded-xl hover:bg-amber-500 active:scale-95">
+                    Daftar / Ikuti Kegiatan <ExternalLink className="w-4 h-4" />
+                  </a>
+                ) : (
+                  <div className="flex flex-col gap-2 p-4 mt-4 text-sm border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/40 rounded-xl">
+                    <p className="flex items-center gap-2 font-bold text-amber-700 dark:text-amber-300">
+                      <Lock className="w-4 h-4 shrink-0" /> Pendaftaran khusus mahasiswa
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Masuk dengan akun mahasiswa untuk melihat tautan pendaftaran kegiatan ini.
+                    </p>
+                    <Link to="/login" className="inline-flex items-center justify-center w-full gap-2 py-2 mt-1 font-bold text-white transition-colors bg-amber-400 rounded-lg hover:bg-amber-500">
+                      <LogIn className="w-4 h-4" /> Masuk untuk mendaftar
+                    </Link>
+                  </div>
+                )
               )}
             </div>
           </div>
@@ -843,11 +929,11 @@ export default function Landing() {
 
       {/* --- MODAL GALERI --- */}
       {selectedGallery && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-gray-900/90 backdrop-blur-md transition-opacity" onClick={() => setSelectedGallery(null)}>
-          <button onClick={() => setSelectedGallery(null)} className="absolute z-10 p-2 text-white transition-colors rounded-full top-4 right-4 sm:top-6 sm:right-6 bg-white/10 hover:bg-red-500 backdrop-blur-sm"><X className="w-6 h-6" /></button>
+        <div className="fixed inset-0 z-[100] flex items-start justify-center p-2 overflow-y-auto sm:items-center sm:p-4 bg-gray-900/90 backdrop-blur-md transition-opacity" onClick={() => setSelectedGallery(null)}>
+          <button onClick={() => setSelectedGallery(null)} aria-label="Tutup" className="absolute z-10 p-2 text-white transition-colors rounded-full top-4 right-4 sm:top-6 sm:right-6 bg-white/10 hover:bg-red-500 backdrop-blur-sm"><X className="w-6 h-6" /></button>
 
-          <div className="flex flex-col w-full max-w-5xl overflow-hidden duration-200 bg-black shadow-2xl rounded-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
-            <div className="relative w-full h-[50vh] sm:h-[75vh] bg-black flex items-center justify-center">
+          <div role="dialog" aria-modal="true" aria-label="Foto galeri" className="flex flex-col w-full max-w-5xl my-8 overflow-hidden duration-200 bg-black shadow-2xl rounded-2xl animate-in zoom-in-95 sm:my-0" onClick={e => e.stopPropagation()}>
+            <div className="relative w-full h-[40vh] sm:h-[55vh] bg-black flex items-center justify-center">
               {(() => {
                 const foto = fotoGaleri(selectedGallery);
                 const geser = (arah: number) => setGallerySlide((prev) => (prev + arah + foto.length) % foto.length);
@@ -900,6 +986,8 @@ export default function Landing() {
                 {selectedGallery.category}
               </span>
             </div>
+
+            <GalleryComments key={selectedGallery.id} galleryId={selectedGallery.id} />
           </div>
         </div>
       )}

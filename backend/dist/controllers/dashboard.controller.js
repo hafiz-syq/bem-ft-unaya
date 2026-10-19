@@ -6,13 +6,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDashboardStats = void 0;
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const cors_monitor_service_1 = require("../services/cors-monitor.service");
+const ticket_access_1 = require("../lib/ticket-access");
 const getDashboardStats = async (req, res, next) => {
     try {
         const user = req.user;
-        if (user.role === 'ADMIN' || user.role === 'PENGURUS') {
-            // --- STATISTIK UNTUK ADMIN & PENGURUS ---
+        if ((0, ticket_access_1.isAdminRole)(user.role) || user.role === 'PENGURUS') {
+            // --- STATISTIK UNTUK ADMIN, SUPERADMIN & PENGURUS ---
             const totalMahasiswa = await prisma_1.default.user.count({ where: { role: 'MAHASISWA' } });
-            const totalPengurus = await prisma_1.default.user.count({ where: { role: { in: ['PENGURUS', 'ADMIN'] } } });
+            const totalPengurus = await prisma_1.default.user.count({
+                where: { role: { in: ['PENGURUS', 'ADMIN', 'SUPERADMIN'] } },
+            });
             const totalAspirasi = await prisma_1.default.ticket.count({ where: { type: 'ASPIRASI' } });
             const totalKeluhan = await prisma_1.default.ticket.count({ where: { type: 'KELUHAN' } });
             const ticketMenunggu = await prisma_1.default.ticket.count({ where: { status: 'DIKIRIM' } });
@@ -20,7 +23,7 @@ const getDashboardStats = async (req, res, next) => {
             const ticketSelesai = await prisma_1.default.ticket.count({ where: { status: 'SELESAI' } });
             // Ringkasan percobaan akses dari origin tak dikenal hanya untuk ADMIN:
             // ini telemetri keamanan, bukan bagian dari pekerjaan kepengurusan.
-            const keamananCors = user.role === 'ADMIN' ? await (0, cors_monitor_service_1.ringkasanPenolakanCors)() : null;
+            const keamananCors = (0, ticket_access_1.isAdminRole)(user.role) ? await (0, cors_monitor_service_1.ringkasanPenolakanCors)() : null;
             res.status(200).json({
                 role: user.role,
                 data: {
