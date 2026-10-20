@@ -12,8 +12,12 @@ Repo ini sempat **publik** di GitHub dan riwayat commit-nya memuat:
 Commit yang memuatnya: `36476d1` dan `b0caa64`. `.env`, kredensial database, dan
 `JWT_SECRET` **tidak** pernah masuk repo, jadi kunci aplikasi tidak bocor lewat dump.
 
-Riwayat lokal sudah dibersihkan (lihat bagian Verifikasi). Selama repo masih publik
-atau riwayat lama belum di-force-push, anggap data tersebut **sudah bocor**.
+Riwayat lokal sudah dibersihkan dan sudah di-force-push ke `main` pada 21 Okt 2026.
+Clone baru tidak lagi memuat berkas tersebut. **Tetapi force-push saja tidak menutup
+eksposur:** URL mentah pada commit lama (`b05c716`) masih merespons 200 saat diperiksa,
+dan repo masih publik. Artinya siapa pun yang tahu SHA lama masih bisa mengunduh dump.
+Satu-satunya penutup langsung adalah **menjadikan repo privat**; setelah itu minta GitHub
+membersihkan objek tak terjangkau/cache commit lama.
 
 ## 1. Tindakan segera
 
