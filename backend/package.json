@@ -12,7 +12,9 @@
     "seed": "ts-node src/scripts/seed.ts",
     "superadmin": "ts-node src/scripts/buat-superadmin.ts",
     "verifikasi:akses": "ts-node src/scripts/verifikasi-akses-non-admin.ts",
-    "migrate": "prisma migrate dev"
+    "migrate": "prisma migrate dev",
+    "prisma:push": "npx prisma db push",
+    "prisma:generate": "npx prisma generate"
   },
   "keywords": [],
   "author": "",
