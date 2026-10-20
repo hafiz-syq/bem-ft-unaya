@@ -1,3 +1,6 @@
+// Muat .env lebih dulu supaya PORT, UPLOAD_DIR, COOKIE_SAME_SITE, dan variabel
+// lain sudah tersedia saat modul lain dievaluasi.
+import 'dotenv/config';
 import app from './app';
 import { startAccountLifecycleJob } from './services/account-lifecycle.service';
 import { startPemantauanCors } from './services/cors-monitor.service';

@@ -3,9 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.uploadMyPhoto = exports.updateMyEmail = exports.getMyProfile = void 0;
+exports.deleteMyPhoto = exports.uploadMyPhoto = exports.updateMyEmail = exports.getMyProfile = void 0;
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
 const zod_1 = require("zod");
 const prisma_1 = __importDefault(require("../lib/prisma"));
+const uploads_1 = require("../lib/uploads");
 const audit_service_1 = require("../services/audit.service");
 const account_lifecycle_service_1 = require("../services/account-lifecycle.service");
 const getMyProfile = async (req, res, next) => {
@@ -175,3 +178,53 @@ const uploadMyPhoto = async (req, res, next) => {
     }
 };
 exports.uploadMyPhoto = uploadMyPhoto;
+/**
+ * Menghapus berkas foto dari folder uploads. Hanya nilai yang berbentuk
+ * `/uploads/<nama berkas>` yang disentuh; `path.basename` menjaga agar nilai
+ * kolom yang aneh (mis. berisi `../`) tidak bisa menghapus berkas lain.
+ * Kegagalan hapus berkas tidak menggagalkan permintaan — kolom database tetap
+ * sudah dikosongkan, dan berkas yatim hanya memakan disk.
+ */
+function hapusBerkasFoto(foto) {
+    if (!foto || !foto.startsWith('/uploads/'))
+        return;
+    const berkas = path_1.default.join((0, uploads_1.folderUploads)(), path_1.default.basename(foto));
+    fs_1.default.promises.unlink(berkas).catch(() => undefined);
+}
+/**
+ * Menghapus foto profil milik pengguna yang sedang login.
+ * Berlaku untuk SEMUA role, termasuk ADMIN/SUPERADMIN yang tidak punya baris
+ * StudentProfile. Kedua kolom dikosongkan agar foto lama tidak muncul lagi
+ * dari sumber cadangan (profil), lalu berkasnya dibuang dari folder uploads.
+ */
+const deleteMyPhoto = async (req, res, next) => {
+    try {
+        const userId = req.user.id;
+        const user = await prisma_1.default.user.findUnique({
+            where: { id: userId },
+            select: { foto: true, profile: { select: { foto: true } } }
+        });
+        if (!user) {
+            res.status(404).json({ message: 'Data pengguna tidak ditemukan.' });
+            return;
+        }
+        // Foto bisa tersimpan di User (semua role) atau hanya di StudentProfile
+        // (data lama). Keduanya dibaca supaya berkas yang benar ikut terhapus.
+        const fotoLama = user.foto ?? user.profile?.foto ?? null;
+        if (!fotoLama) {
+            res.status(200).json({ message: 'Akun ini memang belum memiliki foto profil.', foto: null });
+            return;
+        }
+        await prisma_1.default.$transaction([
+            prisma_1.default.user.update({ where: { id: userId }, data: { foto: null } }),
+            prisma_1.default.studentProfile.updateMany({ where: { userId }, data: { foto: null } })
+        ]);
+        hapusBerkasFoto(fotoLama);
+        await (0, audit_service_1.logActivity)(userId, 'DELETE_PHOTO', 'User', 'Menghapus foto profil', userId);
+        res.status(200).json({ message: 'Foto profil berhasil dihapus.', foto: null });
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.deleteMyPhoto = deleteMyPhoto;

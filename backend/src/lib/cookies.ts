@@ -22,24 +22,48 @@ export const isPermintaanHttps = (req: Request): boolean => {
 };
 
 /**
+ * Nilai SameSite untuk cookie sesi.
+ *
+ * Default `lax` (aman untuk aplikasi satu situs, termasuk frontend di
+ * app.domain dan API di api.domain). Bila frontend dan API benar-benar berada
+ * di situs berbeda (mis. Vercel `*.vercel.app` + API `*.onrender.com`), setel
+ * `COOKIE_SAME_SITE=none`, karena cookie `lax` TIDAK ikut terkirim pada
+ * permintaan lintas situs dan pengguna akan terjebak di halaman login.
+ *
+ * `none` mewajibkan Secure; nilainya dipaksa di opsiCookieToken di bawah.
+ */
+const sameSiteCookie = (): CookieOptions['sameSite'] => {
+  const nilai = (process.env.COOKIE_SAME_SITE || 'lax').trim().toLowerCase();
+  if (nilai === 'none' || nilai === 'strict') return nilai;
+  return 'lax';
+};
+
+/**
  * Opsi cookie sesi.
  *
  * Sebelumnya flag Secure mengikuti NODE_ENV === 'production'. Akibatnya, begitu
  * backend dijalankan sebagai produksi tapi diakses lewat HTTP biasa (mis. server
  * kampus yang dibuka dari HP via http://192.168.x.x), browser membuang cookie
  * Secure tersebut dan pengguna terjebak di halaman login tanpa pesan error.
- * Sekarang keputusannya mengikuti protokol permintaan yang sebenarnya.
+ * Sekarang keputusannya mengikuti protokol permintaan yang sebenarnya, dan
+ * otomatis dipaksa Secure bila SameSite=None (syarat browser).
  */
-export const opsiCookieToken = (req: Request): CookieOptions => ({
-  httpOnly: true,
-  secure: isPermintaanHttps(req),
-  sameSite: 'lax',
-  maxAge: SEHARI_MS,
-});
+export const opsiCookieToken = (req: Request): CookieOptions => {
+  const sameSite = sameSiteCookie();
+  return {
+    httpOnly: true,
+    secure: sameSite === 'none' ? true : isPermintaanHttps(req),
+    sameSite,
+    maxAge: SEHARI_MS,
+  };
+};
 
 /** Opsi untuk menghapus cookie. Tanpa maxAge agar browser langsung membuangnya. */
-export const opsiHapusCookieToken = (req: Request): CookieOptions => ({
-  httpOnly: true,
-  secure: isPermintaanHttps(req),
-  sameSite: 'lax',
-});
+export const opsiHapusCookieToken = (req: Request): CookieOptions => {
+  const sameSite = sameSiteCookie();
+  return {
+    httpOnly: true,
+    secure: sameSite === 'none' ? true : isPermintaanHttps(req),
+    sameSite,
+  };
+};

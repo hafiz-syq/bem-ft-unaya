@@ -36,6 +36,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+// Muat .env lebih dulu supaya PORT, UPLOAD_DIR, COOKIE_SAME_SITE, dan variabel
+// lain sudah tersedia saat modul lain dievaluasi.
+require("dotenv/config");
 const app_1 = __importDefault(require("./app"));
 const account_lifecycle_service_1 = require("./services/account-lifecycle.service");
 const cors_monitor_service_1 = require("./services/cors-monitor.service");

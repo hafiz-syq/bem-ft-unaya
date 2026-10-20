@@ -5,14 +5,20 @@ rem ============================================================
 rem  BACKUP OTOMATIS DATABASE BEM FT UNAYA
 rem  ----------------------------------------------------------
 rem  Skrip: scripts\backup-database.bat
-rem  Dump : bem_ft_unaya -> backups\bem_ft_unaya_TGL.sql
-rem  Rotasi: berkas lebih tua dari HARI_SIMPAN dihapus.
+rem  Dump : bem_ft_unaya -> backups\bem_ft_unaya_TGL.zip (berisi .sql)
+rem  Simpan: begitu dump lolos validasi, berkas .sql langsung
+rem          dimampatkan menjadi .zip dan .sql dihapus, supaya
+rem          folder backups tidak cepat penuh.
+rem  Rotasi: berkas .zip (dan .sql sisa) lebih tua dari HARI_SIMPAN
+rem          dihapus.
 rem
 rem  Dijalankan manual:
 rem     scripts\backup-database.bat
 rem
-rem  Dijadwalkan harian (sudah terdaftar, lihat catatan di bawah):
+rem  Dijadwalkan harian 03:00 (sudah terdaftar):
 rem     schtasks /Query /TN "BEM FT - Backup Database Harian"
+rem     Bila PC mati pada 03:00, jadwal yang terlewat dijalankan
+rem     sesegera mungkin setelah PC menyala (StartWhenAvailable).
 rem
 rem  Menimpa lokasi mysqldump secara manual (mis. versi berbeda):
 rem     set MYSQLDUMP_EXE=C:\xampp\mysql\bin\mysqldump.exe
@@ -65,7 +71,11 @@ if exist "C:\laragon\bin\heidisql\plugins\caching_sha2_password.dll" (
 rem ---- Penanda waktu (aman dari format tanggal lokal) ---------
 for /f %%t in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set "STAMP=%%t"
 
-set "TARGET=%FOLDER_BACKUP%\%DB_NAME%_%STAMP%.sql"
+set "NAMA_SQL=%DB_NAME%_%STAMP%.sql"
+set "TARGET=%FOLDER_BACKUP%\%NAMA_SQL%"
+set "ZIP=%FOLDER_BACKUP%\%DB_NAME%_%STAMP%.zip"
+set "UKURAN=0"
+set "UKURAN_ZIP=0"
 
 rem ---- Dump database ------------------------------------------
 rem --single-transaction memakai InnoDB agar dump tidak mengunci tabel dan
@@ -81,10 +91,30 @@ rem karena memuat DDL seluruh tabel).
 for %%F in ("%TARGET%") do set "UKURAN=%%~zF"
 if %UKURAN% LSS 1024 goto :gagal
 
-rem ---- Rotasi: hapus berkas lebih tua dari HARI_SIMPAN --------
-forfiles /P "%FOLDER_BACKUP%" /M %DB_NAME%_*.sql /D -%HARI_SIMPAN% /C "cmd /c if @isdir equ FALSE del /f @path" 2>NUL
+rem ---- Mampatkan hasil dump menjadi .zip ----------------------
+rem Memakai .NET ZipFile, bukan Compress-Archive, karena menulis langsung ke
+rem disk tanpa memuat seluruh berkas ke memori (dump bisa membesar nanti).
+powershell -NoProfile -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; $src='%TARGET%'; $dst='%ZIP%'; if (Test-Path -LiteralPath $dst) { Remove-Item -LiteralPath $dst -Force }; $zip=[System.IO.Compression.ZipFile]::Open($dst,'Create'); [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$src,'%NAMA_SQL%',[System.IO.Compression.CompressionLevel]::Optimal) | Out-Null; $zip.Dispose()" 2>>"%LOG%"
+if errorlevel 1 goto :tanpa_zip
+if not exist "%ZIP%" goto :tanpa_zip
+for %%F in ("%ZIP%") do set "UKURAN_ZIP=%%~zF"
+if %UKURAN_ZIP% LSS 1024 goto :tanpa_zip
+rem Pastikan arsip benar-benar berisi satu berkas sebelum .sql dihapus.
+powershell -NoProfile -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip=[System.IO.Compression.ZipFile]::OpenRead('%ZIP%'); $n=$zip.Entries.Count; $zip.Dispose(); if ($n -lt 1) { exit 1 }" 2>>"%LOG%"
+if errorlevel 1 goto :tanpa_zip
 
-echo [%date% %time%] SUKSES: %TARGET% (%UKURAN% byte)>> "%LOG%"
+del /f "%TARGET%" 2>NUL
+echo [%date% %time%] SUKSES: %ZIP% (%UKURAN_ZIP% byte, dari %UKURAN% byte .sql)>> "%LOG%"
+goto :rotasi
+
+:tanpa_zip
+rem Kompresi gagal bukan alasan kehilangan backup: .sql tetap disimpan.
+echo [%date% %time%] PERINGATAN: kompresi .zip gagal, backup tetap disimpan sebagai %TARGET% (%UKURAN% byte)>> "%LOG%"
+
+:rotasi
+rem ---- Rotasi: hapus berkas lebih tua dari HARI_SIMPAN --------
+forfiles /P "%FOLDER_BACKUP%" /M %DB_NAME%_*.zip /D -%HARI_SIMPAN% /C "cmd /c if @isdir equ FALSE del /f @path" 2>NUL
+forfiles /P "%FOLDER_BACKUP%" /M %DB_NAME%_*.sql /D -%HARI_SIMPAN% /C "cmd /c if @isdir equ FALSE del /f @path" 2>NUL
 exit /b 0
 
 :gagal
@@ -93,4 +123,5 @@ rem ---- Peringatan email bila SMTP tersedia --------------------
 rem Helper memakai SMTP dari backend\.env; selalu exit 0 walau kirim gagal.
 node "%JALUR_APLIKASI%\backend\scripts\peringatan-backup.cjs" GAGAL "%TARGET%" 2>NUL
 if exist "%TARGET%" del /f "%TARGET%" 2>NUL
+if exist "%ZIP%" del /f "%ZIP%" 2>NUL
 exit /b 1

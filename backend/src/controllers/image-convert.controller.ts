@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
+import { pastikanFolderUploads } from '../lib/uploads';
 import { logActivity } from '../services/audit.service';
 import { isAdminRole } from '../lib/ticket-access';
 import { unduh, kepala } from '../lib/http';
@@ -27,14 +28,8 @@ import { unduh, kepala } from '../lib/http';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const DOWNLOAD_TIMEOUT_MS = 30000;
-const UPLOAD_DIR = path.join(__dirname, '../../uploads');
 const WEBP_QUALITY = 82;
 const MAX_DIMENSION = 1920; // max 1920px (scales down larger images)
-
-// Pastikan folder uploads ada
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
 
 // Daftar ekstensi yang dikenal (semua jenis gambar didukung)
 const GAMBAR_EXTENSI = new Set([
@@ -206,7 +201,7 @@ export const konversiGambarDariUrl = async (
     const random = crypto.randomBytes(4).toString('hex');
     const ext = ekstensiDariMime(mimeType);
     const filename = `CONVERTED-${timestamp}-${random}${ext}`;
-    const outputPath = path.join(UPLOAD_DIR, filename);
+    const outputPath = path.join(pastikanFolderUploads(), filename);
 
     // Konversi ke WebP
     const hasil = await konversiKeWebp(data, mimeType, outputPath);

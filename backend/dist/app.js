@@ -4,7 +4,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
-const path_1 = __importDefault(require("path"));
 const cors_1 = __importDefault(require("cors"));
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
@@ -28,6 +27,7 @@ const device_routes_1 = __importDefault(require("./routes/device.routes"));
 const image_convert_routes_1 = __importDefault(require("./routes/image-convert.routes"));
 const upload_middleware_1 = require("./middlewares/upload.middleware");
 const cors_origin_1 = require("./lib/cors-origin");
+const uploads_1 = require("./lib/uploads");
 const cors_monitor_service_1 = require("./services/cors-monitor.service");
 const app = (0, express_1.default)();
 // Ketika API berjalan di balik reverse proxy/load balancer (nginx, Cloudflare,
@@ -66,7 +66,9 @@ app.use((0, cors_1.default)((req, callback) => {
 // Middleware bawaan
 app.use(express_1.default.json());
 app.use((0, cookie_parser_1.default)());
-app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, '../uploads')));
+// Folder berkas unggahan mengikuti UPLOAD_DIR (lihat src/lib/uploads.ts) agar
+// bisa diarahkan ke volume persisten di server produksi.
+app.use('/uploads', express_1.default.static((0, uploads_1.folderUploads)()));
 // Pendaftaran Routes
 app.use('/api/auth', auth_routes_1.default);
 app.use('/api/profile', profile_routes_1.default);

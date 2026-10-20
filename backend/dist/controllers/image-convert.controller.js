@@ -8,6 +8,7 @@ const sharp_1 = __importDefault(require("sharp"));
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const crypto_1 = __importDefault(require("crypto"));
+const uploads_1 = require("../lib/uploads");
 const audit_service_1 = require("../services/audit.service");
 const http_1 = require("../lib/http");
 /**
@@ -28,13 +29,8 @@ const http_1 = require("../lib/http");
  */
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const DOWNLOAD_TIMEOUT_MS = 30000;
-const UPLOAD_DIR = path_1.default.join(__dirname, '../../uploads');
 const WEBP_QUALITY = 82;
 const MAX_DIMENSION = 1920; // max 1920px (scales down larger images)
-// Pastikan folder uploads ada
-if (!fs_1.default.existsSync(UPLOAD_DIR)) {
-    fs_1.default.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
 // Daftar ekstensi yang dikenal (semua jenis gambar didukung)
 const GAMBAR_EXTENSI = new Set([
     '.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.heic', '.heif',
@@ -161,7 +157,7 @@ const konversiGambarDariUrl = async (req, res, next) => {
         const random = crypto_1.default.randomBytes(4).toString('hex');
         const ext = ekstensiDariMime(mimeType);
         const filename = `CONVERTED-${timestamp}-${random}${ext}`;
-        const outputPath = path_1.default.join(UPLOAD_DIR, filename);
+        const outputPath = path_1.default.join((0, uploads_1.pastikanFolderUploads)(), filename);
         // Konversi ke WebP
         const hasil = await konversiKeWebp(data, mimeType, outputPath);
         // Hitung rasio kompresi

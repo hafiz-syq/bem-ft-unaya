@@ -1,0 +1,11 @@
+# Ganti api.contoh.ac.id dengan domain API Anda, lalu:
+#   sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Caddy mengurus sertifikat HTTPS otomatis dan meneruskan X-Forwarded-Proto,
+# sehingga cookie sesi otomatis ditandai Secure saat diakses lewat HTTPS.
+
+api.contoh.ac.id {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3000
+}

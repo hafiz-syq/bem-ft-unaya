@@ -1,6 +1,9 @@
 import { Response, NextFunction } from 'express';
+import fs from 'fs';
+import path from 'path';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
+import { folderUploads } from '../lib/uploads';
 import { logActivity } from '../services/audit.service';
 import { hitungAngkatan } from '../services/account-lifecycle.service';
 
@@ -205,6 +208,69 @@ export const uploadMyPhoto = async (req: any, res: Response, next: NextFunction)
     );
 
     res.status(200).json({ message: 'Foto profil berhasil diperbarui.', foto });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Menghapus berkas foto dari folder uploads. Hanya nilai yang berbentuk
+ * `/uploads/<nama berkas>` yang disentuh; `path.basename` menjaga agar nilai
+ * kolom yang aneh (mis. berisi `../`) tidak bisa menghapus berkas lain.
+ * Kegagalan hapus berkas tidak menggagalkan permintaan — kolom database tetap
+ * sudah dikosongkan, dan berkas yatim hanya memakan disk.
+ */
+function hapusBerkasFoto(foto: string | null | undefined): void {
+  if (!foto || !foto.startsWith('/uploads/')) return;
+  const berkas = path.join(folderUploads(), path.basename(foto));
+  fs.promises.unlink(berkas).catch(() => undefined);
+}
+
+/**
+ * Menghapus foto profil milik pengguna yang sedang login.
+ * Berlaku untuk SEMUA role, termasuk ADMIN/SUPERADMIN yang tidak punya baris
+ * StudentProfile. Kedua kolom dikosongkan agar foto lama tidak muncul lagi
+ * dari sumber cadangan (profil), lalu berkasnya dibuang dari folder uploads.
+ */
+export const deleteMyPhoto = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = req.user.id;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { foto: true, profile: { select: { foto: true } } }
+    });
+
+    if (!user) {
+      res.status(404).json({ message: 'Data pengguna tidak ditemukan.' });
+      return;
+    }
+
+    // Foto bisa tersimpan di User (semua role) atau hanya di StudentProfile
+    // (data lama). Keduanya dibaca supaya berkas yang benar ikut terhapus.
+    const fotoLama = user.foto ?? user.profile?.foto ?? null;
+
+    if (!fotoLama) {
+      res.status(200).json({ message: 'Akun ini memang belum memiliki foto profil.', foto: null });
+      return;
+    }
+
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: userId }, data: { foto: null } }),
+      prisma.studentProfile.updateMany({ where: { userId }, data: { foto: null } })
+    ]);
+
+    hapusBerkasFoto(fotoLama);
+
+    await logActivity(
+      userId,
+      'DELETE_PHOTO',
+      'User',
+      'Menghapus foto profil',
+      userId
+    );
+
+    res.status(200).json({ message: 'Foto profil berhasil dihapus.', foto: null });
   } catch (error) {
     next(error);
   }

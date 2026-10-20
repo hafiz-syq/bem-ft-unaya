@@ -62,6 +62,14 @@ npm run dev
 
 Frontend memanggil API backend; pastikan URL API di konfigurasi frontend (`.env` / `src/lib/axios`) menunjuk ke backend yang berjalan.
 
+## Deploy
+
+Panduan langkah demi langkah ada di [DEPLOY.md](DEPLOY.md): frontend ke Vercel, database ke Aiven for MySQL (paket gratis), dan API Express ke host yang mendukung proses tetap (disarankan VM Oracle Always Free). Ringkasnya:
+
+- Vercel hanya membangun frontend; `vercel.json` di root repo mengatur build `frontend/dist` dan fallback SPA.
+- API tidak dijalankan sebagai serverless function karena butuh disk unggahan dan job latar.
+- Di server, setel `UPLOAD_DIR` ke folder persisten dan `COOKIE_SAME_SITE=none` bila frontend dan API berada di situs berbeda.
+
 ## Struktur Singkat
 
 ```
@@ -91,6 +99,45 @@ Kapasitas satu MySQL masih jauh lebih besar daripada beban portal ini (pembaca p
 5. **Multi-instance API.** Bila API dijalankan lebih dari satu proses/server, pembatas komentar tamu yang disimpan di memori (5 komentar/10 menit per IP) berlaku per instance. Pindahkan penghitung itu ke Redis agar batasnya berlaku menyeluruh, dan aktifkan `TRUST_PROXY=1` supaya IP pengunjung terbaca benar di balik proxy.
 
 Backup rutin dan pemantauan query lambat (`slow_query_log`) lebih mendesak daripada clustering. Lakukan keduanya sebelum menambah replika.
+
+## Backup & Pemulihan Database
+
+Backup harian dijalankan Windows Task Scheduler setiap **03:00** lewat [scripts/backup-database.bat](scripts/backup-database.bat).
+
+- **Hasil:** satu berkas `backups/bem_ft_unaya_<tgl>_<jam>.zip` berisi `bem_ft_unaya_<tgl>_<jam>.sql`. Setelah arsip dipastikan berisi datanya, berkas `.sql` dihapus supaya folder `backups/` tidak cepat penuh (dump ±200 KB menjadi ±62 KB). Bila kompresi gagal, `.sql` sengaja dibiarkan agar backup tidak hilang.
+- **Jadwal terlewat:** opsi *Run task as soon as possible after a scheduled start is missed* (`StartWhenAvailable`) aktif. Bila PC mati pada 03:00, backup dijalankan begitu PC menyala. Tugas memakai `InteractiveToken`, jadi harus ada sesi pengguna yang login.
+- **Baterai:** `DisallowStartIfOnBatteries` dan `StopIfGoingOnBatteries` dimatikan, supaya laptop yang menyala tanpa charger tidak melewatkan backup.
+- **Rotasi:** arsip lebih tua dari 14 hari dihapus (`HARI_SIMPAN` di skrip).
+- **Gagal?** Lihat `backups/backup.log`; bila SMTP di `backend/.env` lengkap, email peringatan dikirim lewat [backend/scripts/peringatan-backup.cjs](backend/scripts/peringatan-backup.cjs).
+- **Mendaftarkan ulang tugas** (setelah instal ulang Windows/pindah PC):
+
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File scripts\daftarkan-tugas-backup.ps1
+  ```
+
+  Skrip itu menerapkan 03:00 harian, `StartWhenAvailable`, izin saat memakai baterai, dan `IgnoreNew` (tidak ada dua dump bersamaan).
+
+### Memulihkan ke database uji
+
+Jangan menimpa `bem_ft_unaya` selama aplikasi dipakai; pulihkan ke database terpisah lalu bandingkan.
+
+```bash
+# 1. ekstrak arsip
+unzip backups/bem_ft_unaya_20261020_021725.zip -d /tmp/pulih
+
+# 2. buat database uji kosong
+mysql -u root -e "DROP DATABASE IF EXISTS bem_ft_unaya_uji_pulih; CREATE DATABASE bem_ft_unaya_uji_pulih CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 3. impor (klien MySQL 8 butuh plugin caching_sha2_password; sesuaikan --plugin-dir)
+mysql --plugin-dir="C:/laragon/bin/heidisql/plugins" -u root --default-character-set=utf8mb4 \
+  bem_ft_unaya_uji_pulih < /tmp/pulih/bem_ft_unaya_20261020_021725.sql
+
+# 4. bandingkan jumlah akun
+mysql -u root -N -e "SELECT COUNT(*) FROM user;" bem_ft_unaya
+mysql -u root -N -e "SELECT COUNT(*) FROM user;" bem_ft_unaya_uji_pulih
+```
+
+Uji pemulihan 21 Okt 2026 memakai dump `20261020_021725` (skema 25 tabel, tanpa `CREATE DATABASE`, jadi aman diimpor ke database uji): impor selesai dalam ±1 detik dan tabel `user` berisi **377 baris di kedua database**. Dari 377 akun, 373 baris identik pada kolom inti (`id`, `nim`, `password_hash`, `role`, `email`); 4 baris berbeda karena memang diubah setelah backup diambil. Tabel `agenda`, `auditlog`, dan `position` juga lebih banyak di database asli — data yang bertambah setelah 02:17, bukan akibat restore. Hapus database uji dengan `DROP DATABASE bem_ft_unaya_uji_pulih;` bila sudah selesai.
 
 ## Kunci Satu Perangkat
 

@@ -80,6 +80,8 @@ const BARIS = [
     { metode: 'GET', jalur: '/profile/me', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
     { metode: 'PUT', jalur: '/profile/me', harapan: { tamu: 401 } },
     { metode: 'POST', jalur: '/profile/me/photo', harapan: { tamu: 401 } },
+    // Semua role boleh menghapus fotonya sendiri; yang dijaga di sini hanya tamu.
+    { metode: 'DELETE', jalur: '/profile/me/photo', harapan: { tamu: 401 } },
     // ── ticket.routes.ts ────────────────────────────────────────────────────
     { metode: 'GET', jalur: '/tickets/public', harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
     { metode: 'GET', jalur: '/tickets/assignees', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },

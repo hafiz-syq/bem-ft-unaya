@@ -2,12 +2,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import sharp from 'sharp';
-
-// Buat folder 'uploads/' jika belum ada
-const uploadDir = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+import { pastikanFolderUploads } from '../lib/uploads';
 
 // Satu sumber kebenaran untuk batas ukuran unggahan.
 // app.ts memakainya juga agar pesan error ukuran file selalu sinkron dengan konfigurasi di sini.
@@ -27,7 +22,7 @@ const uploadError = (message: string): Error => {
 // Konfigurasi penyimpanan
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, uploadDir);
+    cb(null, pastikanFolderUploads());
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -57,7 +52,7 @@ export const uploadAttachment = multer({
 // --- Khusus foto profil (dipakai saat login pertama) ---
 const photoStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, uploadDir);
+    cb(null, pastikanFolderUploads());
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);

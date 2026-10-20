@@ -8,11 +8,7 @@ const multer_1 = __importDefault(require("multer"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const sharp_1 = __importDefault(require("sharp"));
-// Buat folder 'uploads/' jika belum ada
-const uploadDir = path_1.default.join(__dirname, '../../uploads');
-if (!fs_1.default.existsSync(uploadDir)) {
-    fs_1.default.mkdirSync(uploadDir, { recursive: true });
-}
+const uploads_1 = require("../lib/uploads");
 // Satu sumber kebenaran untuk batas ukuran unggahan.
 // app.ts memakainya juga agar pesan error ukuran file selalu sinkron dengan konfigurasi di sini.
 exports.UPLOAD_LIMITS = {
@@ -29,7 +25,7 @@ const uploadError = (message) => {
 // Konfigurasi penyimpanan
 const storage = multer_1.default.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, uploadDir);
+        cb(null, (0, uploads_1.pastikanFolderUploads)());
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -57,7 +53,7 @@ exports.uploadAttachment = (0, multer_1.default)({
 // --- Khusus foto profil (dipakai saat login pertama) ---
 const photoStorage = multer_1.default.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, uploadDir);
+        cb(null, (0, uploads_1.pastikanFolderUploads)());
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);

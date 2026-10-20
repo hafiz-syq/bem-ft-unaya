@@ -24,6 +24,7 @@ import deviceRoutes from './routes/device.routes';
 import imageConvertRoutes from './routes/image-convert.routes';
 import { UPLOAD_LIMITS } from './middlewares/upload.middleware';
 import { bolehkanOrigin } from './lib/cors-origin';
+import { folderUploads } from './lib/uploads';
 import { catatPenolakanCors } from './services/cors-monitor.service';
 
 const app: Application = express();
@@ -72,7 +73,9 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Folder berkas unggahan mengikuti UPLOAD_DIR (lihat src/lib/uploads.ts) agar
+// bisa diarahkan ke volume persisten di server produksi.
+app.use('/uploads', express.static(folderUploads()));
 
 // Pendaftaran Routes
 app.use('/api/auth', authRoutes);

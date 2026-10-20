@@ -12,3 +12,12 @@ frontend/.vite/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Dump database (berisi data pribadi & hash password) — jangan masuk repo.
+# Berkas yang sudah terlacak tetap perlu dikeluarkan dengan `git rm --cached`.
+backups/
+*.sql.gz
+*.sql.zip
+
+# Berkas unggahan pengguna (foto, lampiran tiket) tidak boleh masuk repo.
+backend/uploads/

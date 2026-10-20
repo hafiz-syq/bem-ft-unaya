@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, assetUrl } from '../lib/axios';
 import {
   UserCircle, ShieldCheck, BookOpen, Loader2, Mail, Pencil, Save, X, Check,
-  Phone, Hash, CalendarDays, Briefcase, Camera, BadgeCheck, AlertTriangle, Upload
+  Phone, Hash, CalendarDays, Briefcase, Camera, BadgeCheck, AlertTriangle, Upload, Trash2
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -59,6 +59,7 @@ export default function Profile() {
 
   // State untuk unggah foto profil
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [photoMsg, setPhotoMsg] = useState('');
   const [photoErr, setPhotoErr] = useState('');
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -189,6 +190,32 @@ export default function Profile() {
     }
   };
 
+  // Menghapus foto profil (semua role). Setelah berhasil, foto diganti inisial
+  // nama dan avatar di header dashboard ikut disegarkan lewat /auth/me.
+  const handleDeletePhoto = async () => {
+    if (!data?.foto) return;
+    if (!window.confirm('Hapus foto profil? Foto akan diganti dengan inisial nama Anda.')) return;
+
+    setPhotoMsg(''); setPhotoErr('');
+    setDeletingPhoto(true);
+    try {
+      const res = await api.delete('/profile/me/photo');
+      setData((prev) => (prev
+        ? { ...prev, foto: null, profile: prev.profile ? { ...prev.profile, foto: null } : prev.profile }
+        : prev));
+      setPhotoMsg(res.data.message || 'Foto profil berhasil dihapus.');
+
+      // Sinkronkan avatar di header dashboard & landing.
+      const me = await api.get('/auth/me');
+      login(me.data.user);
+    } catch (err) {
+      if (axios.isAxiosError(err)) setPhotoErr(err.response?.data?.message || 'Gagal menghapus foto.');
+      else setPhotoErr('Terjadi kesalahan yang tidak terduga.');
+    } finally {
+      setDeletingPhoto(false);
+    }
+  };
+
   if (loading) {
     return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-amber-400 animate-spin" /></div>;
   }
@@ -236,7 +263,7 @@ export default function Profile() {
             <button
               type="button"
               onClick={() => photoInputRef.current?.click()}
-              disabled={uploadingPhoto}
+              disabled={uploadingPhoto || deletingPhoto}
               title="Ganti foto profil"
               className="absolute bottom-0 right-0 flex items-center justify-center w-9 h-9 text-amber-600 dark:text-amber-300 bg-white dark:bg-gray-900 rounded-full shadow-lg hover:bg-amber-50 dark:hover:bg-amber-950/60 disabled:opacity-60"
             >
@@ -270,10 +297,24 @@ export default function Profile() {
               {photoErr}
             </div>
           )}
-          <p className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <Upload className="w-3.5 h-3.5" />
-            Klik ikon kamera untuk menambahkan / mengganti foto profil (JPG, PNG, WEBP, HEIC — maksimal 2 MB, otomatis diubah ke WebP).
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <Upload className="w-3.5 h-3.5" />
+              Klik ikon kamera untuk menambahkan / mengganti foto profil (JPG, PNG, WEBP, HEIC — maksimal 2 MB, otomatis diubah ke WebP).
+            </p>
+            {data.foto && (
+              <button
+                type="button"
+                onClick={handleDeletePhoto}
+                disabled={deletingPhoto || uploadingPhoto}
+                aria-label="Hapus foto profil"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/60 disabled:opacity-60"
+              >
+                {deletingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                Hapus foto
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Informasi Detail */}
