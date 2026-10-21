@@ -1,29 +1,53 @@
-// Launcher Express untuk proses Node biasa (Hostinger/lokal).
-//
-// Vercel Services memakai src/app.ts, karena service Express dijalankan sebagai
-// Vercel Function: runtime mengimpor app dan menangani request sendiri, tanpa
-// perlu app.listen(). Membuka listener di function membuat inisialisasi gagal
-// dengan FUNCTION_INVOCATION_FAILED.
-//
-// Express app diambil dari hasil kompilasi TypeScript (backend/dist/app.js)
-// yang sudah ikut di repository. Setelah mengubah kode backend, jalankan
-// `npm run build` di folder backend agar dist/app.js ikut diperbarui.
-const app = require('../../dist/app').default;
+// DIAGNOSTIK SEMENTARA — akan dihapus setelah penyebab 500 ditemukan.
+const express = require('express');
 
-// Vercel menjalankan service Express sebagai Vercel Function. Runtime-nya
-// mengimpor app dan menangani request sendiri, jadi JANGAN membuka listener di
-// proses function: app.listen() di sini membuat inisialisasi function gagal
-// (FUNCTION_INVOCATION_FAILED). Cukup ekspor app.
-//
-// Listener tetap dipakai untuk Hostinger/proses Node biasa lewat server.js.
-const diVercel = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV);
+let app = null;
+let loadError = null;
+let runtimeError = null;
 
-if (!diVercel) {
-  const PORT = process.env.PORT || 8080;
+process.on('unhandledRejection', (reason) => {
+  runtimeError = reason;
+  console.error('[vercel-diag] unhandledRejection:', reason);
+});
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`BEM-FT UNAYA API listening on 0.0.0.0:${PORT}`);
+process.on('uncaughtException', (error) => {
+  runtimeError = error;
+  console.error('[vercel-diag] uncaughtException:', error);
+});
+
+try {
+  app = require('../../dist/app').default;
+} catch (error) {
+  loadError = error;
+  console.error('[vercel-diag] require dist/app failed:', error);
+}
+
+const describe = (error) => ({
+  name: error && error.name,
+  message: error && error.message,
+  code: error && error.code,
+  stack: error && typeof error.stack === 'string' ? error.stack.split('\n').slice(0, 8) : undefined,
+});
+
+if (!app) {
+  app = express();
+  app.all('*', (_req, res) => {
+    res.status(500).json({ message: 'APP_NOT_LOADED' });
   });
 }
 
-module.exports = app;
+module.exports = (req, res) => {
+  if (loadError || runtimeError) {
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(
+      JSON.stringify({
+        message: 'DIAGNOSTIC',
+        phase: loadError ? 'load' : 'runtime',
+        error: describe(loadError || runtimeError),
+      })
+    );
+    return;
+  }
+  return app(req, res);
+};
