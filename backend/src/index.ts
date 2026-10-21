@@ -6,22 +6,31 @@ import { startAccountLifecycleJob } from './services/account-lifecycle.service';
 import { startPemantauanCors } from './services/cors-monitor.service';
 
 const PORT = process.env.PORT || 3000;
+const diVercel = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV);
 
-app.listen(PORT, () => {
-  console.log(`\n========================================`);
-  console.log(`🚀 BEM-FT UNAYA API Server Started`);
-  console.log(`🌐 URL   : http://localhost:${PORT}`);
-  console.log(`🔧 ENV   : ${process.env.NODE_ENV}`);
-  console.log(`========================================\n`);
-});
+// Vercel Function mengimpor app dan menangani request sendiri. Jangan buka
+// listener di sana; listener hanya untuk Hostinger/proses Node biasa.
+export default app;
+
+if (!diVercel) {
+  app.listen(PORT, () => {
+    console.log(`\n========================================`);
+    console.log(`🚀 BEM-FT UNAYA API Server Started`);
+    console.log(`🌐 URL   : http://localhost:${PORT}`);
+    console.log(`🔧 ENV   : ${process.env.NODE_ENV}`);
+    console.log(`========================================\n`);
+  });
+}
 
 // Di Hostinger, proses Node bisa berhenti saat tidak ada trafik lalu dinyalakan
 // lagi pada permintaan berikutnya. Kalau job dijalankan pada setiap cold start,
 // email peringatan bisa terkirim berkali-kali dalam sehari. Karena itu setel
 // RUN_STARTUP_JOBS=0 di hPanel dan biarkan cron memanggil /api/internal/cron.
-const jalankanJobSaatMulai = process.env.RUN_STARTUP_JOBS !== '0';
+const jalankanJobSaatMulai = !diVercel && process.env.RUN_STARTUP_JOBS !== '0';
 
-if (jalankanJobSaatMulai) {
+if (diVercel) {
+  console.log('[job] Vercel Function — job berkala tidak dijalankan saat inisialisasi.');
+} else if (jalankanJobSaatMulai) {
   // Menjalankan pemeriksaan siklus hidup akun (nonaktif otomatis 5 tahun &
   // hapus otomatis setelah nonaktif 1 tahun).
   startAccountLifecycleJob();
@@ -52,5 +61,8 @@ if (jalankanJobSaatMulai) {
 }
 
 // Menuliskan penolakan origin yang tertampung di memori ke audit log secara
-// berkala, supaya admin bisa meninjau polanya dari dashboard.
-startPemantauanCors();
+// berkala, supaya admin bisa meninjau polanya dari dashboard. Di Vercel,
+// interval ini tidak dijalankan karena function tidak punya siklus hidup server.
+if (!diVercel) {
+  startPemantauanCors();
+}

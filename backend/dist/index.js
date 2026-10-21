@@ -43,19 +43,28 @@ const app_1 = __importDefault(require("./app"));
 const account_lifecycle_service_1 = require("./services/account-lifecycle.service");
 const cors_monitor_service_1 = require("./services/cors-monitor.service");
 const PORT = process.env.PORT || 3000;
-app_1.default.listen(PORT, () => {
-    console.log(`\n========================================`);
-    console.log(`🚀 BEM-FT UNAYA API Server Started`);
-    console.log(`🌐 URL   : http://localhost:${PORT}`);
-    console.log(`🔧 ENV   : ${process.env.NODE_ENV}`);
-    console.log(`========================================\n`);
-});
+const diVercel = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV);
+// Vercel Function mengimpor app dan menangani request sendiri. Jangan buka
+// listener di sana; listener hanya untuk Hostinger/proses Node biasa.
+exports.default = app_1.default;
+if (!diVercel) {
+    app_1.default.listen(PORT, () => {
+        console.log(`\n========================================`);
+        console.log(`🚀 BEM-FT UNAYA API Server Started`);
+        console.log(`🌐 URL   : http://localhost:${PORT}`);
+        console.log(`🔧 ENV   : ${process.env.NODE_ENV}`);
+        console.log(`========================================\n`);
+    });
+}
 // Di Hostinger, proses Node bisa berhenti saat tidak ada trafik lalu dinyalakan
 // lagi pada permintaan berikutnya. Kalau job dijalankan pada setiap cold start,
 // email peringatan bisa terkirim berkali-kali dalam sehari. Karena itu setel
 // RUN_STARTUP_JOBS=0 di hPanel dan biarkan cron memanggil /api/internal/cron.
-const jalankanJobSaatMulai = process.env.RUN_STARTUP_JOBS !== '0';
-if (jalankanJobSaatMulai) {
+const jalankanJobSaatMulai = !diVercel && process.env.RUN_STARTUP_JOBS !== '0';
+if (diVercel) {
+    console.log('[job] Vercel Function — job berkala tidak dijalankan saat inisialisasi.');
+}
+else if (jalankanJobSaatMulai) {
     // Menjalankan pemeriksaan siklus hidup akun (nonaktif otomatis 5 tahun &
     // hapus otomatis setelah nonaktif 1 tahun).
     (0, account_lifecycle_service_1.startAccountLifecycleJob)();
@@ -79,5 +88,8 @@ else {
     console.log('[job] RUN_STARTUP_JOBS=0 — job berkala diserahkan ke cron /api/internal/cron.');
 }
 // Menuliskan penolakan origin yang tertampung di memori ke audit log secara
-// berkala, supaya admin bisa meninjau polanya dari dashboard.
-(0, cors_monitor_service_1.startPemantauanCors)();
+// berkala, supaya admin bisa meninjau polanya dari dashboard. Di Vercel,
+// interval ini tidak dijalankan karena function tidak punya siklus hidup server.
+if (!diVercel) {
+    (0, cors_monitor_service_1.startPemantauanCors)();
+}

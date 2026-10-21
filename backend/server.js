@@ -1,25 +1,26 @@
 // Launcher produksi untuk Hostinger / proses Node biasa.
 //
-// Vercel Services memakai src/controllers/index.js sebagai entrypoint, sedangkan
-// Hostinger (dan `npm start`) memakai berkas ini. Keduanya harus menjalankan
-// aplikasi Express yang sama, bukan server demo.
-//
-// Muat .env lebih dulu, lalu jalankan hasil kompilasi TypeScript. Server hasil
-// build sudah membaca process.env.PORT dan mengikat port tersebut.
+// Vercel Services juga bisa mendeteksi package.json "main" ini. Karena service
+// Express dijalankan sebagai Vercel Function, di Vercel cukup ekspor app tanpa
+// membuka listener. Di Hostinger/proses Node biasa, listener tetap dijalankan.
 require('dotenv').config();
 
-const fs = require('fs');
-const path = require('path');
+const diVercel = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV);
 
-const entry = path.join(__dirname, 'dist', 'index.js');
+if (diVercel) {
+  module.exports = require('./dist/app').default;
+} else {
+  const fs = require('fs');
+  const path = require('path');
+  const entry = path.join(__dirname, 'dist', 'index.js');
 
-if (!fs.existsSync(entry)) {
-  console.error(
-    '[server] dist/index.js belum ada. Jalankan "npm run build" di folder backend, lalu restart aplikasi.'
-  );
-  process.exit(1);
+  if (!fs.existsSync(entry)) {
+    console.error(
+      '[server] dist/index.js belum ada. Jalankan "npm run build" di folder backend, lalu restart aplikasi.'
+    );
+    process.exit(1);
+  }
+
+  // Path literal agar file tracing Vercel ikut membawa seluruh isi dist/.
+  require('./dist/index.js');
 }
-
-// require dengan path literal (bukan variabel) agar file tracing Vercel ikut
-// membawa seluruh isi dist/ ke dalam bundle service.
-require('./dist/index.js');
