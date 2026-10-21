@@ -44,10 +44,12 @@ const account_lifecycle_service_1 = require("./services/account-lifecycle.servic
 const cors_monitor_service_1 = require("./services/cors-monitor.service");
 const PORT = process.env.PORT || 3000;
 const diVercel = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV);
+const dijalankanLangsung = require.main === module;
+const jalankanListener = !diVercel && (dijalankanLangsung || process.env.BEM_START_LISTENER === '1');
 // Vercel Function mengimpor app dan menangani request sendiri. Jangan buka
 // listener di sana; listener hanya untuk Hostinger/proses Node biasa.
 exports.default = app_1.default;
-if (!diVercel) {
+if (jalankanListener) {
     app_1.default.listen(PORT, () => {
         console.log(`\n========================================`);
         console.log(`🚀 BEM-FT UNAYA API Server Started`);
@@ -60,9 +62,9 @@ if (!diVercel) {
 // lagi pada permintaan berikutnya. Kalau job dijalankan pada setiap cold start,
 // email peringatan bisa terkirim berkali-kali dalam sehari. Karena itu setel
 // RUN_STARTUP_JOBS=0 di hPanel dan biarkan cron memanggil /api/internal/cron.
-const jalankanJobSaatMulai = !diVercel && process.env.RUN_STARTUP_JOBS !== '0';
-if (diVercel) {
-    console.log('[job] Vercel Function — job berkala tidak dijalankan saat inisialisasi.');
+const jalankanJobSaatMulai = jalankanListener && process.env.RUN_STARTUP_JOBS !== '0';
+if (!jalankanListener) {
+    console.log('[job] Berjalan sebagai function/import — job berkala tidak dijalankan saat inisialisasi.');
 }
 else if (jalankanJobSaatMulai) {
     // Menjalankan pemeriksaan siklus hidup akun (nonaktif otomatis 5 tahun &
@@ -90,6 +92,6 @@ else {
 // Menuliskan penolakan origin yang tertampung di memori ke audit log secara
 // berkala, supaya admin bisa meninjau polanya dari dashboard. Di Vercel,
 // interval ini tidak dijalankan karena function tidak punya siklus hidup server.
-if (!diVercel) {
+if (jalankanListener) {
     (0, cors_monitor_service_1.startPemantauanCors)();
 }

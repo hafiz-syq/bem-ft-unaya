@@ -1,15 +1,13 @@
 // Launcher produksi untuk Hostinger / proses Node biasa.
 //
-// Vercel Services juga bisa mendeteksi package.json "main" ini. Karena service
-// Express dijalankan sebagai Vercel Function, di Vercel cukup ekspor app tanpa
-// membuka listener. Di Hostinger/proses Node biasa, listener tetap dijalankan.
+// Vercel juga bisa mendeteksi package.json "main" ini. Saat Vercel mengimpor
+// berkas ini sebagai function, cukup ekspor app tanpa listener. Saat dijalankan
+// langsung dengan `node server.js` (Hostinger), listener tetap dinyalakan.
 require('dotenv').config();
 
-const diVercel = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV);
+if (require.main === module) {
+  process.env.BEM_START_LISTENER = '1';
 
-if (diVercel) {
-  module.exports = require('./dist/app').default;
-} else {
   const fs = require('fs');
   const path = require('path');
   const entry = path.join(__dirname, 'dist', 'index.js');
@@ -23,4 +21,6 @@ if (diVercel) {
 
   // Path literal agar file tracing Vercel ikut membawa seluruh isi dist/.
   require('./dist/index.js');
+} else {
+  module.exports = require('./dist/app').default;
 }
