@@ -3,23 +3,14 @@ import axios from 'axios';
 /**
  * Satu-satunya tempat alamat backend ditentukan.
  *
- * Secara bawaan alamatnya mengikuti host yang dipakai membuka aplikasi, jadi:
- * - dibuka di http://localhost:5173  -> backend http://localhost:3000
- * - dibuka di http://192.168.x.x:5173 -> backend http://192.168.x.x:3000
- * Dengan begitu aplikasi tetap jalan baik dari komputer sendiri maupun dari
- * perangkat lain di jaringan yang sama, tanpa mengubah kode.
+ * Semua permintaan memakai path relatif '/api', tanpa host absolut. Dengan
+ * begitu aplikasi bekerja di origin mana pun (Hostinger, Vercel, atau IP LAN)
+ * karena SPA dan API disajikan dari domain yang sama.
  *
- * Untuk produksi, setel VITE_API_URL (mis. https://api.contoh.com/api).
+ * Saat `npm run dev`, Vite mem-proxy '/api' dan '/uploads' ke backend lokal
+ * port 3000 (lihat vite.config.ts).
  */
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD
-    ? // Build produksi tanpa VITE_API_URL memakai origin yang sama. Ini pola
-      // deploy Hostinger: satu domain menyajikan SPA, API, dan /uploads.
-      '/api'
-    : typeof window !== 'undefined'
-      ? `${window.location.protocol}//${window.location.hostname}:3000/api`
-      : 'http://localhost:3000/api');
+const API_BASE_URL = '/api';
 
 // --- Identitas perangkat -----------------------------------------------
 // ID acak disimpan di localStorage dan dikirim pada setiap permintaan. Backend

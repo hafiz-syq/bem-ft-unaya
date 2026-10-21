@@ -226,6 +226,18 @@ export default defineConfig({
     // lewat alamat LAN, mis. http://192.168.1.10:5173
     host: true,
     port: 5173,
+    // Frontend memanggil API dengan path relatif '/api' dan '/uploads'. Saat
+    // development, Vite meneruskan keduanya ke backend Express di port 3000.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/uploads': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
     // Catatan: Vite sudah menerima Host header berupa alamat IP (192.168.x.x,
     // 10.x.x.x, ::1, dst.) dan localhost secara bawaan. Jika suatu saat dev server
     // dipasang di balik nama host kustom (mis. bem-ft.local), tambahkan di sini

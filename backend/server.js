@@ -82,3 +82,5 @@ app.post('/api/users', async (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server backend demo berjalan di http://0.0.0:${PORT}`);
 });
+
+module.exports = app;
