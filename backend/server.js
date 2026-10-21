@@ -20,4 +20,6 @@ if (!fs.existsSync(entry)) {
   process.exit(1);
 }
 
-require(entry);
+// require dengan path literal (bukan variabel) agar file tracing Vercel ikut
+// membawa seluruh isi dist/ ke dalam bundle service.
+require('./dist/index.js');

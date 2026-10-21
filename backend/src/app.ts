@@ -32,10 +32,18 @@ import { catatPenolakanCors } from './services/cors-monitor.service';
 const app: Application = express();
 
 // Ketika API berjalan di balik reverse proxy/load balancer (nginx, Cloudflare,
-// cPanel, dsb.), IP asli pengunjung dikirim lewat header X-Forwarded-For.
+// cPanel, Vercel, dsb.), IP asli pengunjung dikirim lewat header X-Forwarded-For.
 // Aktifkan dengan TRUST_PROXY=1 agar rate limit komentar tamu dan info asal
 // pengirim di halaman moderasi memakai IP pengunjung, bukan IP proxy.
-if (process.env.TRUST_PROXY === '1') {
+//
+// Vercel selalu menambahkan X-Forwarded-For. Tanpa trust proxy, express-rate-limit
+// mencatat validation error dan membatasi semua pengunjung sebagai satu IP.
+const diBalikProxy =
+  process.env.TRUST_PROXY === '1' ||
+  process.env.VERCEL === '1' ||
+  Boolean(process.env.VERCEL_ENV);
+
+if (diBalikProxy) {
   app.set('trust proxy', 1);
 }
 
