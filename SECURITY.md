@@ -41,9 +41,11 @@ membersihkan objek tak terjangkau/cache commit lama.
 | `JWT_SECRET` | Buat nilai acak baru (minimal 48 byte) | Kunci lama harus dianggap tidak layak |
 | SMTP (Gmail App Password) | Cabut lalu buat App Password baru | Berada di `.env`, tetapi rotasi murah dan aman |
 | Token GitHub / kredensial push | Cabut token lama, buat baru dengan cakupan minimal | Token bisa tersimpan di mesin lain |
-| MySQL lokal (root) | Ganti password, jangan pakai ulang di Aiven | Dump membuka struktur & data, bukan credential, tetap higienis |
-| Aiven MySQL | Buat kredensial baru saat provisioning | Jangan pakai password lama dari mesin lokal |
-| Variabel Vercel | Periksa dan rotasi yang sensitif | `DATABASE_URL`, `JWT_SECRET`, `SMTP_PASS` ada di proyek lama |
+| MySQL lokal (root) | Ganti password, jangan pakai ulang di Hostinger | Dump membuka struktur & data, bukan credential, tetap higienis |
+| MySQL Hostinger | Buat user/password baru saat provisioning | Jangan pakai password lama dari mesin lokal |
+| `CRON_SECRET` Hostinger | Buat nilai acak baru | Kunci endpoint `/api/internal/cron` |
+| Variabel Vercel (lama) | Periksa dan rotasi yang sensitif | `DATABASE_URL`, `JWT_SECRET`, `SMTP_PASS` ada di proyek lama |
+| Variabel Hostinger | Isi ulang dengan nilai baru | Jangan menyalin `JWT_SECRET` lama |
 
 Perintah membatalkan semua sesi (setelah `JWT_SECRET` diganti):
 

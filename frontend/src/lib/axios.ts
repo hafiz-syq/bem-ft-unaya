@@ -13,11 +13,13 @@ import axios from 'axios';
  */
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
-  (typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:3000/api`
-    // Prerender di build berjalan di Node tanpa window; nilai ini hanya
-    // digunakan komponen yang tidak pernah mengirim permintaan saat render.
-    : 'http://localhost:3000/api');
+  (import.meta.env.PROD
+    ? // Build produksi tanpa VITE_API_URL memakai origin yang sama. Ini pola
+      // deploy Hostinger: satu domain menyajikan SPA, API, dan /uploads.
+      '/api'
+    : typeof window !== 'undefined'
+      ? `${window.location.protocol}//${window.location.hostname}:3000/api`
+      : 'http://localhost:3000/api');
 
 // --- Identitas perangkat -----------------------------------------------
 // ID acak disimpan di localStorage dan dikirim pada setiap permintaan. Backend

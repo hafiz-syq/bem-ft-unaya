@@ -1,5 +1,6 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
 import path from 'path';
+import fs from 'fs';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 
@@ -22,6 +23,7 @@ import studentExportsRoutes from './routes/student-exports.routes';
 import notifikasiPerpanjanganRoutes from './routes/notifikasi-perpanjangan.routes';
 import deviceRoutes from './routes/device.routes';
 import imageConvertRoutes from './routes/image-convert.routes';
+import internalRoutes from './routes/internal.routes';
 import { UPLOAD_LIMITS } from './middlewares/upload.middleware';
 import { bolehkanOrigin } from './lib/cors-origin';
 import { folderUploads } from './lib/uploads';
@@ -100,11 +102,64 @@ app.use('/api/demisioner', demisionerRoutes);
 app.use('/api/faqs', faqRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/image-convert', imageConvertRoutes);
+// Endpoint untuk cron hPanel (siklus akun & notifikasi) — lihat routes/internal.routes.ts.
+app.use('/api/internal', internalRoutes);
 
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'OK', message: 'BEM-FT UNAYA API is running smoothly.' });
 });
+
+// Semua rute /api yang tidak dikenal tetap dibalas JSON, bukan index.html SPA.
+app.use('/api', (req: Request, res: Response) => {
+  res.status(404).json({ message: 'Endpoint API tidak ditemukan.' });
+});
+
+// --- Frontend SPA (deploy satu domain di Hostinger) ---------------------
+// Bila SERVE_FRONTEND=1 (atau NODE_ENV=production), backend ikut menyajikan
+// hasil build Vite. Satu origin membuat cookie sesi tetap SameSite=Lax dan
+// menghilangkan kebutuhan CORS silang situs.
+const folderFrontend = path.resolve(
+  process.env.FRONTEND_DIST || path.join(__dirname, '../../frontend/dist')
+);
+const berkasIndex = path.join(folderFrontend, 'index.html');
+const sajikanFrontend =
+  process.env.SERVE_FRONTEND === '1' ||
+  (process.env.SERVE_FRONTEND !== '0' && process.env.NODE_ENV === 'production');
+
+if (sajikanFrontend) {
+  if (fs.existsSync(berkasIndex)) {
+    app.use(
+      express.static(folderFrontend, {
+        index: false,
+        maxAge: '1h',
+        setHeaders: (res, filePath) => {
+          // index.html harus selalu dicek ulang agar deploy baru langsung terpakai.
+          if (filePath.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            // Nama berkas di /assets memuat hash, jadi aman di-cache lama.
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+        },
+      })
+    );
+
+    // Fallback rute SPA (mis. /login, /agenda). Berkas yang punya ekstensi
+    // (aset yang benar-benar hilang) dibiarkan 404, bukan dibalas HTML.
+    app.get(/^(?!\/api(?:\/|$)|\/uploads(?:\/|$)).*/, (req: Request, res: Response, next: NextFunction) => {
+      // Jangan balas HTML untuk aset yang hilang atau berkas titik (mis. /.env).
+      if (path.extname(req.path) || path.basename(req.path).startsWith('.')) return next();
+      res.setHeader('Cache-Control', 'no-cache');
+      res.sendFile(berkasIndex);
+    });
+  } else {
+    console.warn(
+      `[frontend] SERVE_FRONTEND aktif, tetapi ${berkasIndex} tidak ada. ` +
+        'Jalankan build frontend atau setel FRONTEND_DIST ke folder hasil build.'
+    );
+  }
+}
 
 // Global error handler
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {

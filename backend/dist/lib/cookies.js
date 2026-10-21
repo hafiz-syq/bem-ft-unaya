@@ -25,8 +25,8 @@ exports.isPermintaanHttps = isPermintaanHttps;
  *
  * Default `lax` (aman untuk aplikasi satu situs, termasuk frontend di
  * app.domain dan API di api.domain). Bila frontend dan API benar-benar berada
- * di situs berbeda (mis. Vercel `*.vercel.app` + API `*.onrender.com`), setel
- * `COOKIE_SAME_SITE=none`, karena cookie `lax` TIDAK ikut terkirim pada
+ * di situs berbeda (mis. frontend di penyedia statis dan API di domain lain),
+ * setel `COOKIE_SAME_SITE=none`, karena cookie `lax` TIDAK ikut terkirim pada
  * permintaan lintas situs dan pengguna akan terjebak di halaman login.
  *
  * `none` mewajibkan Secure; nilainya dipaksa di opsiCookieToken di bawah.

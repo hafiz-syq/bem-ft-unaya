@@ -50,24 +50,34 @@ app_1.default.listen(PORT, () => {
     console.log(`🔧 ENV   : ${process.env.NODE_ENV}`);
     console.log(`========================================\n`);
 });
-// Menjalankan pemeriksaan siklus hidup akun (nonaktif otomatis 5 tahun &
-// hapus otomatis setelah nonaktif 1 tahun) tanpa perlu cron eksternal.
-(0, account_lifecycle_service_1.startAccountLifecycleJob)();
+// Di Hostinger, proses Node bisa berhenti saat tidak ada trafik lalu dinyalakan
+// lagi pada permintaan berikutnya. Kalau job dijalankan pada setiap cold start,
+// email peringatan bisa terkirim berkali-kali dalam sehari. Karena itu setel
+// RUN_STARTUP_JOBS=0 di hPanel dan biarkan cron memanggil /api/internal/cron.
+const jalankanJobSaatMulai = process.env.RUN_STARTUP_JOBS !== '0';
+if (jalankanJobSaatMulai) {
+    // Menjalankan pemeriksaan siklus hidup akun (nonaktif otomatis 5 tahun &
+    // hapus otomatis setelah nonaktif 1 tahun).
+    (0, account_lifecycle_service_1.startAccountLifecycleJob)();
+    Promise.resolve().then(() => __importStar(require('./services/notifikasi-perpanjangan.service'))).then(async ({ pemeriksaanPerpanjanganHarian }) => {
+        const result = await pemeriksaanPerpanjanganHarian();
+        console.log(`[notifikasi-perpanjangan] Pemeriksaan awal: ${result['30_hari']} akun dengan 30 hari lagi, ${result['7_hari']} akun dengan 7 hari lagi.`);
+    })
+        .catch((error) => {
+        console.error('[notifikasi-perpanjangan] Gagal pemeriksaan awal:', error);
+        // P2022 = kolom yang dipakai Prisma Client belum ada di database. Hampir
+        // selalu berarti migrasi belum dijalankan, dan pesan Prisma tidak
+        // menyebutkan langkah perbaikannya. Server tetap berjalan; hanya
+        // pemeriksaan awal ini yang terlewat.
+        if (error?.code === 'P2022' || error?.code === 'P2021') {
+            console.error('[notifikasi-perpanjangan] Skema database tertinggal dari schema.prisma. ' +
+                'Jalankan "npx prisma migrate deploy" di folder backend, lalu restart server.');
+        }
+    });
+}
+else {
+    console.log('[job] RUN_STARTUP_JOBS=0 — job berkala diserahkan ke cron /api/internal/cron.');
+}
 // Menuliskan penolakan origin yang tertampung di memori ke audit log secara
 // berkala, supaya admin bisa meninjau polanya dari dashboard.
 (0, cors_monitor_service_1.startPemantauanCors)();
-Promise.resolve().then(() => __importStar(require('./services/notifikasi-perpanjangan.service'))).then(async ({ pemeriksaanPerpanjanganHarian }) => {
-    const result = await pemeriksaanPerpanjanganHarian();
-    console.log(`[notifikasi-perpanjangan] Pemeriksaan awal: ${result['30_hari']} akun dengan 30 hari lagi, ${result['7_hari']} akun dengan 7 hari lagi.`);
-})
-    .catch((error) => {
-    console.error('[notifikasi-perpanjangan] Gagal pemeriksaan awal:', error);
-    // P2022 = kolom yang dipakai Prisma Client belum ada di database. Hampir
-    // selalu berarti migrasi belum dijalankan, dan pesan Prisma tidak
-    // menyebutkan langkah perbaikannya. Server tetap berjalan; hanya
-    // pemeriksaan awal ini yang terlewat.
-    if (error?.code === 'P2022' || error?.code === 'P2021') {
-        console.error('[notifikasi-perpanjangan] Skema database tertinggal dari schema.prisma. ' +
-            'Jalankan "npx prisma migrate deploy" di folder backend, lalu restart server.');
-    }
-});

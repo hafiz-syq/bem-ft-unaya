@@ -349,6 +349,13 @@ const BARIS: Baris[] = [
   { metode: 'POST', jalur: '/students/import/simpan', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
 
   // ── rute yang didaftarkan langsung di app.ts ────────────────────────────
+  {
+    metode: 'POST',
+    jalur: '/internal/cron',
+    harapan: { tamu: 401 },
+    amanDiuji: true,
+    catatan: 'tanpa header X-Cron-Secret selalu 401; endpoint tidak menyentuh database',
+  },
   { metode: 'GET', jalur: '/health', harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' } },
 ];
 

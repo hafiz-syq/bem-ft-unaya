@@ -7,7 +7,7 @@ Aplikasi portal BEM-FT UNAYA: backend REST API (Express + Prisma) dan frontend R
 
 ## Prasyarat
 
-- Node.js 18+ (disarankan 20+)
+- Node.js 20.9+ (disarankan 22)
 - Database sesuai konfigurasi Prisma di `backend/prisma` (lihat `backend/.env`)
 
 ## Menjalankan Backend
@@ -23,7 +23,7 @@ Semua perintah dijalankan dari folder `backend/`:
 | `test` | `npm test` | Menjalankan uji matriks akses rute (`src/tests/uji-akses-rute.ts`) — butuh server dev berjalan |
 | `verifikasi:akses` | `npm run verifikasi:akses` | Memverifikasi pembatasan akses non-admin |
 | `build` | `npm run build` | Kompilasi TypeScript ke `dist/` |
-| `start` | `npm start` | Menjalankan hasil build produksi (`node dist/index.js`) |
+| `start` | `npm start` | Menjalankan hasil build produksi (`node server.js`) |
 
 Urutan pemakaian pertama kali:
 
@@ -64,11 +64,12 @@ Frontend memanggil API backend; pastikan URL API di konfigurasi frontend (`.env`
 
 ## Deploy
 
-Panduan langkah demi langkah ada di [DEPLOY.md](DEPLOY.md): frontend ke Vercel, database ke Aiven for MySQL (paket gratis), dan API Express ke host yang mendukung proses tetap (disarankan VM Oracle Always Free). Ringkasnya:
+Panduan lengkap ada di [DEPLOY.md](DEPLOY.md): satu aplikasi Node di **Hostinger** menyajikan SPA, API, dan `/uploads` dari domain yang sama, dengan MySQL Hostinger.
 
-- Vercel hanya membangun frontend; `vercel.json` di root repo mengatur build `frontend/dist` dan fallback SPA.
-- API tidak dijalankan sebagai serverless function karena butuh disk unggahan dan job latar.
-- Di server, setel `UPLOAD_DIR` ke folder persisten dan `COOKIE_SAME_SITE=none` bila frontend dan API berada di situs berbeda.
+- Build frontend memakai `VITE_API_URL=/api` (lihat `frontend/.env.production`).
+- Backend menyajikan `frontend/dist` bila `SERVE_FRONTEND=1`; rute SPA seperti `/login` dan `/agenda` ditangani Express tanpa `.htaccess` tambahan.
+- Setel `UPLOAD_DIR` ke folder persisten di luar folder aplikasi, dan `RUN_STARTUP_JOBS=0` karena job dijalankan oleh cron hPanel ke `/api/internal/cron`.
+- `server.js` adalah startup file yang dipilih di hPanel; jangan set `PORT` karena Hostinger menyuntikkan nilainya.
 
 ## Struktur Singkat
 

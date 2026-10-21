@@ -2,11 +2,15 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20.9"
+  },
   "scripts": {
     "dev": "nodemon src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node server.js",
+    "prisma:deploy": "prisma migrate deploy",
     "test": "ts-node src/tests/uji-akses-rute.ts",
     "test:unit": "ts-node src/tests/uji-unit-kritis.ts",
     "seed": "ts-node src/scripts/seed.ts",

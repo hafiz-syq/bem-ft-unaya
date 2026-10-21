@@ -4,6 +4,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
 const cors_1 = __importDefault(require("cors"));
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
@@ -25,6 +27,7 @@ const student_exports_routes_1 = __importDefault(require("./routes/student-expor
 const notifikasi_perpanjangan_routes_1 = __importDefault(require("./routes/notifikasi-perpanjangan.routes"));
 const device_routes_1 = __importDefault(require("./routes/device.routes"));
 const image_convert_routes_1 = __importDefault(require("./routes/image-convert.routes"));
+const internal_routes_1 = __importDefault(require("./routes/internal.routes"));
 const upload_middleware_1 = require("./middlewares/upload.middleware");
 const cors_origin_1 = require("./lib/cors-origin");
 const uploads_1 = require("./lib/uploads");
@@ -92,10 +95,55 @@ app.use('/api/demisioner', demisioner_routes_1.default);
 app.use('/api/faqs', faq_routes_1.default);
 app.use('/api/devices', device_routes_1.default);
 app.use('/api/image-convert', image_convert_routes_1.default);
+// Endpoint untuk cron hPanel (siklus akun & notifikasi) — lihat routes/internal.routes.ts.
+app.use('/api/internal', internal_routes_1.default);
 // Health check
 app.get('/api/health', (req, res) => {
     res.status(200).json({ status: 'OK', message: 'BEM-FT UNAYA API is running smoothly.' });
 });
+// Semua rute /api yang tidak dikenal tetap dibalas JSON, bukan index.html SPA.
+app.use('/api', (req, res) => {
+    res.status(404).json({ message: 'Endpoint API tidak ditemukan.' });
+});
+// --- Frontend SPA (deploy satu domain di Hostinger) ---------------------
+// Bila SERVE_FRONTEND=1 (atau NODE_ENV=production), backend ikut menyajikan
+// hasil build Vite. Satu origin membuat cookie sesi tetap SameSite=Lax dan
+// menghilangkan kebutuhan CORS silang situs.
+const folderFrontend = path_1.default.resolve(process.env.FRONTEND_DIST || path_1.default.join(__dirname, '../../frontend/dist'));
+const berkasIndex = path_1.default.join(folderFrontend, 'index.html');
+const sajikanFrontend = process.env.SERVE_FRONTEND === '1' ||
+    (process.env.SERVE_FRONTEND !== '0' && process.env.NODE_ENV === 'production');
+if (sajikanFrontend) {
+    if (fs_1.default.existsSync(berkasIndex)) {
+        app.use(express_1.default.static(folderFrontend, {
+            index: false,
+            maxAge: '1h',
+            setHeaders: (res, filePath) => {
+                // index.html harus selalu dicek ulang agar deploy baru langsung terpakai.
+                if (filePath.endsWith('index.html')) {
+                    res.setHeader('Cache-Control', 'no-cache');
+                }
+                else if (filePath.includes(`${path_1.default.sep}assets${path_1.default.sep}`)) {
+                    // Nama berkas di /assets memuat hash, jadi aman di-cache lama.
+                    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+                }
+            },
+        }));
+        // Fallback rute SPA (mis. /login, /agenda). Berkas yang punya ekstensi
+        // (aset yang benar-benar hilang) dibiarkan 404, bukan dibalas HTML.
+        app.get(/^(?!\/api(?:\/|$)|\/uploads(?:\/|$)).*/, (req, res, next) => {
+            // Jangan balas HTML untuk aset yang hilang atau berkas titik (mis. /.env).
+            if (path_1.default.extname(req.path) || path_1.default.basename(req.path).startsWith('.'))
+                return next();
+            res.setHeader('Cache-Control', 'no-cache');
+            res.sendFile(berkasIndex);
+        });
+    }
+    else {
+        console.warn(`[frontend] SERVE_FRONTEND aktif, tetapi ${berkasIndex} tidak ada. ` +
+            'Jalankan build frontend atau setel FRONTEND_DIST ke folder hasil build.');
+    }
+}
 // Global error handler
 app.use((err, req, res, next) => {
     // 1. Error bawaan multer (batas ukuran, field tak dikenal) = kesalahan input pengguna
