@@ -36,15 +36,21 @@ qcIlGbZWT1UIRY9Imfq00fxC/g9vDWX7g1v69XC8DH0Uvcx34RRgyIRQjNM/3/04
 const siapkanCaAiven = (): void => {
   const url = process.env.DATABASE_URL;
 
-  // Hanya berlaku untuk Aiven, dan jangan menimpa sslrootcert yang sudah diisi.
-  if (!url || !url.includes('aivencloud.com') || /[?&]sslrootcert=/.test(url)) {
+  if (!url || !url.includes('aivencloud.com')) {
     return;
   }
 
   try {
     const lokasiCa = path.join(os.tmpdir(), 'bem-ft-aiven-ca.pem');
     fs.writeFileSync(lokasiCa, AIVEN_PROJECT_CA, { mode: 0o600 });
-    process.env.DATABASE_URL = `${url}${url.includes('?') ? '&' : '?'}sslrootcert=${encodeURIComponent(lokasiCa)}`;
+
+    // Ganti nilai lama (bisa menunjuk file yang tidak ada di Vercel), lalu
+    // pastikan Prisma memakai verifikasi ketat dengan CA yang baru ditulis.
+    const alamat = new URL(url);
+    alamat.searchParams.delete('ssl-mode');
+    alamat.searchParams.set('sslaccept', 'strict');
+    alamat.searchParams.set('sslrootcert', lokasiCa);
+    process.env.DATABASE_URL = alamat.toString();
   } catch (error) {
     console.error('[prisma] Gagal menyiapkan CA Aiven:', error);
   }
