@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/axios';
-import { Building2, Users, Plus, Loader2, XCircle, Trash2 } from 'lucide-react';
+import { Building2, Users, Plus, Loader2, XCircle, Trash2, Pencil } from 'lucide-react';
 import axios from 'axios';
 
 interface Department {
@@ -33,6 +33,11 @@ export default function Organizations() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deletingOrgId, setDeletingOrgId] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
+
+  // Ganti nama organisasi / divisi (satu modal untuk keduanya).
+  const [editTarget, setEditTarget] = useState<{ tipe: 'org' | 'dept'; id: string; nama: string } | null>(null);
+  const [editNama, setEditNama] = useState('');
+  const [menyimpanEdit, setMenyimpanEdit] = useState(false);
 
   const fetchOrganizations = async () => {
     try {
@@ -80,6 +85,32 @@ export default function Organizations() {
       if (axios.isAxiosError(err)) alert(err.response?.data?.message || 'Gagal membuat departemen');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const bukaEdit = (tipe: 'org' | 'dept', id: string, nama: string) => {
+    setEditTarget({ tipe, id, nama });
+    setEditNama(nama);
+    setNotice('');
+  };
+
+  const simpanEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget) return;
+    setMenyimpanEdit(true);
+    try {
+      const jalur = editTarget.tipe === 'org'
+        ? `/organizations/${editTarget.id}`
+        : `/organizations/departments/${editTarget.id}`;
+      const res = await api.patch(jalur, { name: editNama.trim() });
+      setNotice(res.data.message || 'Nama berhasil diubah.');
+      setEditTarget(null);
+      fetchOrganizations();
+    } catch (err) {
+      if (axios.isAxiosError(err)) alert(err.response?.data?.message || 'Gagal mengganti nama');
+      else alert('Terjadi kesalahan.');
+    } finally {
+      setMenyimpanEdit(false);
     }
   };
 
@@ -183,6 +214,14 @@ export default function Organizations() {
                   </span>
                   <button
                     type="button"
+                    onClick={() => bukaEdit('org', org.id, org.name)}
+                    title={`Ganti nama organisasi ${org.name}`}
+                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-amber-600 dark:text-amber-400 transition rounded-md hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                  >
+                    <Pencil className="w-3.5 h-3.5" /> Ubah
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => handleDeleteOrg(org)}
                     disabled={deletingOrgId === org.id}
                     title={`Hapus organisasi ${org.name}`}
@@ -209,6 +248,15 @@ export default function Organizations() {
                     {org.departments.map(dept => (
                       <li key={dept.id} className="flex items-center justify-between gap-2 p-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-100 dark:border-gray-800 rounded-lg bg-gray-50 dark:bg-gray-800">
                         <span className="truncate">{dept.name}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => bukaEdit('dept', dept.id, dept.name)}
+                          title={`Ganti nama divisi ${dept.name}`}
+                          className="flex items-center gap-1 px-2 py-1 text-xs font-bold text-amber-600 dark:text-amber-400 transition rounded-md hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                        >
+                          <Pencil className="w-3.5 h-3.5" /> Ubah
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteDept(dept)}
@@ -220,6 +268,7 @@ export default function Organizations() {
                             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             : <><Trash2 className="w-3.5 h-3.5" /> Hapus</>}
                         </button>
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -234,6 +283,45 @@ export default function Organizations() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Modal Ganti Nama Organisasi / Divisi */}
+      {editTarget && (
+        <div role="dialog" aria-modal="true" aria-label="Ganti nama" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden bg-white dark:bg-gray-900 shadow-2xl rounded-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                Ganti Nama {editTarget.tipe === 'org' ? 'Organisasi' : 'Divisi'}
+              </h2>
+              <button onClick={() => setEditTarget(null)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"><XCircle className="w-6 h-6" /></button>
+            </div>
+            <form onSubmit={simpanEdit} className="p-6 space-y-4">
+              <div>
+                <label htmlFor="edit-nama" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Nama {editTarget.tipe === 'org' ? 'Organisasi' : 'Divisi'}
+                </label>
+                <input
+                  id="edit-nama"
+                  type="text"
+                  required
+                  autoFocus
+                  className="w-full p-2.5 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg focus:ring-amber-300 focus:border-amber-300 dark:focus:border-amber-700"
+                  value={editNama}
+                  onChange={(e) => setEditNama(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Sebelumnya: {editTarget.nama}
+                </p>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setEditTarget(null)} className="px-4 py-2 font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
+                <button type="submit" disabled={menyimpanEdit || !editNama.trim()} className="flex items-center gap-2 px-4 py-2 font-medium text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
+                  {menyimpanEdit ? <Loader2 className="w-4 h-4 animate-spin"/> : 'Simpan'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

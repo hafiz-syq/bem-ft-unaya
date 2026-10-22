@@ -301,7 +301,13 @@ export const getPublicComments = async (_req: Request, res: Response, next: Next
       include: {
         replies: {
           orderBy: { createdAt: 'asc' },
-          include: { author: { select: { role: true, profile: { select: { nama: true } } } } },
+          // Foto pengurus/admin ikut dikirim: halaman buku tamu bersifat publik,
+          // jadi pengunjung boleh melihat foto profil penulis balasan.
+          include: {
+            author: {
+              select: { role: true, foto: true, profile: { select: { nama: true, foto: true } } },
+            },
+          },
         },
       },
     });
@@ -319,6 +325,7 @@ export const getPublicComments = async (_req: Request, res: Response, next: Next
         createdAt: r.createdAt,
         penulis: r.author?.profile?.nama ?? 'Admin',
         role: r.author?.role ?? 'ADMIN',
+        foto: r.author?.foto ?? r.author?.profile?.foto ?? null,
       })),
     }));
 

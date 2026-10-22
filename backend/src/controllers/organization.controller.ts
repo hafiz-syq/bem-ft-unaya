@@ -38,6 +38,105 @@ export const createOrganization = async (req: any, res: Response, next: NextFunc
   }
 };
 
+// 2b. Mengganti nama organisasi yang sudah ada.
+//     Nama diperiksa kosong dan tidak boleh sama dengan organisasi lain (tanpa
+//     membedakan huruf besar/kecil) supaya daftar tidak punya dua entri identik.
+export const renameOrganization = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const name = String(req.body?.name ?? '').trim();
+
+    if (!name) {
+      res.status(400).json({ message: 'Nama organisasi wajib diisi.' });
+      return;
+    }
+
+    const org = await prisma.organization.findUnique({ where: { id }, select: { id: true, name: true } });
+    if (!org) {
+      res.status(404).json({ message: 'Organisasi tidak ditemukan.' });
+      return;
+    }
+
+    const bentrok = await prisma.organization.findFirst({
+      where: { name, id: { not: id } },
+      select: { id: true },
+    });
+    if (bentrok) {
+      res.status(409).json({ message: `Organisasi dengan nama "${name}" sudah ada.` });
+      return;
+    }
+
+    if (org.name === name) {
+      res.status(200).json({ message: 'Nama organisasi tidak berubah.', data: org });
+      return;
+    }
+
+    const diperbarui = await prisma.organization.update({ where: { id }, data: { name } });
+
+    await logActivity(
+      req.user.id,
+      'UPDATE_ORGANIZATION',
+      'Organization',
+      `Mengganti nama organisasi dari "${org.name}" menjadi "${name}"`,
+      id
+    );
+
+    res.status(200).json({ message: `Nama organisasi diubah menjadi "${name}".`, data: diperbarui });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 2c. Mengganti nama departemen (divisi) di dalam sebuah organisasi.
+export const renameDepartment = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const name = String(req.body?.name ?? '').trim();
+
+    if (!name) {
+      res.status(400).json({ message: 'Nama divisi wajib diisi.' });
+      return;
+    }
+
+    const dept = await prisma.department.findUnique({
+      where: { id },
+      select: { id: true, name: true, organizationId: true },
+    });
+    if (!dept) {
+      res.status(404).json({ message: 'Divisi tidak ditemukan.' });
+      return;
+    }
+
+    const bentrok = await prisma.department.findFirst({
+      where: { name, organizationId: dept.organizationId, id: { not: id } },
+      select: { id: true },
+    });
+    if (bentrok) {
+      res.status(409).json({ message: `Divisi dengan nama "${name}" sudah ada di organisasi ini.` });
+      return;
+    }
+
+    if (dept.name === name) {
+      res.status(200).json({ message: 'Nama divisi tidak berubah.', data: dept });
+      return;
+    }
+
+    const diperbarui = await prisma.department.update({ where: { id }, data: { name } });
+
+    await logActivity(
+      req.user.id,
+      'UPDATE_DEPARTMENT',
+      'Department',
+      `Mengganti nama divisi dari "${dept.name}" menjadi "${name}"`,
+      id
+    );
+
+    res.status(200).json({ message: `Nama divisi diubah menjadi "${name}".`, data: diperbarui });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // 3. Membuat Departemen Baru di dalam sebuah Organisasi
 export const createDepartment = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {

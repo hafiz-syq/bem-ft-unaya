@@ -109,26 +109,70 @@ export const login = async (req: any, res: any, next: any): Promise<void> => {
       }
     }
 
-    // 4. Kunci satu perangkat.
+    // 4. Kunci perangkat.
     //
     // Akun yang belum pernah terikat akan langsung diikat ke perangkat yang
     // dipakai sekarang. Akun yang sudah terikat hanya boleh login dari
-    // perangkat yang sama; percobaan dari perangkat lain dicatat sebagai
+    // perangkat yang terdaftar; percobaan dari perangkat lain dicatat sebagai
     // `pendingDevice` agar admin/superadmin bisa meninjaunya dari halaman
     // Perangkat & Sesi, lalu mengizinkan atau menolaknya.
+    //
+    // Jumlah perangkat yang boleh aktif bersamaan diatur per akun (maxDevices,
+    // bawaan 1 = perilaku lama). Perangkat pertama tersimpan di kolom User,
+    // perangkat berikutnya di tabel UserDevice.
     const deviceId = bacaDeviceId(req);
     const label = labelPerangkat(req);
     let deviceAktif = user.deviceId;
     let versiSesi = user.sessionVersion;
 
-    if (deviceAktif) {
-      if (deviceId !== deviceAktif) {
-        const simpan = await prisma.user.update({
+    const batasPerangkat = Math.max(1, user.maxDevices || 1);
+    const perangkatTambahan = await prisma.userDevice.findMany({
+      where: { userId: user.id },
+      select: { deviceId: true },
+    });
+    const terdaftar = new Set<string>([
+      ...(user.deviceId ? [user.deviceId] : []),
+      ...perangkatTambahan.map((p) => p.deviceId),
+    ]);
+
+    const bersihkanPercobaan = {
+      pendingDeviceId: null,
+      pendingDeviceLabel: null,
+      pendingDeviceAt: null,
+    };
+
+    if (deviceId && terdaftar.has(deviceId)) {
+      // Perangkat yang sudah dikenal (perangkat utama atau tambahan).
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          // Label di kolom User hanya mewakili perangkat utama.
+          ...(deviceId === user.deviceId ? { deviceLabel: label } : {}),
+          ...bersihkanPercobaan,
+        },
+      });
+
+      if (deviceId !== user.deviceId) {
+        await prisma.userDevice.updateMany({
+          where: { userId: user.id, deviceId },
+          data: { label, lastSeenAt: new Date() },
+        });
+      }
+
+      deviceAktif = deviceId;
+    } else if (deviceId && terdaftar.size > 0) {
+      // Perangkat baru. Boleh masuk selama batas perangkat akun belum penuh.
+      if (terdaftar.size < batasPerangkat) {
+        await prisma.userDevice.create({ data: { userId: user.id, deviceId, label } });
+        await prisma.user.update({ where: { id: user.id }, data: bersihkanPercobaan });
+        deviceAktif = deviceId;
+      } else {
+        await prisma.user.update({
           where: { id: user.id },
           data: {
             pendingDeviceId: deviceId,
-            pendingDeviceLabel: deviceId ? label : null,
-            pendingDeviceAt: deviceId ? new Date() : null,
+            pendingDeviceLabel: label,
+            pendingDeviceAt: new Date(),
           },
         });
 
@@ -140,22 +184,10 @@ export const login = async (req: any, res: any, next: any): Promise<void> => {
 
         res.status(403).json({
           code: 'PERANGKAT_TERKUNCI',
-          message: `Akun ini sudah aktif di perangkat lain${user.deviceLabel ? ` (${user.deviceLabel})` : ''}. Jika perangkat lama sudah dijual/rusak, minta ADMIN atau SUPERADMIN mengizinkan perangkat baru melalui menu Perangkat & Sesi.`,
+          message: `Akun ini sudah memakai ${terdaftar.size} dari ${batasPerangkat} perangkat yang diizinkan. Jika perangkat lama sudah dijual/rusak, minta ADMIN atau SUPERADMIN mengizinkan perangkat baru melalui menu Perangkat & Sesi.`,
         });
         return;
       }
-
-      // Login ulang dari perangkat yang sama: segarkan label (mis. browser
-      // diperbarui) dan bersihkan percobaan perangkat lain yang sudah tidak perlu.
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          deviceLabel: label,
-          pendingDeviceId: null,
-          pendingDeviceLabel: null,
-          pendingDeviceAt: null,
-        },
-      });
     } else if (deviceId) {
       const diperbarui = await prisma.user.update({
         where: { id: user.id },
@@ -163,14 +195,19 @@ export const login = async (req: any, res: any, next: any): Promise<void> => {
           deviceId,
           deviceLabel: label,
           deviceBoundAt: new Date(),
-          pendingDeviceId: null,
-          pendingDeviceLabel: null,
-          pendingDeviceAt: null,
+          ...bersihkanPercobaan,
         },
         select: { deviceId: true, sessionVersion: true },
       });
       deviceAktif = diperbarui.deviceId;
       versiSesi = diperbarui.sessionVersion;
+    } else if (terdaftar.size > 0) {
+      // Tidak ada header X-Device-Id padahal akun sudah terikat perangkat.
+      res.status(403).json({
+        code: 'PERANGKAT_TERKUNCI',
+        message: 'Perangkat tidak dikenali. Buka aplikasi lewat browser yang sama seperti saat login sebelumnya.',
+      });
+      return;
     }
 
     // 5. Buat JWT Token

@@ -139,6 +139,19 @@ export const createStudent = async (req: any, res: Response, next: NextFunction)
       return;
     }
 
+    // Email dipakai untuk lupa password dan harus unik. Diperiksa lebih dulu
+    // supaya admin mendapat pesan jelas, bukan kegagalan constraint database.
+    if (email) {
+      const emailDipakai = await prisma.user.findFirst({
+        where: { email },
+        select: { id: true },
+      });
+      if (emailDipakai) {
+        res.status(409).json({ message: 'Email ini sudah dipakai akun lain.' });
+        return;
+      }
+    }
+
     // Sama seperti seed: password awal adalah NIM itu sendiri dan wajib diganti
     // pada login pertama.
     const password_hash = await bcrypt.hash(nim, 10);
@@ -149,6 +162,8 @@ export const createStudent = async (req: any, res: Response, next: NextFunction)
         password_hash,
         role: 'MAHASISWA',
         first_login: true,
+        // Email akun disalin ke tabel User (sumber fitur lupa password).
+        ...(email ? { email } : {}),
         profile: {
           create: { nama, nim, program_studi, email, no_hp },
         },

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '../lib/axios';
+import { api, assetUrl } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import { isStaff, ROLE_LABEL } from '../lib/roles';
 import axios from 'axios';
@@ -13,6 +13,8 @@ interface Balasan {
   createdAt: string;
   penulis: string;
   role: string;
+  /** Foto profil penulis balasan; null bila belum punya foto (tampil inisial). */
+  foto?: string | null;
 }
 
 interface Komentar {
@@ -302,6 +304,13 @@ export default function PublicComments() {
                   {k.balasan.map((b) => (
                     <div key={b.id} className="flex gap-3 pl-4 border-l-2 border-amber-200 dark:border-amber-800">
                       <CornerDownRight className="w-4 h-4 mt-1 text-amber-400 shrink-0" />
+                      <div className="flex items-center justify-center w-8 h-8 overflow-hidden text-[10px] font-bold text-white rounded-full shrink-0 bg-amber-400">
+                        {b.foto ? (
+                          <img src={assetUrl(b.foto)} alt={b.penulis} className="object-cover w-full h-full" />
+                        ) : (
+                          b.penulis.substring(0, 2).toUpperCase()
+                        )}
+                      </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-gray-800 dark:text-gray-100">
                           {b.penulis}

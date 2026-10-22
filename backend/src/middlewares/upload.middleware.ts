@@ -9,6 +9,7 @@ import { pastikanFolderUploads } from '../lib/uploads';
 export const UPLOAD_LIMITS = {
   foto: 2 * 1024 * 1024, // foto profil (login pertama)
   file: 5 * 1024 * 1024, // lampiran tiket & CMS
+  pdfImpor: 10 * 1024 * 1024, // KHUSUS untuk impor data mahasiswa
 } as const;
 
 // Error validasi unggahan adalah kesalahan INPUT PENGGUNA, bukan kegagalan server.
@@ -207,7 +208,8 @@ const pdfFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilte
 export const uploadPdfImpor = multer({
   storage: multer.memoryStorage(),
   fileFilter: pdfFileFilter,
-  // Nama field "file" dipakai supaya pesan batas ukuran di app.ts otomatis
-  // menyebut angka 5 MB dari UPLOAD_LIMITS.
-  limits: { fileSize: UPLOAD_LIMITS.file, files: 1 } // Maksimal 5 MB
+  // Nama field "file" dipakai agar pesan batas ukuran di app.ts menyebut angka
+  // dari UPLOAD_LIMITS. Impor PDF punya batas sendiri (pdfImpor) karena daftar
+  // mahasiswa satu angkatan bisa lebih besar dari lampiran biasa.
+  limits: { fileSize: UPLOAD_LIMITS.pdfImpor, files: 1 }
 });

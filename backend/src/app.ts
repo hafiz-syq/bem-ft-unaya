@@ -174,7 +174,12 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   // 1. Error bawaan multer (batas ukuran, field tak dikenal) = kesalahan input pengguna
   if (err?.name === 'MulterError') {
     // MulterError tidak membawa nilai limit, jadi batasnya dibaca dari konfigurasi unggahan
-    const batas = (UPLOAD_LIMITS as Record<string, number>)[err.field];
+    // Field "file" dipakai dua jalur dengan batas berbeda: impor PDF (pdfImpor)
+    // dan lampiran/cover biasa (file). Jalur permintaan menentukan angkanya.
+    const imporPdf = /\/students\/import\//.test(String(req.originalUrl || req.url || ''));
+    const batas = imporPdf
+      ? UPLOAD_LIMITS.pdfImpor
+      : (UPLOAD_LIMITS as Record<string, number>)[err.field];
     const pesanMulter: Record<string, string> = {
       LIMIT_FILE_SIZE: batas
         ? `Ukuran file terlalu besar. Maksimal ${Math.round(batas / 1024 / 1024)} MB.`

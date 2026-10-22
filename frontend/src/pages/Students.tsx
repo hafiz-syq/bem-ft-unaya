@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { api } from '../lib/axios';
 import {
   Search, Loader2, ChevronLeft, ChevronRight, Download, FileSpreadsheet,
-  Upload, UserCog, CalendarClock, X, AlertTriangle, CheckCircle2, FileUp,
+  Upload, UserCog, CalendarClock, X, AlertTriangle, CheckCircle2, FileUp, UserPlus,
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -58,6 +58,17 @@ interface HasilSimpan {
 }
 
 const LIMIT = 20;
+
+/** Program studi yang dikenali sistem (sama dengan daftar pada impor PDF). */
+const PROGRAM_STUDI = ['SISTEM INFORMASI', 'TEKNIK MESIN', 'TEKNIK SIPIL'] as const;
+
+const FORM_TAMBAH_KOSONG = {
+  nim: '',
+  nama: '',
+  program_studi: PROGRAM_STUDI[0] as string,
+  email: '',
+  no_hp: '',
+};
 
 const STATUS_OPTIONS = [
   { value: 'ALL', label: 'Semua Status' },
@@ -131,6 +142,12 @@ export default function Students() {
   const [aktifkan, setAktifkan] = useState(false);
   const [menyimpanKelola, setMenyimpanKelola] = useState(false);
   const [galatKelola, setGalatKelola] = useState('');
+
+  // --- Modal tambah mahasiswa manual (satu per satu) ---
+  const [tambahTerbuka, setTambahTerbuka] = useState(false);
+  const [formTambah, setFormTambah] = useState({ ...FORM_TAMBAH_KOSONG });
+  const [menyimpanTambah, setMenyimpanTambah] = useState(false);
+  const [galatTambah, setGalatTambah] = useState('');
 
   // --- Modal impor PDF ---
   const [imporTerbuka, setImporTerbuka] = useState(false);
@@ -271,6 +288,39 @@ export default function Students() {
     }
   };
 
+  // ---------------- Tambah mahasiswa manual ----------------
+
+  const bukaTambah = () => {
+    setFormTambah({ ...FORM_TAMBAH_KOSONG });
+    setGalatTambah('');
+    setTambahTerbuka(true);
+  };
+
+  const simpanTambah = async (e: FormEvent) => {
+    e.preventDefault();
+    setMenyimpanTambah(true);
+    setGalatTambah('');
+    try {
+      const res = await api.post('/students', {
+        nim: formTambah.nim.trim(),
+        nama: formTambah.nama.trim(),
+        program_studi: formTambah.program_studi,
+        email: formTambah.email.trim() || null,
+        no_hp: formTambah.no_hp.trim() || null,
+      });
+      setNotice(res.data.message || 'Akun mahasiswa berhasil dibuat.');
+      setTambahTerbuka(false);
+      setFormTambah({ ...FORM_TAMBAH_KOSONG });
+      // Akun baru bisa berada di halaman lain; kembali ke halaman pertama.
+      if (page === 1) await fetchStudents();
+      else setPage(1);
+    } catch (err) {
+      setGalatTambah(await pesanKesalahan(err, 'Gagal menambah mahasiswa.'));
+    } finally {
+      setMenyimpanTambah(false);
+    }
+  };
+
   // ---------------- Modal kelola ----------------
 
   const bukaKelola = (s: Student) => {
@@ -401,6 +451,13 @@ export default function Students() {
                 className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-amber-600 transition rounded-lg bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 dark:hover:bg-amber-900/40"
               >
                 <Upload className="w-4 h-4" /> Impor PDF
+              </button>
+              <button
+                type="button"
+                onClick={bukaTambah}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white transition rounded-lg bg-amber-400 hover:bg-amber-500"
+              >
+                <UserPlus className="w-4 h-4" /> Tambah
               </button>
               <button
                 type="button"
@@ -689,6 +746,121 @@ export default function Students() {
       )}
 
       {/* MODAL IMPOR PDF */}
+      {tambahTerbuka && (
+        <div role="dialog" aria-modal="true" aria-label="Tambah mahasiswa" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/70 backdrop-blur-sm" onClick={() => setTambahTerbuka(false)}>
+          <form
+            onSubmit={simpanTambah}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl dark:bg-gray-900 dark:border dark:border-gray-800"
+          >
+            <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100 dark:border-gray-800">
+              <div>
+                <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
+                  <UserPlus className="w-5 h-5 text-amber-400" /> Tambah Mahasiswa
+                </h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Akun dibuat satu per satu. Password awal sama dengan NIM dan wajib diganti saat login pertama.
+                </p>
+              </div>
+              <button type="button" onClick={() => setTambahTerbuka(false)} className="p-1 text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {galatTambah && (
+                <div className="flex items-start gap-2 p-3 text-sm text-red-700 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {galatTambah}
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="tambah-nim" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">NIM</label>
+                <input
+                  id="tambah-nim"
+                  type="text"
+                  required
+                  inputMode="numeric"
+                  pattern="\d{8}[A-Za-z]?"
+                  placeholder="Contoh: 22140001"
+                  value={formTambah.nim}
+                  onChange={(e) => setFormTambah((f) => ({ ...f, nim: e.target.value }))}
+                  className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">8 digit angka, boleh diakhiri satu huruf.</p>
+              </div>
+
+              <div>
+                <label htmlFor="tambah-nama" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Nama Lengkap</label>
+                <input
+                  id="tambah-nama"
+                  type="text"
+                  required
+                  value={formTambah.nama}
+                  onChange={(e) => setFormTambah((f) => ({ ...f, nama: e.target.value }))}
+                  className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="tambah-prodi" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Program Studi</label>
+                <select
+                  id="tambah-prodi"
+                  value={formTambah.program_studi}
+                  onChange={(e) => setFormTambah((f) => ({ ...f, program_studi: e.target.value }))}
+                  className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
+                >
+                  {PROGRAM_STUDI.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="tambah-email" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Email (opsional)</label>
+                  <input
+                    id="tambah-email"
+                    type="email"
+                    value={formTambah.email}
+                    onChange={(e) => setFormTambah((f) => ({ ...f, email: e.target.value }))}
+                    className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="tambah-hp" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">No. HP/WA (opsional)</label>
+                  <input
+                    id="tambah-hp"
+                    type="tel"
+                    value={formTambah.no_hp}
+                    onChange={(e) => setFormTambah((f) => ({ ...f, no_hp: e.target.value }))}
+                    className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-gray-800">
+              <button
+                type="button"
+                onClick={() => setTambahTerbuka(false)}
+                className="px-4 py-2 text-sm font-bold text-gray-600 rounded-lg bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={menyimpanTambah}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
+              >
+                {menyimpanTambah && <Loader2 className="w-4 h-4 animate-spin" />}
+                Simpan Akun
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {imporTerbuka && (
         <div role="dialog" aria-modal="true" aria-label="Impor mahasiswa" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/70 backdrop-blur-sm" onClick={() => setImporTerbuka(false)}>
           <div
@@ -725,7 +897,7 @@ export default function Students() {
                   className="block w-full text-sm text-gray-700 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 file:mr-3 file:py-2 file:px-4 file:border-0 file:text-sm file:font-bold file:bg-amber-100 file:text-amber-700 dark:file:bg-amber-900/40 dark:file:text-amber-200"
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Maksimal 5 MB. PDF hasil pindai/gambar tidak bisa dibaca — perlu diketik ulang atau di-OCR lebih dulu.
+                  Maksimal 10 MB. PDF hasil pindai/gambar tidak bisa dibaca — perlu diketik ulang atau di-OCR lebih dulu.
                 </p>
               </div>
 

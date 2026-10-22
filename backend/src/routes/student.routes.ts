@@ -26,7 +26,8 @@ router.post('/import/pratinjau', requireAdmin, uploadPdfImpor.single('file'), pr
 router.post('/import/simpan', requireAdmin, uploadPdfImpor.single('file'), simpanImpor);
 
 router.get('/', getStudents);
-router.post('/', createStudent);
+// Tambah satu akun mahasiswa secara manual (tanpa PDF), khusus ADMIN/SUPERADMIN.
+router.post('/', requireAdmin, createStudent);
 router.patch('/:id/status', updateStudentStatus);
 // Perpanjangan masa studi & geser tenggat hapus: hanya admin, karena menyangkut
 // keberadaan akun.

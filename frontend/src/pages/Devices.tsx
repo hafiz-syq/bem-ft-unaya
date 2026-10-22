@@ -19,6 +19,11 @@ interface PerangkatAkun {
   terikat: boolean;
   perangkat: { label: string; sejak: string | null } | null;
   percobaan: { label: string; pada: string | null } | null;
+  /** Jumlah perangkat yang boleh aktif bersamaan (1 = perilaku lama). */
+  maxDevices: number;
+  /** Perangkat yang sedang terdaftar (utama + tambahan). */
+  jumlahPerangkat: number;
+  perangkatTambahan: { label: string; sejak: string | null }[];
   dapatDikelola: boolean;
 }
 
@@ -97,6 +102,28 @@ export default function Devices() {
     return () => clearTimeout(timer);
   }, [pesan]);
 
+  const ubahBatas = async (target: PerangkatAkun, nilai: number) => {
+    if (nilai === target.maxDevices) return;
+    if (!window.confirm(`Izinkan ${target.nama || target.nim} aktif di ${nilai} perangkat sekaligus?`)) return;
+
+    setAksi(`${target.id}:BATAS`);
+    setError('');
+    setPesan('');
+    try {
+      const res = await api.patch(`/devices/${target.id}/batas`, { maxDevices: nilai });
+      setPesan(res.data.message);
+      await muat();
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.message || 'Gagal mengubah batas perangkat.');
+      } else {
+        setError('Terjadi kesalahan yang tidak terduga.');
+      }
+    } finally {
+      setAksi('');
+    }
+  };
+
   const jalankan = async (target: PerangkatAkun, mode: Mode) => {
     const konfirmasi: Record<Mode, string> = {
       IZINKAN: `Izinkan perangkat baru "${target.percobaan?.label ?? 'perangkat tidak dikenal'}" untuk ${target.nama || target.nim}? Perangkat lama akan otomatis keluar.`,
@@ -163,7 +190,7 @@ export default function Devices() {
             <Smartphone className="w-6 h-6 text-amber-500" /> Perangkat & Sesi
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Satu akun hanya aktif di satu perangkat. Izinkan perangkat baru hanya bila perangkat lama dijual, rusak, atau hilang.
+            Akun aktif di satu perangkat secara bawaan. Untuk pengguna yang benar-benar butuh lebih dari satu (mis. HP + laptop), admin dapat menaikkan batas perangkat pada akun tersebut.
           </p>
         </div>
         <button
@@ -310,6 +337,35 @@ export default function Devices() {
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Tidak ada percobaan dari perangkat lain.</p>
                   )}
                 </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3 mt-3 text-sm border border-gray-100 rounded-lg bg-gray-50 dark:bg-gray-800/60 dark:border-gray-800">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">Batas perangkat</p>
+                  <p className="mt-0.5 font-bold text-gray-900 dark:text-gray-100">
+                    {a.jumlahPerangkat} dari {a.maxDevices} perangkat terpakai
+                  </p>
+                  {a.perangkatTambahan.length > 0 && (
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 break-words">
+                      Tambahan: {a.perangkatTambahan.map((p) => p.label).join(', ')}
+                    </p>
+                  )}
+                </div>
+                <label className="flex items-center gap-2 text-xs font-bold text-gray-600 dark:text-gray-300">
+                  Boleh aktif di
+                  <select
+                    value={a.maxDevices}
+                    disabled={!a.dapatDikelola || Boolean(aksi)}
+                    onChange={(e) => ubahBatas(a, Number(e.target.value))}
+                    aria-label={`Batas perangkat ${a.nama || a.nim}`}
+                    className="px-2 py-1.5 text-sm bg-white border border-gray-300 rounded-lg dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700 disabled:opacity-50 focus:ring-2 focus:ring-amber-400"
+                  >
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <option key={n} value={n}>{n} perangkat</option>
+                    ))}
+                  </select>
+                  {aksi === `${a.id}:BATAS` && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                </label>
               </div>
 
               <div className="flex flex-wrap gap-2 mt-4">

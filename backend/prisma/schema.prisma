@@ -106,6 +106,14 @@ model User {
   pendingDeviceLabel   String?            @db.VarChar(160)
   pendingDeviceAt      DateTime?
   sessionVersion       Int                @default(0)
+
+  // Berapa perangkat yang boleh aktif bersamaan untuk akun ini.
+  // 1 = perilaku lama (satu akun satu perangkat). Diatur admin dari halaman
+  // Perangkat & Sesi bila pengguna memang butuh lebih dari satu (mis. HP + laptop).
+  maxDevices           Int                @default(1)
+  // Perangkat ke-2 dan seterusnya. Perangkat pertama tetap di kolom deviceId
+  // di atas supaya data lama tidak perlu dimigrasikan.
+  devices              UserDevice[]
   
   profile              StudentProfile?
   positions            Position[]
@@ -142,6 +150,22 @@ model User {
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
+  @@index([deviceId])
+}
+
+/// Perangkat tambahan yang diizinkan aktif bersamaan untuk satu akun.
+/// Perangkat utama tetap disimpan di kolom User.deviceId (data lama), sehingga
+/// hanya perangkat ke-2 dan seterusnya yang masuk tabel ini.
+model UserDevice {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId   String   @db.VarChar(64)
+  label      String?  @db.VarChar(160)
+  boundAt    DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@unique([userId, deviceId])
   @@index([deviceId])
 }
 

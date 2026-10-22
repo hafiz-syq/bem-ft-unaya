@@ -28,6 +28,8 @@ export const requireAuth = async (req: any, res: Response, next: NextFunction): 
       select: {
         id: true, nim: true, role: true, isActive: true,
         deviceId: true, sessionVersion: true,
+        // Perangkat tambahan (akun dengan batas perangkat > 1).
+        devices: { select: { deviceId: true } },
       },
     });
 
@@ -55,7 +57,10 @@ export const requireAuth = async (req: any, res: Response, next: NextFunction): 
 
     // Perangkat diperiksa setiap permintaan supaya membuka kunci perangkat
     // langsung memutus sesi lama, tanpa menunggu token kedaluwarsa (1 hari).
-    const alasanPerangkat = periksaSesiPerangkat(akun, decoded);
+    const alasanPerangkat = periksaSesiPerangkat(
+      { ...akun, perangkat: akun.devices.map((d) => d.deviceId) },
+      decoded
+    );
     if (alasanPerangkat) {
       res.status(401).json({ code: 'PERANGKAT_BERUBAH', message: alasanPerangkat });
       return;
@@ -91,12 +96,16 @@ export const optionalAuth = async (req: any, _res: Response, next: NextFunction)
       select: {
         id: true, nim: true, role: true, isActive: true,
         deviceId: true, sessionVersion: true,
+        devices: { select: { deviceId: true } },
       },
     });
 
     // Sesi dari perangkat lama diperlakukan seperti tamu, bukan 401: endpoint
     // pemakai optionalAuth tetap bisa dibaca publik tanpa menjatuhkan halaman.
-    if (akun?.isActive && !periksaSesiPerangkat(akun, decoded)) {
+    if (
+      akun?.isActive &&
+      !periksaSesiPerangkat({ ...akun, perangkat: akun.devices.map((d) => d.deviceId) }, decoded)
+    ) {
       req.user = { ...decoded, id: akun.id, nim: akun.nim, role: akun.role };
     }
   } catch {

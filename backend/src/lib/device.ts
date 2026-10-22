@@ -47,19 +47,26 @@ export const labelPerangkat = (req: any): string => {
 /**
  * Alasan sesi lama tidak boleh dipakai lagi, atau `null` bila masih sah.
  * - Versi sesi berubah: admin membuka/memindahkan kunci perangkat.
- * - ID perangkat berbeda: token lama dipakai dari perangkat lain.
+ * - ID perangkat tidak dikenali: token dipakai dari perangkat yang tidak
+ *   terdaftar untuk akun ini.
+ *
+ * `perangkat` berisi perangkat tambahan (UserDevice) selain perangkat utama di
+ * `deviceId`. Akun yang belum pernah mengikat perangkat apa pun tetap bebas.
  */
 export const periksaSesiPerangkat = (
-  akun: { deviceId: string | null; sessionVersion: number },
+  akun: { deviceId: string | null; sessionVersion: number; perangkat?: string[] },
   decoded: { deviceId?: string | null; v?: number }
 ): string | null => {
   if ((decoded.v ?? 0) !== (akun.sessionVersion ?? 0)) {
     return 'Sesi ini sudah berakhir karena akses perangkat dibuka oleh admin. Silakan login kembali.';
   }
 
-  if (akun.deviceId && decoded.deviceId !== akun.deviceId) {
-    return 'Akun ini sedang aktif di perangkat lain. Silakan login kembali atau hubungi admin untuk mengizinkan perangkat baru.';
-  }
+  const terdaftar = [akun.deviceId, ...(akun.perangkat ?? [])].filter(Boolean) as string[];
 
-  return null;
+  // Belum ada perangkat terikat: cara lama tetap berlaku (bebas login).
+  if (terdaftar.length === 0) return null;
+
+  if (decoded.deviceId && terdaftar.includes(decoded.deviceId)) return null;
+
+  return 'Akun ini sedang aktif di perangkat lain. Silakan login kembali atau hubungi admin untuk mengizinkan perangkat baru.';
 };
