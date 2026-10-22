@@ -23,8 +23,29 @@ interface PerangkatAkun {
   maxDevices: number;
   /** Perangkat yang sedang terdaftar (utama + tambahan). */
   jumlahPerangkat: number;
-  perangkatTambahan: { label: string; sejak: string | null }[];
+  perangkatTambahan: { id: string; label: string; sejak: string | null }[];
   dapatDikelola: boolean;
+}
+
+interface PerangkatTerdaftar {
+  /** "utama" untuk perangkat lama, atau id baris UserDevice. */
+  id: string;
+  utama: boolean;
+  label: string;
+  sejak: string | null;
+  terakhir: string | null;
+}
+
+interface RincianPerangkat {
+  id: string;
+  nim: string;
+  nama: string | null;
+  role: string;
+  isActive: boolean;
+  maxDevices: number;
+  dapatDikelola: boolean;
+  perangkat: PerangkatTerdaftar[];
+  percobaan: { label: string; pada: string | null } | null;
 }
 
 interface Meta {
@@ -60,6 +81,12 @@ export default function Devices() {
   const [error, setError] = useState('');
   const [pesan, setPesan] = useState('');
   const [aksi, setAksi] = useState('');
+
+  // Panel riwayat perangkat satu akun.
+  const [rincian, setRincian] = useState<RincianPerangkat | null>(null);
+  const [memuatRincian, setMemuatRincian] = useState(false);
+  const [galatRincian, setGalatRincian] = useState('');
+  const [mencabut, setMencabut] = useState<string | null>(null);
 
   // Tunda pencarian sebentar supaya tidak memanggil API pada setiap ketukan.
   useEffect(() => {
@@ -121,6 +148,72 @@ export default function Devices() {
       }
     } finally {
       setAksi('');
+    }
+  };
+
+  const muatRincian = async (id: string) => {
+    const res = await api.get(`/devices/${id}`);
+    setRincian(res.data.data);
+  };
+
+  const bukaRincian = async (target: PerangkatAkun) => {
+    // Tampilkan kerangka dulu supaya modal langsung terbuka tanpa menunggu.
+    setRincian({
+      id: target.id,
+      nim: target.nim,
+      nama: target.nama,
+      role: target.role,
+      isActive: target.isActive,
+      maxDevices: target.maxDevices,
+      dapatDikelola: target.dapatDikelola,
+      perangkat: [],
+      percobaan: target.percobaan,
+    });
+    setGalatRincian('');
+    setMemuatRincian(true);
+    try {
+      await muatRincian(target.id);
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        setGalatRincian(err.response?.data?.message || 'Gagal memuat rincian perangkat.');
+      } else {
+        setGalatRincian('Terjadi kesalahan yang tidak terduga.');
+      }
+    } finally {
+      setMemuatRincian(false);
+    }
+  };
+
+  const putuskanSatu = async (perangkat: PerangkatTerdaftar) => {
+    if (!rincian) return;
+    const namaAkun = rincian.nama || rincian.nim;
+    if (!window.confirm(`Putuskan perangkat "${perangkat.label}" dari ${namaAkun}? Perangkat ini akan keluar; perangkat lain tetap aktif.`)) return;
+
+    setMencabut(perangkat.id);
+    setGalatRincian('');
+    setError('');
+    setPesan('');
+    try {
+      const res = await api.delete(`/devices/${rincian.id}/perangkat/${perangkat.id}`);
+
+      if (res.data?.perluLoginUlang) {
+        alert(res.data.message);
+        await logout();
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      setPesan(res.data.message || 'Perangkat diputus.');
+      await muatRincian(rincian.id);
+      await muat();
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        setGalatRincian(err.response?.data?.message || 'Gagal memutus perangkat.');
+      } else {
+        setGalatRincian('Terjadi kesalahan yang tidak terduga.');
+      }
+    } finally {
+      setMencabut(null);
     }
   };
 
@@ -209,6 +302,10 @@ export default function Devices() {
           Bila pengguna mencoba login dari perangkat lain, percobaannya tercatat di bawah. Klik
           <span className="font-bold"> Izinkan perangkat baru</span> untuk memindahkan akun. Bila perangkat hanya rusak/hilang dan pengguna belum mencoba login,
           klik <span className="font-bold">Lepas kunci</span>; pengguna akan terikat kembali ke perangkat pertama yang dipakai setelahnya.
+        </p>
+        <p className="mt-1">
+          Untuk mengeluarkan satu perangkat saja (mis. HP lama yang masih login), buka
+          <span className="font-bold"> Rincian perangkat</span> pada kartu akun lalu tekan <span className="font-bold">Putuskan</span> di baris perangkat tersebut.
         </p>
       </div>
 
@@ -402,6 +499,15 @@ export default function Devices() {
                     Lepas kunci
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => bukaRincian(a)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  title="Lihat dan putuskan perangkat satu per satu"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  Rincian perangkat ({a.jumlahPerangkat})
+                </button>
                 {!a.dapatDikelola && (
                   <p className="self-center text-xs font-medium text-gray-500 dark:text-gray-400">
                     Hanya SUPERADMIN yang dapat mengelola akun pengelola lain.
@@ -410,6 +516,123 @@ export default function Devices() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {rincian && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Riwayat perangkat ${rincian.nama || rincian.nim}`}
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/70 backdrop-blur-sm"
+          onClick={() => setRincian(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl dark:bg-gray-900 dark:border dark:border-gray-800"
+          >
+            <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100 dark:border-gray-800">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
+                  <Smartphone className="w-5 h-5 text-amber-500" /> Riwayat Perangkat
+                </h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {rincian.nama || 'Tanpa nama'} • {rincian.nim} • {ROLE_LABEL[rincian.role] || rincian.role}
+                </p>
+                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {rincian.perangkat.length} dari {rincian.maxDevices} perangkat terpakai
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRincian(null)}
+                className="p-1 text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                aria-label="Tutup riwayat perangkat"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {galatRincian && (
+                <div className="p-3 text-sm font-bold text-red-700 border border-red-200 rounded-lg bg-red-50 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/60">
+                  {galatRincian}
+                </div>
+              )}
+
+              {memuatRincian ? (
+                <div className="flex justify-center p-8">
+                  <Loader2 className="w-6 h-6 text-amber-400 animate-spin" />
+                </div>
+              ) : rincian.perangkat.length === 0 ? (
+                <div className="p-6 text-center border border-gray-100 rounded-lg bg-gray-50 dark:bg-gray-800/60 dark:border-gray-800">
+                  <p className="font-bold text-gray-700 dark:text-gray-300">Belum ada perangkat terdaftar</p>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Perangkat akan terdaftar otomatis saat pengguna login.
+                  </p>
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {rincian.perangkat.map((p) => (
+                    <li
+                      key={p.id}
+                      className="flex flex-col gap-2 p-3 text-sm border border-gray-100 rounded-lg bg-gray-50 dark:bg-gray-800/60 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-bold text-gray-900 dark:text-gray-100 break-words">
+                          {p.label}
+                          {p.utama && (
+                            <span className="ml-2 px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+                              Utama
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Sejak {tanggal(p.sejak)}
+                          {p.terakhir ? ` • Terakhir dipakai ${tanggal(p.terakhir)}` : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!rincian.dapatDikelola || Boolean(mencabut)}
+                        onClick={() => putuskanSatu(p)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/60 shrink-0"
+                      >
+                        {mencabut === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                        Putuskan
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {rincian.percobaan && (
+                <div className="p-3 text-sm border rounded-lg border-amber-200 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-900/60">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">Percobaan perangkat baru</p>
+                  <p className="mt-1 font-bold text-gray-900 dark:text-gray-100 break-words">{rincian.percobaan.label}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Pada {tanggal(rincian.percobaan.pada)}</p>
+                  <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                    Izinkan atau tolak percobaan ini lewat tombol di kartu akun.
+                  </p>
+                </div>
+              )}
+
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Memutus satu perangkat hanya mengeluarkan sesi perangkat itu; perangkat lain tetap aktif. Untuk mengeluarkan
+                semuanya sekaligus, gunakan <span className="font-bold">Lepas kunci</span> pada kartu akun.
+              </p>
+            </div>
+
+            <div className="flex justify-end p-5 border-t border-gray-100 dark:border-gray-800">
+              <button
+                type="button"
+                onClick={() => setRincian(null)}
+                className="px-4 py-2 text-sm font-bold text-gray-600 rounded-lg bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
