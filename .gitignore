@@ -9,6 +9,9 @@ node_modules/
 frontend/dist/
 frontend/.vite/
 
+# Hasil kompilasi backend dibuat ulang saat build (lokal/Vercel).
+backend/dist/
+
 # OS files
 .DS_Store
 Thumbs.db
