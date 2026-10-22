@@ -105,8 +105,7 @@ jobs:
 
       - name: Tampilkan log server bila gagal
         if: failure()
-        working-directory: backend
-        run: cat server.log
+        run: cat $GITHUB_WORKSPACE/server.log
 
   migrasi:
     name: Migrasi dari basis data kosong

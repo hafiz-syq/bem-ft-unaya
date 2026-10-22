@@ -141,6 +141,8 @@ model User {
   
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
+
+  @@index([deviceId])
 }
 
 model StudentProfile {
@@ -386,6 +388,8 @@ model Agenda {
   author           User     @relation(fields: [authorId], references: [id])
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  @@index([date])
 }
 
 model Gallery {

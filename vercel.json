@@ -4,7 +4,7 @@
     "backend": {
       "root": "backend",
       "framework": "express",
-      "entrypoint": "src/controllers/index.js",
+      "entrypoint": "dist/index.js",
       "buildCommand": "npm run prisma:generate && npm run build"
     },
     "frontend": {

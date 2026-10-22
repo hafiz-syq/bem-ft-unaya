@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE `user` ADD COLUMN `perpanjanganHingga` DATETIME(3) NULL,
+ALTER TABLE `User` ADD COLUMN `perpanjanganHingga` DATETIME(3) NULL,
     ADD COLUMN `tenggatHapus` DATETIME(3) NULL;
 
 -- CreateTable
