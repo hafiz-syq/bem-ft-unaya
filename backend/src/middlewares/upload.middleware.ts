@@ -77,6 +77,16 @@ export const uploadPhoto = multer({
   limits: { fileSize: UPLOAD_LIMITS.foto } // Maksimal 2 MB
 });
 
+// Foto profil pengguna disimpan di Cloudinary, jadi isinya cukup ditahan di
+// memori sampai selesai diunggah. Tidak ada berkas yang ditulis ke disk: di
+// Vercel filesystem bersifat read-only dan `/tmp` hilang setiap instance baru,
+// yang membuat foto profil sebelumnya tampak menghilang.
+export const uploadFotoMemori = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: photoFileFilter,
+  limits: { fileSize: UPLOAD_LIMITS.foto } // Maksimal 2 MB
+});
+
 // ================= KONVERSI GAMBAR KE WEBP =================
 // Semua unggahan gambar selain WebP diproses ulang menjadi WebP supaya ukuran
 // transfer lebih kecil. Foto yang sudah WebP dibiarkan apa adanya (tidak

@@ -10,6 +10,7 @@ import { opsiCookieToken, TOKEN_COOKIE } from '../lib/cookies';
 import { frontendBaseUrl, samarkanEmail } from '../lib/frontend-url';
 import { isAdminRole } from '../lib/ticket-access';
 import { bacaDeviceId, labelPerangkat } from '../lib/device';
+import { simpanFotoProfil } from '../lib/foto-profil';
 import { beriNotifikasiPercobaanPerangkat } from '../services/notifikasi-perangkat.service';
 import crypto from 'crypto';
 
@@ -256,8 +257,10 @@ export const completeFirstLogin = async (req: any, res: any, next: any): Promise
     // 3. Hash password baru
     const password_hash = await bcrypt.hash(password_baru, 10);
 
-    // 4. Foto profil bersifat OPSIONAL
-    const foto = req.file ? `/uploads/${req.file.filename}` : undefined;
+    // 4. Foto profil bersifat OPSIONAL.
+    //    Disimpan ke Cloudinary dan yang dicatat hanya URL publiknya, karena
+    //    berkas di disk server (Vercel: /tmp) hilang saat deploy/instance baru.
+    const foto = req.file ? await simpanFotoProfil(req.file) : undefined;
 
     // 5. Simpan password, status first_login, dan data profil dalam satu transaksi
     const updatedUser = await prisma.$transaction(async (tx) => {
@@ -268,7 +271,9 @@ export const completeFirstLogin = async (req: any, res: any, next: any): Promise
           first_login: false,
           // Email akun ikut disimpan di tabel User supaya lupa password berjalan
           // untuk SEMUA role, termasuk akun yang tidak punya StudentProfile.
-          email: email.toLowerCase()
+          email: email.toLowerCase(),
+          // Foto ikut disimpan di User (sumber utama foto profil semua role).
+          ...(foto ? { foto } : {})
         }
       });
 

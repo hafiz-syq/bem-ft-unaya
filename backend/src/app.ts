@@ -186,9 +186,11 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
-  // 2. Error validasi dari fileFilter (mis. format foto tidak didukung)
-  if (err?.statusCode === 400) {
-    res.status(400).json({ message: err.message });
+  // 2. Error yang sudah membawa kode HTTP sendiri: validasi unggahan (400),
+  //    penyimpanan gambar belum dikonfigurasi (503), atau gagal unggah ke
+  //    penyimpanan awan (502). Pesannya aman ditampilkan ke pengguna.
+  if (typeof err?.statusCode === 'number' && err.statusCode >= 400 && err.statusCode < 600) {
+    res.status(err.statusCode).json({ message: err.message || 'Permintaan tidak dapat diproses.' });
     return;
   }
 

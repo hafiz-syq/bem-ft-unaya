@@ -1,9 +1,7 @@
 import { Response, NextFunction } from 'express';
-import fs from 'fs';
-import path from 'path';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
-import { folderUploads } from '../lib/uploads';
+import { hapusFotoProfil, simpanFotoProfil } from '../lib/foto-profil';
 import { logActivity } from '../services/audit.service';
 import { hitungAngkatan } from '../services/account-lifecycle.service';
 
@@ -192,12 +190,27 @@ export const uploadMyPhoto = async (req: any, res: Response, next: NextFunction)
       return;
     }
 
-    const foto = `/uploads/${file.filename}`;
+    // Foto disimpan di Cloudinary; yang masuk database adalah URL lengkapnya
+    // (https://res.cloudinary.com/...). URL ini tetap hidup walaupun aplikasi
+    // di-deploy ulang, tidak seperti berkas di /tmp pada Vercel.
+    const foto = await simpanFotoProfil(file);
+
+    // Foto sebelumnya dibaca sebelum ditimpa supaya berkas lamanya bisa dibuang.
+    const sebelumnya = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { foto: true, profile: { select: { foto: true } } }
+    });
 
     await prisma.user.update({ where: { id: req.user.id }, data: { foto } });
 
     // Profil (untuk mahasiswa/pengurus) disamakan agar tampilan lama tetap konsisten.
     await prisma.studentProfile.updateMany({ where: { userId: req.user.id }, data: { foto } });
+
+    // Baru setelah database tersimpan: buang berkas lama agar tidak menumpuk.
+    const fotoLama = new Set([sebelumnya?.foto, sebelumnya?.profile?.foto]);
+    for (const lama of fotoLama) {
+      if (lama && lama !== foto) hapusFotoProfil(lama);
+    }
 
     await logActivity(
       req.user.id,
@@ -212,19 +225,6 @@ export const uploadMyPhoto = async (req: any, res: Response, next: NextFunction)
     next(error);
   }
 };
-
-/**
- * Menghapus berkas foto dari folder uploads. Hanya nilai yang berbentuk
- * `/uploads/<nama berkas>` yang disentuh; `path.basename` menjaga agar nilai
- * kolom yang aneh (mis. berisi `../`) tidak bisa menghapus berkas lain.
- * Kegagalan hapus berkas tidak menggagalkan permintaan — kolom database tetap
- * sudah dikosongkan, dan berkas yatim hanya memakan disk.
- */
-function hapusBerkasFoto(foto: string | null | undefined): void {
-  if (!foto || !foto.startsWith('/uploads/')) return;
-  const berkas = path.join(folderUploads(), path.basename(foto));
-  fs.promises.unlink(berkas).catch(() => undefined);
-}
 
 /**
  * Menghapus foto profil milik pengguna yang sedang login.
@@ -260,7 +260,8 @@ export const deleteMyPhoto = async (req: any, res: Response, next: NextFunction)
       prisma.studentProfile.updateMany({ where: { userId }, data: { foto: null } })
     ]);
 
-    hapusBerkasFoto(fotoLama);
+    // Foto lama bisa berupa URL Cloudinary (foto baru) atau /uploads/... (data lama).
+    hapusFotoProfil(fotoLama);
 
     await logActivity(
       userId,

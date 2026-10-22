@@ -11,7 +11,7 @@ import {
   resetPassword,
 } from '../controllers/auth.controller';
 import { optionalAuth, requireAuth } from '../middlewares/auth.middleware';
-import { denganWebp, uploadPhoto } from '../middlewares/upload.middleware';
+import { uploadFotoMemori } from '../middlewares/upload.middleware';
 import prisma from '../lib/prisma';
 import { opsiHapusCookieToken, TOKEN_COOKIE } from '../lib/cookies';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
@@ -30,8 +30,8 @@ router.post('/login', loginLimiter, login);
 
 // Endpoint First Login (Wajib menyertakan token dari login awal)
 // Email & no_hp wajib; foto profil opsional dikirim sebagai multipart/form-data dengan field "foto"
-const unggahFotoProfil = denganWebp(uploadPhoto);
-router.post('/first-login', requireAuth, unggahFotoProfil.single('foto'), completeFirstLogin);
+// Foto dibaca dari memori lalu disimpan ke Cloudinary oleh controller.
+router.post('/first-login', requireAuth, uploadFotoMemori.single('foto'), completeFirstLogin);
 
 // Endpoint verifikasi email
 // Dibatasi per PENGGUNA, bukan per alamat IP: di jaringan kampus banyak mahasiswa
