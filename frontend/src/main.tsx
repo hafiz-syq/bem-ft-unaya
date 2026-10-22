@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot, hydrateRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -11,13 +11,13 @@ if (!rootEl) throw new Error('Root element not found');
 
 const aplikasi = (
   <StrictMode>
-    <BrowserRouter>
+    <HashRouter>
       <ThemeProvider>
         <AuthProvider>
           <App />
         </AuthProvider>
       </ThemeProvider>
-    </BrowserRouter>
+    </HashRouter>
   </StrictMode>
 );
 
