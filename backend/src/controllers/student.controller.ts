@@ -188,6 +188,90 @@ export const createStudent = async (req: any, res: Response, next: NextFunction)
   }
 };
 
+/**
+ * Membuat satu akun ADMIN (administrator fakultas) tanpa lewat PDF.
+ *
+ * Khusus SUPERADMIN: hanya pengelola web yang boleh menambah administrator.
+ * Akun ADMIN tidak punya StudentProfile, jadi tidak ada nama/prodi yang
+ * disimpan — identitasnya adalah username (kolom `nim`) dan emailnya.
+ *
+ * Aturan isian:
+ * - username 3–40 karakter, huruf/angka/titik/garis bawah/strip (bukan NIM wajib),
+ * - email wajib dan unik, dipakai untuk lupa password,
+ * - password minimal 8 karakter.
+ */
+export const createAdminAccount = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const username = String(req.body.nim ?? '').trim();
+    const email = String(req.body.email ?? '').trim().toLowerCase();
+    const password = String(req.body.password ?? '');
+
+    if (!username || !email || !password) {
+      res.status(400).json({ message: 'Username, email, dan password wajib diisi.' });
+      return;
+    }
+
+    if (!/^[A-Za-z0-9._-]{3,40}$/.test(username)) {
+      res.status(400).json({
+        message: 'Username 3–40 karakter, hanya huruf, angka, titik, garis bawah, atau strip.',
+      });
+      return;
+    }
+
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      res.status(400).json({ message: 'Format email tidak valid.' });
+      return;
+    }
+
+    if (password.length < 8) {
+      res.status(400).json({ message: 'Password minimal 8 karakter.' });
+      return;
+    }
+
+    const usernameDipakai = await prisma.user.findUnique({ where: { nim: username }, select: { id: true } });
+    if (usernameDipakai) {
+      res.status(409).json({ message: `Username ${username} sudah dipakai akun lain.` });
+      return;
+    }
+
+    const emailDipakai = await prisma.user.findFirst({ where: { email }, select: { id: true } });
+    if (emailDipakai) {
+      res.status(409).json({ message: 'Email ini sudah dipakai akun lain.' });
+      return;
+    }
+
+    const password_hash = await bcrypt.hash(password, 10);
+
+    const baru = await prisma.user.create({
+      data: {
+        nim: username,
+        password_hash,
+        role: 'ADMIN',
+        // Administrator langsung bisa dipakai; tidak ada alur login pertama.
+        first_login: false,
+        isActive: true,
+        email,
+      },
+      select: { id: true, nim: true, role: true, email: true, isActive: true, createdAt: true },
+    });
+
+    await logActivity(
+      req.user.id,
+      'CREATE_ADMIN',
+      'User',
+      `Menambahkan akun administrator ${username}`,
+      baru.id
+    );
+
+    res.status(201).json({
+      message: `Akun administrator ${username} berhasil dibuat. Sampaikan password awal kepada yang bersangkutan.`,
+      data: baru,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // 3. Mengaktifkan / menonaktifkan akun
 export const updateStudentStatus = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {

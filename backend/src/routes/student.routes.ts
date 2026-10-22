@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   getStudents,
   createStudent,
+  createAdminAccount,
   updateStudentStatus,
   perpanjangAkun,
   updateStudentRole,
@@ -9,7 +10,7 @@ import {
   requireOfficer,
   requireAdmin,
 } from '../controllers/student.controller';
-import { requireAuth } from '../middlewares/auth.middleware';
+import { requireAuth, requireRole } from '../middlewares/auth.middleware';
 import { uploadPdfImpor } from '../middlewares/upload.middleware';
 import { pratinjauImpor, simpanImpor } from '../controllers/student-import.controller';
 
@@ -28,6 +29,8 @@ router.post('/import/simpan', requireAdmin, uploadPdfImpor.single('file'), simpa
 router.get('/', getStudents);
 // Tambah satu akun mahasiswa secara manual (tanpa PDF), khusus ADMIN/SUPERADMIN.
 router.post('/', requireAdmin, createStudent);
+// Tambah akun administrator baru, khusus SUPERADMIN.
+router.post('/admin', requireRole(['SUPERADMIN']), createAdminAccount);
 router.patch('/:id/status', updateStudentStatus);
 // Perpanjangan masa studi & geser tenggat hapus: hanya admin, karena menyangkut
 // keberadaan akun.

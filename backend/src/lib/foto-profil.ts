@@ -25,8 +25,8 @@ const galatFoto = (message: string, statusCode: number): Error => {
   return err;
 };
 
-/** Mengubah isi berkas gambar apa pun (JPG/PNG/HEIC/...) menjadi WebP kecil. */
-export const ubahFotoKeWebp = (buffer: Buffer): Promise<Buffer> =>
+/** Mengubah isi berkas gambar apa pun (JPG/PNG/HEIC/...) menjadi AVIF kecil. */
+export const ubahFotoKeAvif = (buffer: Buffer): Promise<Buffer> =>
   sharp(buffer, {
     failOn: 'none',
     // Batasi piksel agar berkas kecil yang "meledak" saat didekode tidak
@@ -40,7 +40,9 @@ export const ubahFotoKeWebp = (buffer: Buffer): Promise<Buffer> =>
       fit: 'inside',
       withoutEnlargement: true,
     })
-    .webp({ quality: 82, effort: 4 })
+    // AVIF jauh lebih kecil dari WebP pada kualitas setara. Dimensi foto profil
+    // dibatasi 1024px, jadi waktu encoding tetap wajar.
+    .avif({ quality: 55, effort: 4 })
     .toBuffer();
 
 /**
@@ -57,9 +59,9 @@ export const simpanFotoProfil = async (file: {
     throw galatFoto('Berkas foto tidak terbaca. Silakan pilih ulang fotonya.', 400);
   }
 
-  let webp: Buffer;
+  let avif: Buffer;
   try {
-    webp = await ubahFotoKeWebp(file.buffer);
+    avif = await ubahFotoKeAvif(file.buffer);
   } catch {
     throw galatFoto(
       `Gambar "${file.originalname ?? 'yang diunggah'}" tidak dapat diproses. Gunakan JPG, PNG, WEBP, HEIC, atau format gambar lain (bukan SVG).`,
@@ -67,10 +69,10 @@ export const simpanFotoProfil = async (file: {
     );
   }
 
-  const { secureUrl } = await unggahKeCloudinary(webp, {
+  const { secureUrl } = await unggahKeCloudinary(avif, {
     folder: FOLDER_FOTO_PROFIL,
     publicId: `PROFILE-${Date.now()}-${Math.round(Math.random() * 1e9)}`,
-    format: 'webp',
+    format: 'avif',
   });
 
   return secureUrl;

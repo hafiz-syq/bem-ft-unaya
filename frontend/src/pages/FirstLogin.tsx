@@ -23,7 +23,7 @@ export default function FirstLogin() {
     if (!file) return;
 
     // Validasi cepat di sisi klien supaya pengguna dapat umpan balik langsung.
-    // Semua format gambar diterima dan otomatis diubah ke WebP oleh server.
+    // Semua format gambar diterima dan otomatis diubah ke AVIF oleh server.
     if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
       setError('Format foto tidak didukung. Gunakan JPG, PNG, WEBP, HEIC, atau format gambar lain (bukan SVG).');
       return;

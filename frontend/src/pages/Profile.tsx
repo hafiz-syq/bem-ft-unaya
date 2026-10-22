@@ -300,7 +300,7 @@ export default function Profile() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
               <Upload className="w-3.5 h-3.5" />
-              Klik ikon kamera untuk menambahkan / mengganti foto profil (JPG, PNG, WEBP, HEIC — maksimal 2 MB, otomatis diubah ke WebP).
+              Klik ikon kamera untuk menambahkan / mengganti foto profil (JPG, PNG, WEBP, HEIC — maksimal 2 MB, otomatis diubah ke AVIF).
             </p>
             {data.foto && (
               <button

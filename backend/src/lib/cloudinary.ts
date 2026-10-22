@@ -70,7 +70,8 @@ export const unggahKeCloudinary = (
       {
         folder: opsi.folder,
         public_id: opsi.publicId,
-        format: opsi.format ?? 'webp',
+        // AVIF dipakai sebagai format baku media yang diunggah ke sini.
+        format: opsi.format ?? 'avif',
         quality: 'auto',
         resource_type: 'image',
         overwrite: false,
