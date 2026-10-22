@@ -23,4 +23,3 @@ backups/
 *.sql.zip
 
 # Berkas unggahan pengguna (foto, lampiran tiket) tidak boleh masuk repo.
-backend/uploads/
