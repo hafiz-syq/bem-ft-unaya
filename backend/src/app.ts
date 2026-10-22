@@ -113,6 +113,36 @@ app.use('/api/image-convert', imageConvertRoutes);
 // Endpoint untuk cron hPanel (siklus akun & notifikasi) — lihat routes/internal.routes.ts.
 app.use('/api/internal', internalRoutes);
 
+// --- WAJIB DIHAPUS SETELAH AKUN ADMIN BERHASIL DIBUAT!!! ---
+// --- BYPASS DARURAT BUAT ADMIN ---
+app.get('/api/setup-admin-darurat', async (req: Request, res: Response) => {
+  try {
+    const bcrypt = require('bcrypt');
+    const { PrismaClient } = require('@prisma/client');
+    const prismaDarurat = new PrismaClient();
+
+    const hashedPassword = await bcrypt.hash('12345678', 10);
+
+    await prismaDarurat.user.upsert({
+      where: { nim: 'admin1' },
+      update: { password_hash: hashedPassword },
+      create: {
+        nim: 'admin1',
+        password_hash: hashedPassword,
+        role: 'ADMIN',
+        first_login: false,
+        profile: {
+          create: { nim: 'admin1', nama: 'Admin 1', program_studi: 'Sistem Informasi' }
+        }
+      }
+    });
+    res.status(200).json({ message: '✅ Admin berhasil dibuat langsung dari Vercel!' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message, stack: error.stack });
+  }
+});
+// ---------------------------------
+
 // Health check
 app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'OK', message: 'BEM-FT UNAYA API is running smoothly.' });

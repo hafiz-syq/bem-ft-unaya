@@ -27,17 +27,17 @@ async function main() {
 
  // 3. Buat admin baru
     await prisma.user.upsert({
-      where: { nim: 'adminHafiz' },
+      where: { nim: 'admin1' },
       update: { password_hash: hashedPassword },
       create: {
-        nim: 'adminHafiz', 
+        nim: 'admin1', 
         password_hash: hashedPassword,
         role: 'ADMIN',
         first_login: false, 
         profile: {
           create: { 
-            nim: 'adminHafiz', // <--- TAMBAHKAN INI
-            nama: 'Admin Hafiz', 
+            nim: 'admin1', // <--- TAMBAHKAN INI
+            nama: 'Admin 1', 
             program_studi: 'Sistem Informasi' 
           }
         }
