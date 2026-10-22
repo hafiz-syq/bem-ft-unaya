@@ -44,20 +44,14 @@ const siapkanCaAiven = (): void => {
     const lokasiCa = path.join(os.tmpdir(), 'bem-ft-aiven-ca.pem');
     fs.writeFileSync(lokasiCa, AIVEN_PROJECT_CA, { mode: 0o600 });
 
-    // Ganti nilai lama (bisa menunjuk file yang tidak ada di Vercel), lalu
-    // pastikan Prisma memakai verifikasi ketat dengan CA yang baru ditulis.
+    // Konektor MySQL Prisma memakai sslcert (bukan sslrootcert seperti
+    // PostgreSQL). Ganti nilai lama yang mungkin menunjuk file tidak ada.
     const alamat = new URL(url);
     alamat.searchParams.delete('ssl-mode');
+    alamat.searchParams.delete('sslrootcert');
     alamat.searchParams.set('sslaccept', 'strict');
-    alamat.searchParams.set('sslrootcert', lokasiCa);
+    alamat.searchParams.set('sslcert', lokasiCa);
     process.env.DATABASE_URL = alamat.toString();
-
-    // Diagnostik aman: jangan pernah mencetak URL lengkap (berisi password).
-    console.log('[prisma] CA Aiven disiapkan:', {
-      host: alamat.hostname,
-      caAda: fs.existsSync(lokasiCa),
-      parameter: [...alamat.searchParams.keys()],
-    });
   } catch (error) {
     console.error('[prisma] Gagal menyiapkan CA Aiven:', error);
   }
