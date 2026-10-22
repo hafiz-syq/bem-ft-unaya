@@ -51,6 +51,13 @@ const siapkanCaAiven = (): void => {
     alamat.searchParams.set('sslaccept', 'strict');
     alamat.searchParams.set('sslrootcert', lokasiCa);
     process.env.DATABASE_URL = alamat.toString();
+
+    // Diagnostik aman: jangan pernah mencetak URL lengkap (berisi password).
+    console.log('[prisma] CA Aiven disiapkan:', {
+      host: alamat.hostname,
+      caAda: fs.existsSync(lokasiCa),
+      parameter: [...alamat.searchParams.keys()],
+    });
   } catch (error) {
     console.error('[prisma] Gagal menyiapkan CA Aiven:', error);
   }
