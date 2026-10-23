@@ -479,7 +479,7 @@ export default function Students() {
               <input
                 type="text"
                 placeholder="Cari NIM atau Nama..."
-                className="block w-full py-2 pr-3 text-sm text-gray-900 border border-gray-300 rounded-lg pl-9 bg-white dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700 dark:placeholder:text-gray-500 focus:ring-amber-300 focus:border-amber-300"
+                className="block w-full py-2 pr-3 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg pl-9 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700 dark:placeholder:text-gray-500 focus:ring-amber-300 focus:border-amber-300"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -497,7 +497,7 @@ export default function Students() {
               <button
                 type="button"
                 onClick={() => { resetImpor(); setImporTerbuka(true); }}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-amber-600 transition rounded-lg bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 dark:hover:bg-amber-900/40"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-bold transition rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 dark:hover:bg-amber-900/40"
               >
                 <Upload className="w-4 h-4" /> Impor PDF
               </button>
@@ -521,7 +521,7 @@ export default function Students() {
                 type="button"
                 onClick={handleExportCsv}
                 disabled={exporting}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-amber-600 transition rounded-lg bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 dark:hover:bg-amber-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-bold transition rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 dark:hover:bg-amber-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 Ekspor CSV
@@ -532,7 +532,7 @@ export default function Students() {
       </div>
 
       {/* Filter Status & Role */}
-      <div className="flex flex-wrap gap-3 p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm rounded-xl">
+      <div className="flex flex-wrap gap-3 p-4 bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800 rounded-xl">
         <label className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400">
           Status
           <select
@@ -572,11 +572,11 @@ export default function Students() {
       )}
 
       {/* Tabel Data Mahasiswa */}
-      <div className="overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm rounded-xl">
+      <div className="overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800 rounded-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="text-sm text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
+              <tr className="text-sm text-gray-500 border-b border-gray-200 dark:text-gray-400 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
                 <th className="p-4 font-medium">NIM</th>
                 <th className="p-4 font-medium">Nama Mahasiswa</th>
                 <th className="p-4 font-medium">Program Studi</th>
@@ -603,7 +603,7 @@ export default function Students() {
                   <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/60">
                     <td className="p-4 font-medium text-gray-900 dark:text-gray-100">{student.nim}</td>
                     <td className="p-4 text-gray-700 dark:text-gray-300">
-                      <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex items-center min-w-0 gap-3">
                         <UserAvatar
                           userId={student.id}
                           nama={student.profile?.nama || student.nim}
@@ -646,11 +646,10 @@ export default function Students() {
                         onClick={() => ubahStatus(student)}
                         disabled={sedangProses === student.id || student.id === user?.id}
                         title={student.id === user?.id ? 'Status akun sendiri tidak dapat diubah dari sini' : 'Klik untuk mengubah status'}
-                        className={`inline-flex items-center px-2.5 py-0.5 text-xs font-bold rounded-full transition disabled:cursor-not-allowed ${
-                          student.isActive
+                        className={`inline-flex items-center px-2.5 py-0.5 text-xs font-bold rounded-full transition disabled:cursor-not-allowed ${student.isActive
                             ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60'
                             : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60'
-                        }`}
+                          }`}
                       >
                         {student.isActive ? 'Aktif' : 'Nonaktif'}
                       </button>
@@ -682,14 +681,14 @@ export default function Students() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={meta.page === 1}
-                className="p-2 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 text-gray-600 border border-gray-300 rounded-lg dark:text-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
                 disabled={meta.page === meta.totalPages}
-                className="p-2 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 text-gray-600 border border-gray-300 rounded-lg dark:text-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -704,7 +703,7 @@ export default function Students() {
           <form
             onSubmit={simpanKelola}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg bg-white rounded-2xl shadow-2xl dark:bg-gray-900 dark:border dark:border-gray-800 overflow-hidden"
+            className="w-full max-w-lg overflow-hidden bg-white shadow-2xl rounded-2xl dark:bg-gray-900 dark:border dark:border-gray-800"
           >
             <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100 dark:border-gray-800">
               <div>
@@ -797,7 +796,7 @@ export default function Students() {
               <button
                 type="button"
                 onClick={() => setKelola(null)}
-                className="px-4 py-2 text-sm font-bold text-gray-600 rounded-lg bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
+                className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
               >
                 Batal
               </button>
@@ -912,14 +911,14 @@ export default function Students() {
               <button
                 type="button"
                 onClick={() => setAdminTerbuka(false)}
-                className="px-4 py-2 text-sm font-bold text-gray-600 rounded-lg bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
+                className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={menyimpanAdmin}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50"
               >
                 {menyimpanAdmin && <Loader2 className="w-4 h-4 animate-spin" />}
                 Simpan Admin
@@ -1027,7 +1026,7 @@ export default function Students() {
               <button
                 type="button"
                 onClick={() => setTambahTerbuka(false)}
-                className="px-4 py-2 text-sm font-bold text-gray-600 rounded-lg bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
+                className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
               >
                 Batal
               </button>
@@ -1100,7 +1099,7 @@ export default function Students() {
                     type="button"
                     onClick={simpanImpor}
                     disabled={menyimpanImpor}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
                   >
                     {menyimpanImpor ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                     Buat {pratinjau.siapDiimpor} Akun
@@ -1163,7 +1162,7 @@ export default function Students() {
               )}
 
               {hasilImpor && (
-                <div className="p-4 space-y-2 text-sm rounded-lg bg-green-50 dark:bg-green-950/60 text-green-800 dark:text-green-200">
+                <div className="p-4 space-y-2 text-sm text-green-800 rounded-lg bg-green-50 dark:bg-green-950/60 dark:text-green-200">
                   <p className="flex items-center gap-2 font-bold">
                     <CheckCircle2 className="w-4 h-4" /> Impor selesai
                   </p>
@@ -1180,7 +1179,7 @@ export default function Students() {
               <button
                 type="button"
                 onClick={() => setImporTerbuka(false)}
-                className="px-4 py-2 text-sm font-bold text-gray-600 rounded-lg bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
+                className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
               >
                 Tutup
               </button>
