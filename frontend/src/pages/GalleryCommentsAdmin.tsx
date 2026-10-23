@@ -4,6 +4,7 @@ import { api, assetUrl } from '../lib/axios';
 import { Check, Loader2, MessageSquare, Trash2, X, Image as ImageIcon } from 'lucide-react';
 import axios from 'axios';
 import { ROLE_LABEL } from '../lib/roles';
+import UserAvatar from '../components/UserAvatar';
 
 interface KomentarGaleri {
   id: string;
@@ -13,6 +14,8 @@ interface KomentarGaleri {
   penulis: string;
   role: string;
   foto: string | null;
+  /** ID akun penulis; null untuk komentar tamu. */
+  userId?: string | null;
   // Hanya terisi untuk komentar tamu; dipakai pengurus menilai spam.
   ip: string | null;
   perangkat: string | null;
@@ -145,7 +148,7 @@ export default function GalleryCommentsAdmin() {
         </div>
         <Link
           to="/gallery"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-amber-600 rounded-lg bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 dark:hover:bg-amber-900/40"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg text-amber-400 bg-amber-100 hover:bg-amber-200 dark:text-amber-300 dark:bg-amber-100 dark:hover:bg-amber-200"
         >
           <ImageIcon className="w-4 h-4" /> Lihat Halaman Galeri
         </Link>
@@ -207,6 +210,12 @@ export default function GalleryCommentsAdmin() {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
+                    <UserAvatar
+                      userId={k.userId}
+                      nama={k.penulis}
+                      foto={k.foto}
+                      size="xs"
+                    />
                     <p className="font-bold text-gray-900 dark:text-gray-100">{k.penulis}</p>
                     <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                       {ROLE_LABEL[k.role] ?? k.role}

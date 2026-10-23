@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { isMahasiswaOrAbove, targetLabel } from '../lib/roles';
 import ThemeToggle from '../components/ThemeToggle';
 import GalleryComments from '../components/GalleryComments';
+import UserAvatar from '../components/UserAvatar';
 import LazyImage from '../components/LazyImage';
 import { formatRentangTanggal, jumlahHariAgenda } from '../lib/tanggal';
 import { Send, LogIn, Code2, Users, Building, ShieldCheck, Loader2, Calendar, Newspaper, ArrowRight, MapPin, Clock, Image as ImageIcon, Landmark, X, ExternalLink, Menu, LayoutDashboard, MessageSquare, Award, ChevronLeft, ChevronRight, Megaphone, AlertCircle, Layers, CornerDownRight, Share2, Lock } from 'lucide-react';
@@ -69,7 +70,7 @@ interface PublicTicket {
   targetLabel: string | null;
   status: string;
   createdAt: string;
-  pengirim: { nama: string | null; nim: string } | null;
+  pengirim: { id: string; nama: string | null; nim: string; foto?: string | null } | null;
   anonim: boolean;
   balasan: { id: string; content: string; createdAt: string }[];
 }
@@ -808,9 +809,12 @@ export default function Landing() {
                           </>
                         ) : (
                           <>
-                            <div className="flex items-center justify-center text-xs font-black rounded-full w-9 h-9 shrink-0 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
-                              {(tiket.pengirim.nama || tiket.pengirim.nim).substring(0, 2).toUpperCase()}
-                            </div>
+                            <UserAvatar
+                              userId={tiket.pengirim.id}
+                              nama={tiket.pengirim.nama || tiket.pengirim.nim}
+                              foto={tiket.pengirim.foto ?? null}
+                              size="sm"
+                            />
                             <div className="min-w-0">
                               <p className="text-xs font-bold text-gray-900 truncate dark:text-gray-100">{tiket.pengirim.nama || 'Mahasiswa'}</p>
                               <p className="text-[10px] text-gray-500 dark:text-gray-400">{tiket.pengirim.nim}</p>

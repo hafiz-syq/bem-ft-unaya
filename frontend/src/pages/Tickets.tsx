@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, API_ORIGIN } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
+import UserAvatar from '../components/UserAvatar';
 import {
   Plus, MessageSquare, Clock, CheckCircle, XCircle, Search, Loader2, UserCog,
   Paperclip, FileText, Image as ImageIcon, Building2, Download, Eye, EyeOff,
@@ -8,13 +9,18 @@ import {
 } from 'lucide-react';
 import { canExportKeluhan, targetLabel, TICKET_TARGETS, ROLE_LABEL, isStaff } from '../lib/roles';
 
+interface PenulisTiket {
+  id: string; nim: string; role: string;
+  foto?: string | null;
+  profile: { nama: string } | null;
+}
 interface Reply {
   id: string; content: string; createdAt: string;
-  author: { nim: string; role: string; profile: { nama: string } | null };
+  author: PenulisTiket;
 }
 interface Assignment {
   id: string; isActive: boolean;
-  assignee: { nim: string; role: string; profile: { nama: string } | null };
+  assignee: PenulisTiket;
 }
 interface Attachment {
   id: string; filename: string; url: string; mimeType: string; size: number;
@@ -22,7 +28,7 @@ interface Attachment {
 interface Ticket {
   id: string; ticket_no: string; type: string; category: string; title: string; content: string;
   status: string; moderationStatus: string; targetOrganization: string | null; createdAt: string;
-  sender: { nim: string; role: string; profile: { nama: string } | null };
+  sender: PenulisTiket;
   replies: Reply[];
   assignments: Assignment[];
   attachments: Attachment[];
@@ -282,13 +288,21 @@ export default function Tickets() {
                         )}
                       </div>
                       <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">{ticket.title}</h3>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Kategori: {ticket.category} • Pengirim:{' '}
-                        <span className="font-bold">
-                          {ticket.sender.profile?.nama || ticket.sender.nim} ({ticket.sender.nim})
-                        </span>{' '}
-                        • {new Date(ticket.createdAt).toLocaleDateString('id-ID')}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        <UserAvatar
+                          userId={ticket.sender.id}
+                          nama={ticket.sender.profile?.nama || ticket.sender.nim}
+                          foto={ticket.sender.foto ?? null}
+                          size="sm"
+                        />
+                        <p>
+                          Kategori: {ticket.category} • Pengirim:{' '}
+                          <span className="font-bold text-gray-700 dark:text-gray-200">
+                            {ticket.sender.profile?.nama || ticket.sender.nim} ({ticket.sender.nim})
+                          </span>{' '}
+                          • {new Date(ticket.createdAt).toLocaleDateString('id-ID')}
+                        </p>
+                      </div>
                       <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
                         {ticket.type === 'KELUHAN'
                           ? 'Identitas pengirim disembunyikan saat tiket ini tampil di halaman publik.'
@@ -319,8 +333,14 @@ export default function Tickets() {
 
                   {activeAssignment && (
                     <div className="flex items-center gap-2 p-3 mt-2 border rounded-lg border-amber-100 dark:border-amber-900/60 bg-amber-50/50">
-                      <UserCog className="w-4 h-4 text-amber-400" />
+                      <UserAvatar
+                        userId={activeAssignment.assignee.id}
+                        nama={activeAssignment.assignee.profile?.nama || activeAssignment.assignee.nim}
+                        foto={activeAssignment.assignee.foto ?? null}
+                        size="sm"
+                      />
                       <span className="text-sm text-gray-700 dark:text-gray-300">
+                        <UserCog className="inline w-4 h-4 mr-1 text-amber-400" />
                         Sedang ditangani oleh:{' '}
                         <span className="font-bold text-amber-500">
                           {activeAssignment.assignee.profile?.nama || activeAssignment.assignee.nim}
@@ -335,7 +355,13 @@ export default function Tickets() {
                       <h4 className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300"><MessageSquare className="w-4 h-4" /> Balasan Pengurus:</h4>
                       {ticket.replies.map(reply => (
                         <div key={reply.id} className="pl-4 ml-4 border-l-2 border-amber-50">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <UserAvatar
+                              userId={reply.author.id}
+                              nama={reply.author.profile?.nama || reply.author.nim}
+                              foto={reply.author.foto ?? null}
+                              size="xs"
+                            />
                             <span className="font-semibold text-xs px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-500">
                               {reply.author.profile?.nama || reply.author.nim} • {ROLE_LABEL[reply.author.role] || reply.author.role}
                             </span>

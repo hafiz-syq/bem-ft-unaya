@@ -16,6 +16,7 @@ const DashboardLayout = lazy(() => import('./layouts/DashboardLayout'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Students = lazy(() => import('./pages/Students'));
 const Devices = lazy(() => import('./pages/Devices'));
+const DeviceDetail = lazy(() => import('./pages/DeviceDetail'));
 const Tickets = lazy(() => import('./pages/Tickets'));
 const Organizations = lazy(() => import('./pages/Organizations'));
 const Positions = lazy(() => import('./pages/Positions'));
@@ -136,6 +137,15 @@ function App() {
         <ProtectedRoute>
           <DashboardLayout>
             <Devices />
+          </DashboardLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* Riwayat perangkat satu akun, tempat admin memutus satu perangkat saja. */}
+      <Route path="/devices/:id" element={
+        <ProtectedRoute>
+          <DashboardLayout>
+            <DeviceDetail />
           </DashboardLayout>
         </ProtectedRoute>
       } />

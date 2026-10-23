@@ -29,10 +29,12 @@ const PILIHAN_AKUN = {
   pendingDeviceAt: true,
   // Batas perangkat aktif bersamaan + perangkat tambahan (akun multi-perangkat).
   maxDevices: true,
+  // Foto profil dipakai avatar yang bisa membuka dialog profil di halaman ini.
+  foto: true,
   // `id` dipakai untuk memutus satu perangkat tertentu; deviceId mentah tetap
   // tidak dikirim ke klien.
   devices: { select: { id: true, label: true, boundAt: true, lastSeenAt: true } },
-  profile: { select: { nama: true, program_studi: true } },
+  profile: { select: { nama: true, program_studi: true, foto: true } },
 } as const;
 
 type Mode = 'IZINKAN' | 'LEPAS' | 'TOLAK';
@@ -84,6 +86,7 @@ export const getPerangkat = async (req: any, res: Response, next: NextFunction):
         nim: a.nim,
         nama: a.profile?.nama ?? null,
         programStudi: a.profile?.program_studi ?? null,
+        foto: a.foto ?? a.profile?.foto ?? null,
         role: a.role,
         isActive: a.isActive,
         terikat: Boolean(a.deviceId),
@@ -392,6 +395,7 @@ export const getPerangkatAkun = async (req: any, res: Response, next: NextFuncti
         nama: target.profile?.nama ?? null,
         role: target.role,
         isActive: target.isActive,
+        foto: target.foto ?? target.profile?.foto ?? null,
         maxDevices: target.maxDevices,
         dapatDikelola: bolehKelola(req.user, target),
         perangkat: daftarPerangkat(target),

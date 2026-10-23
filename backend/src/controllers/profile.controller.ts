@@ -64,6 +64,78 @@ export const getMyProfile = async (req: any, res: Response, next: NextFunction):
   }
 };
 
+/**
+ * Profil publik satu akun, dibuka dari avatar/nama pengguna di halaman mana pun.
+ *
+ * Hanya pengguna yang sudah login yang boleh memanggil endpoint ini (tamu
+ * ditolak 401 oleh requireAuth). Data yang dikirim sengaja terbatas pada
+ * biodata yang memang tampil di komunitas: nama, NIM, program studi, angkatan,
+ * foto, role, status akun, dan jabatan aktif. Email serta nomor HP tidak ikut
+ * supaya data kontak pribadi tidak bisa diambil orang lain hanya dengan
+ * menebak ID akun.
+ */
+export const getPublicProfile = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      res.status(400).json({ message: 'ID pengguna wajib diisi.' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        nim: true,
+        role: true,
+        isActive: true,
+        foto: true,
+        createdAt: true,
+        profile: { select: { nama: true, program_studi: true, foto: true } },
+        positions: {
+          where: { isActive: true },
+          select: {
+            positionSlot: {
+              select: {
+                title: true,
+                organization: { select: { name: true } },
+                department: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
+      return;
+    }
+
+    res.status(200).json({
+      data: {
+        id: user.id,
+        nim: user.nim,
+        role: user.role,
+        isActive: user.isActive,
+        foto: user.foto ?? user.profile?.foto ?? null,
+        angkatan: hitungAngkatan(user.nim),
+        bergabung: user.createdAt,
+        nama: user.profile?.nama ?? null,
+        programStudi: user.profile?.program_studi ?? null,
+        jabatan: user.positions.map((p) => ({
+          title: p.positionSlot.title,
+          organisasi: p.positionSlot.organization.name,
+          divisi: p.positionSlot.department?.name ?? null,
+        })),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Skema validasi email pribadi
 const updateEmailSchema = z.object({
   email: z.string().trim().email()

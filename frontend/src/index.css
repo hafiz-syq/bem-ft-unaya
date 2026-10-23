@@ -31,6 +31,27 @@ html.dark {
   }
 }
 
+/* Animasi buka dialog profil: latar memudar, kartu naik sedikit sambil
+   membesar. Durasi pendek supaya terasa responsif; aturan reduce-motion di
+   atas otomatis memangkasnya bagi pengguna yang memintanya. */
+@keyframes profil-latar-masuk {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes profil-kartu-masuk {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.profil-latar-masuk {
+  animation: profil-latar-masuk 180ms ease-out both;
+}
+
+.profil-kartu-masuk {
+  animation: profil-kartu-masuk 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* Scrollbar diseragamkan untuk KEDUA tema: lebar, track, radius, dan
    tombol panah memakai aturan yang sama persis — hanya warnanya yang
    mengikuti tema. Sebelumnya hanya tema gelap yang distyle, sedangkan tema

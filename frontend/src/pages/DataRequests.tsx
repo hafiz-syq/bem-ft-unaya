@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
+import UserAvatar from '../components/UserAvatar';
 import { FileEdit, Plus, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import axios from 'axios';
 
@@ -9,6 +10,7 @@ interface ProfileData {
     program_studi: string;
     email?: string;
     no_hp?: string;
+    foto?: string | null;
 }
 
 interface DataRequest {
@@ -17,7 +19,7 @@ interface DataRequest {
     requestData: ProfileData;
     reason: string;
     createdAt: string;
-    user: { nim: string; profile: ProfileData | null };
+    user: { id: string; nim: string; foto?: string | null; profile: ProfileData | null };
     reviewer: { profile: { nama: string } } | null;
 }
 
@@ -143,9 +145,21 @@ export default function DataRequests() {
                         <div key={req.id} className="overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm rounded-xl">
                             <div className="flex flex-col gap-4 p-5 md:flex-row">
                                 <div className="flex-1">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{req.user.nim}</span>
-                                        <span className="text-sm text-gray-500 dark:text-gray-400">• {new Date(req.createdAt).toLocaleDateString('id-ID')}</span>
+                                    <div className="flex flex-wrap items-center gap-3 mb-2">
+                                        <UserAvatar
+                                            userId={req.user.id}
+                                            nama={req.user.profile?.nama || req.user.nim}
+                                            foto={req.user.foto ?? req.user.profile?.foto ?? null}
+                                            size="sm"
+                                        />
+                                        <div className="min-w-0 mr-auto">
+                                            <p className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                                                {req.user.profile?.nama || req.user.nim}
+                                            </p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                {req.user.nim} • {new Date(req.createdAt).toLocaleDateString('id-ID')}
+                                            </p>
+                                        </div>
                                         {getStatusBadge(req.status)}
                                     </div>
 

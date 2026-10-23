@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { api, assetUrl } from '../lib/axios';
+import { api } from '../lib/axios';
 import { Loader2, MessageSquare, Send, LogIn } from 'lucide-react';
+import UserAvatar from './UserAvatar';
 import { useAuth } from '../contexts/AuthContext';
 import { ROLE_LABEL } from '../lib/roles';
 
@@ -23,6 +24,8 @@ interface Komentar {
   penulis: string;
   role: string;
   foto: string | null;
+  /** ID akun penulis; null untuk komentar tamu (profil tidak bisa dibuka). */
+  userId?: string | null;
 }
 
 export default function GalleryComments({ galleryId }: { galleryId: string }) {
@@ -104,9 +107,12 @@ export default function GalleryComments({ galleryId }: { galleryId: string }) {
         ) : (
           komentar.map((k) => (
             <div key={k.id} className="flex gap-3">
-              <div className="flex items-center justify-center w-8 h-8 overflow-hidden text-[10px] font-bold text-gray-900 bg-amber-400 rounded-full shrink-0">
-                {k.foto ? <img src={assetUrl(k.foto)} alt={k.penulis} className="object-cover w-full h-full" /> : k.penulis.substring(0, 2).toUpperCase()}
-              </div>
+              <UserAvatar
+                userId={k.userId}
+                nama={k.penulis}
+                foto={k.foto}
+                size="sm"
+              />
               <div className="min-w-0">
                 <p className="text-xs font-bold text-white">
                   {k.penulis}

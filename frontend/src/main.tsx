@@ -3,6 +3,7 @@ import { createRoot, hydrateRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
+import { ProfileDialogProvider } from './contexts/ProfileDialogContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import './index.css';
 
@@ -14,7 +15,9 @@ const aplikasi = (
     <HashRouter>
       <ThemeProvider>
         <AuthProvider>
-          <App />
+          <ProfileDialogProvider>
+            <App />
+          </ProfileDialogProvider>
         </AuthProvider>
       </ThemeProvider>
     </HashRouter>

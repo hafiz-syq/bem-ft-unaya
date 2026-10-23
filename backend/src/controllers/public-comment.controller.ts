@@ -305,7 +305,7 @@ export const getPublicComments = async (_req: Request, res: Response, next: Next
           // jadi pengunjung boleh melihat foto profil penulis balasan.
           include: {
             author: {
-              select: { role: true, foto: true, profile: { select: { nama: true, foto: true } } },
+              select: { id: true, role: true, foto: true, profile: { select: { nama: true, foto: true } } },
             },
           },
         },
@@ -326,6 +326,8 @@ export const getPublicComments = async (_req: Request, res: Response, next: Next
         penulis: r.author?.profile?.nama ?? 'Admin',
         role: r.author?.role ?? 'ADMIN',
         foto: r.author?.foto ?? r.author?.profile?.foto ?? null,
+        // null untuk data lama tanpa akun; avatar hanya bisa diklik jika ada ID.
+        userId: r.author?.id ?? null,
       })),
     }));
 
@@ -350,7 +352,11 @@ export const getCommentsForManagement = async (req: Permintaan, res: Response, n
         include: {
           replies: {
             orderBy: { createdAt: 'asc' },
-            include: { author: { select: { role: true, profile: { select: { nama: true } } } } },
+            include: {
+              author: {
+                select: { id: true, role: true, foto: true, profile: { select: { nama: true, foto: true } } },
+              },
+            },
           },
         },
       }),
@@ -377,6 +383,8 @@ export const getCommentsForManagement = async (req: Permintaan, res: Response, n
         createdAt: r.createdAt,
         penulis: r.author?.profile?.nama ?? 'Admin',
         role: r.author?.role ?? 'ADMIN',
+        foto: r.author?.foto ?? r.author?.profile?.foto ?? null,
+        userId: r.author?.id ?? null,
       })),
     }));
 

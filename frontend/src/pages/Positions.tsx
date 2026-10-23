@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/axios';
-import { UserPlus, Loader2, XCircle, ShieldCheck, Building2, Trash2 } from 'lucide-react';
+import { UserPlus, Loader2, XCircle, ShieldCheck, Building2, Trash2, Pencil } from 'lucide-react';
 import axios from 'axios';
+import UserAvatar from '../components/UserAvatar';
 
 interface Department { id: string; name: string; }
 interface Organization { id: string; name: string; departments: Department[]; }
@@ -12,7 +13,7 @@ interface PositionSlot {
     department: Department | null;
     positions: { 
         id: string;
-        user: { nim: string; profile: { nama: string } | null } 
+        user: { id: string; nim: string; foto?: string | null; profile: { nama: string } | null } 
     }[];
 }
 
@@ -27,6 +28,11 @@ export default function Positions() {
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
     const [removePositionId, setRemovePositionId] = useState<string | null>(null);
+
+    // Slot yang sedang diubah; null berarti modal dipakai untuk membuat baru.
+    const [slotDiedit, setSlotDiedit] = useState<PositionSlot | null>(null);
+    const [deletingSlotId, setDeletingSlotId] = useState<string | null>(null);
+    const [notice, setNotice] = useState('');
 
     // Form Buat Jabatan
     const [newSlot, setNewSlot] = useState({ organizationId: '', departmentId: '', title: '' });
@@ -61,18 +67,63 @@ export default function Positions() {
         fetchData();
     }, []);
 
-    const handleCreateSlot = async (e: React.FormEvent) => {
+    const bukaSlotBaru = () => {
+        setSlotDiedit(null);
+        setNotice('');
+        setNewSlot({ organizationId: organizations[0]?.id ?? '', departmentId: '', title: '' });
+        setIsSlotModalOpen(true);
+    };
+
+    const bukaEditSlot = (slot: PositionSlot) => {
+        setSlotDiedit(slot);
+        setNotice('');
+        setNewSlot({
+            organizationId: slot.organizationId,
+            departmentId: slot.department?.id ?? '',
+            title: slot.title,
+        });
+        setIsSlotModalOpen(true);
+    };
+
+    const tutupSlotModal = () => {
+        setIsSlotModalOpen(false);
+        setSlotDiedit(null);
+    };
+
+    // Satu form dipakai untuk membuat slot baru maupun mengubah slot yang ada.
+    const handleSaveSlot = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
+        setNotice('');
         try {
-            await api.post('/positions/slots', newSlot);
-            setIsSlotModalOpen(false);
+            const res = slotDiedit
+                ? await api.patch(`/positions/slots/${slotDiedit.id}`, newSlot)
+                : await api.post('/positions/slots', newSlot);
+            setNotice(res.data.message || (slotDiedit ? 'Jabatan berhasil diperbarui.' : 'Jabatan berhasil dibuat.'));
+            tutupSlotModal();
             setNewSlot({ ...newSlot, title: '', departmentId: '' });
             fetchData();
         } catch (err) {
-            if (axios.isAxiosError(err)) alert(err.response?.data?.message || 'Gagal membuat jabatan');
+            if (axios.isAxiosError(err)) alert(err.response?.data?.message || 'Gagal menyimpan jabatan');
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteSlot = async (slot: PositionSlot) => {
+        if (!window.confirm(`Hapus jabatan "${slot.title}"? Jabatan akan hilang dari daftar kepengurusan; riwayat pemegangnya tetap tersimpan.`)) return;
+
+        setDeletingSlotId(slot.id);
+        setNotice('');
+        try {
+            const res = await api.delete(`/positions/slots/${slot.id}`);
+            setNotice(res.data.message || 'Jabatan berhasil dihapus.');
+            fetchData();
+        } catch (err) {
+            if (axios.isAxiosError(err)) alert(err.response?.data?.message || 'Gagal menghapus jabatan');
+            else alert('Terjadi kesalahan.');
+        } finally {
+            setDeletingSlotId(null);
         }
     };
 
@@ -124,7 +175,7 @@ export default function Positions() {
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Buat slot jabatan dan angkat mahasiswa menjadi pengurus BEM.</p>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={() => setIsSlotModalOpen(true)} className="flex items-center gap-2 px-4 py-2 font-medium text-gray-700 dark:text-gray-300 transition bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <button onClick={bukaSlotBaru} className="flex items-center gap-2 px-4 py-2 font-medium text-gray-700 dark:text-gray-300 transition bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
                         <Building2 className="w-4 h-4" /> Buat Jabatan Baru
                     </button>
                     <button onClick={() => setIsAssignModalOpen(true)} className="flex items-center gap-2 px-4 py-2 font-medium text-white transition rounded-lg bg-amber-400 hover:bg-amber-500">
@@ -134,6 +185,7 @@ export default function Positions() {
             </div>
 
             {error && <div className="p-4 text-red-600 dark:text-red-400 rounded-lg bg-red-50 dark:bg-red-950/60">{error}</div>}
+            {notice && <div role="status" className="p-4 text-sm font-bold text-green-800 dark:text-green-300 border border-green-200 dark:border-green-800 rounded-lg bg-green-50 dark:bg-green-950/60">{notice}</div>}
 
             {/* Grid Jabatan */}
             {loading ? (
@@ -153,9 +205,32 @@ export default function Positions() {
                                 <div className="flex-1 mb-4">
                                     <div className="flex items-start justify-between gap-2 mb-2">
                                         <h3 className="text-lg font-bold leading-tight text-gray-900 dark:text-gray-100 line-clamp-2">{slot.title}</h3>
-                                        <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase tracking-wide shrink-0 ${activeUser ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'}`}>
-                                            {activeUser ? 'Terisi' : 'Kosong'}
-                                        </span>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase tracking-wide ${activeUser ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'}`}>
+                                                {activeUser ? 'Terisi' : 'Kosong'}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => bukaEditSlot(slot)}
+                                                title={`Ubah jabatan ${slot.title}`}
+                                                aria-label={`Ubah jabatan ${slot.title}`}
+                                                className="p-1.5 text-amber-600 dark:text-amber-400 transition rounded-md hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                                            >
+                                                <Pencil className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteSlot(slot)}
+                                                disabled={Boolean(activeUser) || deletingSlotId === slot.id}
+                                                title={activeUser ? 'Turunkan pengurusnya terlebih dahulu sebelum menghapus jabatan' : `Hapus jabatan ${slot.title}`}
+                                                aria-label={`Hapus jabatan ${slot.title}`}
+                                                className="p-1.5 text-red-600 dark:text-red-400 transition rounded-md hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-40 disabled:cursor-not-allowed"
+                                            >
+                                                {deletingSlotId === slot.id
+                                                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    : <Trash2 className="w-3.5 h-3.5" />}
+                                            </button>
+                                        </div>
                                     </div>
                                     <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{getOrgName(slot.organizationId)}</p>
                                     {slot.department && <p className="mt-1 text-xs font-medium text-amber-400">{slot.department.name}</p>}
@@ -165,9 +240,12 @@ export default function Positions() {
                                 <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
                                     {activeUser ? (
                                         <div className="flex items-center flex-1 min-w-0 gap-3">
-                                            <div className="flex items-center justify-center w-8 h-8 text-xs font-bold rounded-full shrink-0 bg-amber-100 dark:bg-amber-900/40 text-amber-400">
-                                                {activeUser.profile?.nama.charAt(0) || 'U'}
-                                            </div>
+                                            <UserAvatar
+                                                userId={activeUser.id}
+                                                nama={activeUser.profile?.nama || activeUser.nim}
+                                                foto={activeUser.foto ?? null}
+                                                size="sm"
+                                            />
                                             <div className="min-w-0">
                                                 <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate" title={activeUser.profile?.nama}>{activeUser.profile?.nama || 'Tanpa Nama'}</p>
                                                 <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{activeUser.nim}</p>
@@ -197,10 +275,12 @@ export default function Positions() {
                 <div role="dialog" aria-modal="true" aria-label="Buat jabatan baru" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
                     <div className="w-full max-w-md overflow-hidden bg-white dark:bg-gray-900 shadow-2xl rounded-2xl">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Buat Jabatan Baru</h2>
-                            <button onClick={() => setIsSlotModalOpen(false)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"><XCircle className="w-6 h-6" /></button>
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                                {slotDiedit ? 'Ubah Jabatan' : 'Buat Jabatan Baru'}
+                            </h2>
+                            <button onClick={tutupSlotModal} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"><XCircle className="w-6 h-6" /></button>
                         </div>
-                        <form onSubmit={handleCreateSlot} className="p-6 space-y-4">
+                        <form onSubmit={handleSaveSlot} className="p-6 space-y-4">
                             <div>
                                 <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Organisasi Induk</label>
                                 <select required className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-300 focus:border-amber-300 dark:focus:border-amber-700" value={newSlot.organizationId} onChange={(e) => setNewSlot({ ...newSlot, organizationId: e.target.value, departmentId: '' })}>
@@ -220,9 +300,9 @@ export default function Positions() {
                                 <input type="text" required placeholder="Contoh: Ketua BEM / Menteri Kominfo" className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-300 focus:border-amber-300 dark:focus:border-amber-700" value={newSlot.title} onChange={(e) => setNewSlot({ ...newSlot, title: e.target.value })} />
                             </div>
                             <div className="flex justify-end gap-3 pt-2">
-                                <button type="button" onClick={() => setIsSlotModalOpen(false)} className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
-                                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 text-white rounded-lg bg-amber-400 hover:bg-amber-500">
-                                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan Jabatan'}
+                                <button type="button" onClick={tutupSlotModal} className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
+                                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
+                                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : slotDiedit ? 'Simpan Perubahan' : 'Simpan Jabatan'}
                                 </button>
                             </div>
                         </form>

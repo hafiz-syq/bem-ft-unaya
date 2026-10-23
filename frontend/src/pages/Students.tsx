@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import UserAvatar from '../components/UserAvatar';
 import {
   ASSIGNABLE_ROLES, ROLE_ADMIN, ROLE_LABEL, ROLE_SUPERADMIN, isAdminRole,
 } from '../lib/roles';
@@ -26,10 +27,12 @@ interface Student {
   diperpanjangSampai: string | null;
   angkatan: number | null;
   email_verified?: boolean;
+  foto?: string | null;
   profile: {
     nama: string;
     program_studi: string;
     email: string | null;
+    foto?: string | null;
   } | null;
 }
 
@@ -600,12 +603,22 @@ export default function Students() {
                   <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/60">
                     <td className="p-4 font-medium text-gray-900 dark:text-gray-100">{student.nim}</td>
                     <td className="p-4 text-gray-700 dark:text-gray-300">
-                      {student.profile?.nama ?? '-'}
-                      {student.jabatan && (
-                        <span className="block text-xs text-gray-400 dark:text-gray-500">
-                          {student.jabatan}{student.organisasi ? ` — ${student.organisasi}` : ''}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <UserAvatar
+                          userId={student.id}
+                          nama={student.profile?.nama || student.nim}
+                          foto={student.foto ?? student.profile?.foto ?? null}
+                          size="sm"
+                        />
+                        <div className="min-w-0">
+                          <p className="font-bold text-gray-900 truncate dark:text-gray-100">{student.profile?.nama ?? '-'}</p>
+                          {student.jabatan && (
+                            <span className="block text-xs text-gray-400 dark:text-gray-500">
+                              {student.jabatan}{student.organisasi ? ` — ${student.organisasi}` : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="p-4 text-gray-600 dark:text-gray-400">{student.profile?.program_studi ?? '-'}</td>
                     <td className="p-4">

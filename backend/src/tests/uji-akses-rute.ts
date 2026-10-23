@@ -131,6 +131,22 @@ const BARIS: Baris[] = [
     amanDiuji: true,
     catatan: 'id tidak ada sehingga admin menerima 404 dan tidak ada data yang berubah',
   },
+  // Rincian perangkat satu akun (panel riwayat perangkat).
+  { metode: 'GET', jalur: '/devices/:id', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' } },
+  {
+    metode: 'DELETE',
+    jalur: '/devices/:id/perangkat/:perangkatId',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada sehingga admin menerima 404 dan tidak ada perangkat yang terputus',
+  },
+  {
+    metode: 'PATCH',
+    jalur: '/devices/:id/batas',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada sehingga admin menerima 404 dan tidak ada batas perangkat yang berubah',
+  },
 
   // ── profile.routes.ts ───────────────────────────────────────────────────
   { metode: 'GET', jalur: '/profile/me', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
@@ -138,6 +154,8 @@ const BARIS: Baris[] = [
   { metode: 'POST', jalur: '/profile/me/photo', harapan: { tamu: 401 } },
   // Semua role boleh menghapus fotonya sendiri; yang dijaga di sini hanya tamu.
   { metode: 'DELETE', jalur: '/profile/me/photo', harapan: { tamu: 401 } },
+  // Profil publik satu akun: wajib login, semua peran boleh membacanya.
+  { metode: 'GET', jalur: '/profile/:id', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' }, catatan: 'id tidak ada sehingga pengguna login menerima 404, bukan 403.' },
 
   // ── ticket.routes.ts ────────────────────────────────────────────────────
   { metode: 'GET', jalur: '/tickets/public', harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
@@ -160,6 +178,20 @@ const BARIS: Baris[] = [
   { metode: 'POST', jalur: '/organizations/departments', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
   { metode: 'DELETE', jalur: '/organizations/departments/:id', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
   { metode: 'DELETE', jalur: '/organizations/:id', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
+  {
+    metode: 'PATCH',
+    jalur: '/organizations/departments/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada sehingga admin menerima 404 dan tidak ada divisi yang berubah.',
+  },
+  {
+    metode: 'PATCH',
+    jalur: '/organizations/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada sehingga admin menerima 404 dan tidak ada organisasi yang berubah.',
+  },
 
   // ── position.routes.ts ──────────────────────────────────────────────────
   { metode: 'GET', jalur: '/positions', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
@@ -168,6 +200,20 @@ const BARIS: Baris[] = [
     jalur: '/positions/slots',
     harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 },
     catatan: 'penjaga peran ada di controller (createPositionSlot) via isAdminRole.',
+  },
+  {
+    metode: 'PATCH',
+    jalur: '/positions/slots/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada sehingga admin menerima 404 dan tidak ada jabatan yang berubah.',
+  },
+  {
+    metode: 'DELETE',
+    jalur: '/positions/slots/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada sehingga admin menerima 404 dan tidak ada jabatan yang terhapus.',
   },
   {
     metode: 'POST',
@@ -198,6 +244,18 @@ const BARIS: Baris[] = [
     jalur: '/audit',
     harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
     catatan: 'penjaga peran ada di controller (getAuditLogs) via isAdminRole.',
+  },
+  {
+    metode: 'DELETE',
+    jalur: '/audit',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 },
+    dilewati: 'penghapusan log massal tidak dijalankan otomatis agar log asli tidak ikut terhapus; aturan perannya dijaga di controller',
+  },
+  {
+    metode: 'DELETE',
+    jalur: '/audit/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 403 },
+    catatan: 'hapus satu log hanya untuk SUPERADMIN, jadi ADMIN pun ditolak.',
   },
 
   // ── notification.routes.ts ──────────────────────────────────────────────
@@ -346,6 +404,12 @@ const BARIS: Baris[] = [
     catatan: 'sel admin sengaja tidak diuji: menjalankan siklus hidup akun nyata (bisa menonaktifkan/menghapus akun)',
   },
   { metode: 'POST', jalur: '/students/import/pratinjau', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
+  {
+    metode: 'POST',
+    jalur: '/students/admin',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 403 },
+    catatan: 'pembuatan akun ADMIN hanya untuk SUPERADMIN, jadi ADMIN pun ditolak.',
+  },
   { metode: 'POST', jalur: '/students/import/simpan', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
 
   // ── rute yang didaftarkan langsung di app.ts ────────────────────────────

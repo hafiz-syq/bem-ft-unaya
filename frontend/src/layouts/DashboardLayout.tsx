@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useProfileDialog } from '../contexts/ProfileDialogContext';
 import { api, assetUrl } from '../lib/axios';
 import { ROLE_LABEL, isAdminRole, isStaff } from '../lib/roles';
 import ThemeToggle from '../components/ThemeToggle';
@@ -12,6 +13,7 @@ interface Notification {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const { bukaProfil } = useProfileDialog();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -190,18 +192,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <p className="text-sm font-bold leading-tight text-gray-900 dark:text-gray-100">{user?.nama || user?.nim}</p>
                 <p className="text-xs font-bold uppercase text-amber-400 dark:text-amber-300">{ROLE_LABEL[role] || role}</p>
               </div>
-              {/* Avatar: foto profil dari profil pengguna, fallback ke inisial nama */}
-              {user?.foto ? (
-                <img
-                  src={assetUrl(user.foto)}
-                  alt={displayName}
-                  className="object-cover w-8 h-8 rounded-full shadow-md shrink-0 ring-2 ring-amber-100 dark:ring-amber-900/70 sm:w-9 sm:h-9"
-                />
-              ) : (
-                <div className="flex items-center justify-center w-8 h-8 text-xs font-bold text-white rounded-full shadow-md shrink-0 bg-amber-400 sm:w-9 sm:h-9 sm:text-base">
-                  {initial}
-                </div>
-              )}
+              {/* Avatar: foto profil pengguna, fallback ke inisial. Klik membuka
+                  dialog profil sendiri, sama seperti avatar di halaman lain. */}
+              <button
+                type="button"
+                onClick={() => user?.id && bukaProfil(user.id)}
+                title="Lihat profil saya"
+                aria-label="Lihat profil saya"
+                className="rounded-full transition shrink-0 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              >
+                {user?.foto ? (
+                  <img
+                    src={assetUrl(user.foto)}
+                    alt={displayName}
+                    className="object-cover w-8 h-8 rounded-full shadow-md ring-2 ring-amber-100 dark:ring-amber-900/70 sm:w-9 sm:h-9"
+                  />
+                ) : (
+                  <span className="flex items-center justify-center w-8 h-8 text-xs font-bold text-white rounded-full shadow-md bg-amber-400 sm:w-9 sm:h-9 sm:text-base">
+                    {initial}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
         </header>

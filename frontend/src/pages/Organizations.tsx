@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../lib/axios';
 import { Building2, Users, Plus, Loader2, XCircle, Trash2, Pencil } from 'lucide-react';
 import axios from 'axios';
+import UserAvatar from '../components/UserAvatar';
 
 interface Department {
   id: string;
@@ -16,8 +17,20 @@ interface Organization {
   departments: Department[];
 }
 
+/** Slot jabatan beserta pemegang aktifnya, dipakai daftar pengurus per organisasi. */
+interface PemegangJabatan {
+  id: string;
+  title: string;
+  organizationId: string;
+  positions: {
+    id: string;
+    user: { id: string; nim: string; foto?: string | null; profile: { nama: string } | null };
+  }[];
+}
+
 export default function Organizations() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [pemegang, setPemegang] = useState<PemegangJabatan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -41,8 +54,14 @@ export default function Organizations() {
 
   const fetchOrganizations = async () => {
     try {
-      const response = await api.get('/organizations');
-      setOrganizations(response.data.data);
+      // Daftar jabatan ikut dimuat supaya kartu organisasi bisa menampilkan
+      // pengurus aktif yang profilnya dapat diklik.
+      const [resOrganisasi, resJabatan] = await Promise.all([
+        api.get('/organizations'),
+        api.get('/positions'),
+      ]);
+      setOrganizations(resOrganisasi.data.data);
+      setPemegang(resJabatan.data.data);
     } catch (err) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || 'Gagal memuat data organisasi');
@@ -280,6 +299,38 @@ export default function Organizations() {
                 >
                   <Plus className="w-4 h-4" /> Tambah Departemen
                 </button>
+
+                {/* Pengurus aktif: avatar & nama membuka dialog profil. */}
+                <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-800">
+                  <h3 className="flex items-center gap-2 mb-2 text-sm font-bold tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                    <Users className="w-4 h-4" /> Pengurus Aktif
+                  </h3>
+                  {pemegang.filter((slot) => slot.organizationId === org.id && slot.positions.length > 0).length === 0 ? (
+                    <p className="text-sm italic text-gray-400 dark:text-gray-500">Belum ada pengurus aktif.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {pemegang
+                        .filter((slot) => slot.organizationId === org.id)
+                        .flatMap((slot) => slot.positions.map((p) => ({ slot, pemegang: p })))
+                        .map(({ slot, pemegang: p }) => (
+                          <li key={p.id} className="flex items-center gap-2.5 p-2 rounded-lg bg-gray-50 dark:bg-gray-800">
+                            <UserAvatar
+                              userId={p.user.id}
+                              nama={p.user.profile?.nama || p.user.nim}
+                              foto={p.user.foto ?? null}
+                              size="sm"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-gray-900 truncate dark:text-gray-100">
+                                {p.user.profile?.nama || p.user.nim}
+                              </p>
+                              <p className="text-xs text-gray-500 truncate dark:text-gray-400">{slot.title}</p>
+                            </div>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             </div>
           ))}

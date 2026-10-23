@@ -62,12 +62,16 @@ const bentukKomentar = (komentar: any) => ({
   status: komentar.status,
   createdAt: komentar.createdAt,
   // Komentar tamu tidak punya baris User; namanya diambil dari kolom guestName.
-  penulis: komentar.author ? namaPenulis(komentar.author) : (komentar.guestName || 'Pengunjung'),
+  penulis: komentar.author ? namaPenulis(komentar.author) : (komentar.guestName || "Pengunjung"),
   role: komentar.author?.role ?? 'TAMU',
   foto: komentar.author ? (komentar.author.foto ?? komentar.author.profile?.foto ?? null) : null,
+  // ID akun penulis, dipakai tombol avatar untuk membuka profil. Komentar tamu
+  // tidak punya akun sehingga nilainya null dan avatarnya tidak bisa diklik.
+  userId: komentar.author?.id ?? null,
 });
 
 const selectPenulis = {
+  id: true,
   nim: true,
   role: true,
   foto: true,

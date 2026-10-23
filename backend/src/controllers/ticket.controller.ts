@@ -159,14 +159,22 @@ export const getTickets = async (req: any, res: Response, next: NextFunction): P
     const tickets = await prisma.ticket.findMany({
       where: ticketVisibilityWhere(req.user),
       include: {
-        sender: { select: { nim: true, role: true, profile: { select: { nama: true } } } },
+        // id & foto ikut dikirim supaya avatar pengirim/petugas bisa membuka
+        // dialog profil tanpa permintaan tambahan.
+        sender: { select: { id: true, nim: true, role: true, foto: true, profile: { select: { nama: true } } } },
         attachments: true,
         replies: {
-          include: { author: { select: { nim: true, role: true, profile: { select: { nama: true } } } } },
+          include: {
+            author: { select: { id: true, nim: true, role: true, foto: true, profile: { select: { nama: true } } } },
+          },
         },
         assignments: {
           where: { isActive: true },
-          include: { assignee: { include: { profile: { select: { nama: true } } } } },
+          include: {
+            assignee: {
+              select: { id: true, nim: true, role: true, foto: true, profile: { select: { nama: true } } },
+            },
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -185,7 +193,9 @@ export const getPublicTickets = async (req: any, res: Response, next: NextFuncti
     const tickets = await prisma.ticket.findMany({
       where: { moderationStatus: 'PUBLISHED', type: { in: ['ASPIRASI', 'KELUHAN'] } },
       include: {
-        sender: { select: { nim: true, profile: { select: { nama: true } } } },
+        // Aspirasi memang tampil dengan identitas, jadi foto profilnya ikut agar
+        // pengunjung yang login bisa membuka profil pengirim dari kartu publik.
+        sender: { select: { id: true, nim: true, foto: true, profile: { select: { nama: true, foto: true } } } },
         replies: {
           where: { author: { role: { in: [...ADMIN_ROLES, ...OFFICER_ROLES] as any } } },
           select: { id: true, content: true, createdAt: true },
@@ -211,7 +221,14 @@ export const getPublicTickets = async (req: any, res: Response, next: NextFuncti
           : null,
         status: t.status,
         createdAt: t.createdAt,
-        pengirim: anonim ? null : { nama: t.sender.profile?.nama ?? null, nim: t.sender.nim },
+        pengirim: anonim
+          ? null
+          : {
+              id: t.sender.id,
+              nama: t.sender.profile?.nama ?? null,
+              nim: t.sender.nim,
+              foto: t.sender.foto ?? t.sender.profile?.foto ?? null,
+            },
         anonim,
         balasan: t.replies,
       };
