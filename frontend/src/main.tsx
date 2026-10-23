@@ -5,6 +5,7 @@ import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProfileDialogProvider } from './contexts/ProfileDialogContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import VercelAnalytics from './components/VercelAnalytics';
 import './index.css';
 
 const rootEl = document.getElementById('root');
@@ -13,6 +14,9 @@ if (!rootEl) throw new Error('Root element not found');
 const aplikasi = (
   <StrictMode>
     <HashRouter>
+      {/* Web Analytics & Speed Insights Vercel. Mengikuti rute HashRouter,
+          tidak merender elemen apa pun (aman untuk hidrasi prerender). */}
+      <VercelAnalytics />
       <ThemeProvider>
         <AuthProvider>
           <ProfileDialogProvider>
