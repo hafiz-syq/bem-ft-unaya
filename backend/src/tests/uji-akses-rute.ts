@@ -274,6 +274,13 @@ const BARIS: Baris[] = [
   { metode: 'GET', jalur: '/public-comments/manage', harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
   { metode: 'PATCH', jalur: '/public-comments/manage/:id/status', harapan: { tamu: 401, mahasiswa: 403 } },
   { metode: 'POST', jalur: '/public-comments/manage/:id/replies', harapan: { tamu: 401, mahasiswa: 403 } },
+  {
+    metode: 'DELETE',
+    jalur: '/public-comments/manage/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada sehingga admin menerima 404 dan tidak ada pesan yang terhapus; pengurus ditolak pemeriksaan peran di controller',
+  },
   { metode: 'GET', jalur: '/public-comments/:commentId/replies', harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
   { metode: 'PATCH', jalur: '/public-comments/:commentId/replies/:replyId', harapan: { tamu: 401, mahasiswa: 403 } },
   { metode: 'DELETE', jalur: '/public-comments/:commentId/replies/:replyId', harapan: { tamu: 401, mahasiswa: 403 } },

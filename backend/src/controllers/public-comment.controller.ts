@@ -78,6 +78,16 @@ export const balasKomentar = async (req: Permintaan, res: Response, next: NextFu
     const { commentId } = req.params;
     const { content } = req.body as { content: string };
 
+    // Handler ini terdaftar di dua rute: /manage/:id/replies (param `id`)
+    // dan /:commentId/replies (param `commentId`). Keduanya dibaca supaya
+    // balasan dari halaman moderasi buku tamu tidak jatuh ke id undefined
+    // (dulu: Prisma menolak create karena commentId kosong → 500).
+    const idKomentar = req.params.commentId ?? req.params.id ?? commentId;
+    if (!idKomentar) {
+      res.status(400).json({ message: 'Id komentar tidak ada dalam permintaan.' });
+      return;
+    }
+
     const parsed = validateReplyContent.safeParse({ content });
     if (!parsed.success) {
       res.status(400).json({ message: (parsed.error as any).issues?.[0]?.message || (parsed.error as any).errors?.[0]?.message || 'Data tidak valid.' });
@@ -86,7 +96,7 @@ export const balasKomentar = async (req: Permintaan, res: Response, next: NextFu
 
     const newReply = await prisma.publicCommentReply.create({
       data: {
-        commentId,
+        commentId: idKomentar,
         content,
         authorId: req.user!.id,
       },
@@ -426,6 +436,50 @@ export const ubahStatusKomentar = async (req: Permintaan, res: Response, next: N
     );
 
     res.json({ message: 'Status komentar berhasil diperbarui.', data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/public-comments/manage/:id
+// Hapus permanen satu pesan buku tamu beserta seluruh balasannya.
+// Khusus ADMIN/SUPERADMIN: penghapusan ini bersifat permanen, jadi lebih kuat
+// daripada sekadar menolak (REJECTED) yang masih bisa dikembalikan ke antrean.
+export const hapusKomentar = async (req: Permintaan, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ message: 'Harus login untuk menghapus pesan.' });
+      return;
+    }
+    if (!isAdminRole(req.user.role)) {
+      res.status(403).json({ message: 'Hanya admin dan superadmin yang dapat menghapus pesan buku tamu.' });
+      return;
+    }
+
+    const { id } = req.params;
+    const komentar = await prisma.publicComment.findUnique({
+      where: { id },
+      select: { id: true, nama: true, content: true },
+    });
+
+    if (!komentar) {
+      res.status(404).json({ message: 'Pesan tidak ditemukan.' });
+      return;
+    }
+
+    // Balasan ikut terhapus oleh ON DELETE CASCADE
+    // (migration 20261016090000_komentar_publik_dan_perpanjangan_akun).
+    await prisma.publicComment.delete({ where: { id: komentar.id } });
+
+    await logActivity(
+      req.user.id,
+      'DELETE_PUBLIC_COMMENT',
+      'PublicComment',
+      `Menghapus pesan buku tamu dari ${komentar.nama}: "${komentar.content.substring(0, 80)}${komentar.content.length > 80 ? '...' : ''}"`,
+      komentar.id,
+    );
+
+    res.json({ message: 'Pesan beserta seluruh balasannya berhasil dihapus.' });
   } catch (error) {
     next(error);
   }

@@ -4,6 +4,7 @@ import {
   getPublicComments,
   getCommentsForManagement,
   ubahStatusKomentar,
+  hapusKomentar,
   balasKomentar,
   updateReply,
   deleteReply,
@@ -22,6 +23,10 @@ const pengelola = [requireAuth, requireRole(['ADMIN', 'SUPERADMIN', ...OFFICER_R
 router.get('/manage', ...pengelola, getCommentsForManagement);
 router.patch('/manage/:id/status', ...pengelola, ubahStatusKomentar);
 router.post('/manage/:id/replies', ...pengelola, balasKomentar);
+// Hapus permanen pesan beserta balasannya. Penjaga peran (khusus ADMIN/
+// SUPERADMIN) ada di controller via isAdminRole, bukan di sini, supaya pesan
+// penolakan yang dikembalikan ke pengurus tetap berbahasa Indonesia yang jelas.
+router.delete('/manage/:id', ...pengelola, hapusKomentar);
 
 // --- Publik (tanpa login) ------------------------------------------------
 // Baca hanya menampilkan komentar yang sudah disetujui dan tanpa data kontak

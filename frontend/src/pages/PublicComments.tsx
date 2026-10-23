@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import UserAvatar from '../components/UserAvatar';
-import { isStaff, ROLE_LABEL } from '../lib/roles';
+import { isStaff, isAdminRole, ROLE_LABEL } from '../lib/roles';
 import axios from 'axios';
 import {
-  MessageSquare, Search, Loader2, Check, X, CornerDownRight, Send, Info, UserCircle
+  MessageSquare, Search, Loader2, Check, X, CornerDownRight, Send, Info, UserCircle, Trash2
 } from 'lucide-react';
 
 interface Balasan {
@@ -113,6 +113,26 @@ export default function PublicComments() {
       muat(filter);
     } catch (err) {
       if (axios.isAxiosError(err)) alert(err.response?.data?.message || 'Gagal mengubah status pesan.');
+      else alert('Terjadi kesalahan.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const hapusPesan = async (k: Komentar) => {
+    const yakin = window.confirm(
+      `Yakin ingin menghapus permanen pesan dari ${k.nama}? Pesan beserta seluruh balasannya tidak dapat dipulihkan kembali.`
+    );
+    if (!yakin) return;
+
+    setBusyId(k.id);
+    setNotice('');
+    try {
+      const res = await api.delete(`/public-comments/manage/${k.id}`);
+      setNotice(res.data.message);
+      muat(filter);
+    } catch (err) {
+      if (axios.isAxiosError(err)) alert(err.response?.data?.message || 'Gagal menghapus pesan.');
       else alert('Terjadi kesalahan.');
     } finally {
       setBusyId(null);
@@ -284,6 +304,18 @@ export default function PublicComments() {
                           className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-red-700 dark:text-red-300 transition rounded-lg bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50"
                         >
                           <X className="w-3.5 h-3.5" /> Tolak
+                        </button>
+                      )}
+                      {/* Hapus permanen: khusus admin/superadmin (penjaga peran
+                          juga ada di backend). Pengurus hanya bisa menolak. */}
+                      {isAdminRole(user?.role) && (
+                        <button
+                          onClick={() => hapusPesan(k)}
+                          disabled={busyId === k.id}
+                          title="Hapus permanen pesan beserta balasannya"
+                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-red-700 dark:text-red-300 transition border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/60 disabled:opacity-50"
+                        >
+                          {busyId === k.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Trash2 className="w-3.5 h-3.5" /> Hapus</>}
                         </button>
                       )}
                     </>
