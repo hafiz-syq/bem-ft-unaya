@@ -19,7 +19,7 @@ import { simpanMahasiswa } from '../controllers/student-import.save';
  */
 
 /** Batas jumlah baris detail yang dikirim ke layar, agar respons tetap ringkas. */
-const BATAS_DETAIL = 50;
+const BATAS_DETAIL = 100;
 
 /** Pesan baku kalau PDF tidak bisa diparsing sama sekali. */
 const PESAN_PDF_TIDAK_BISA = 'Berkas PDF tidak dapat dibaca. Pastikan berkasnya PDF asli (bukan hasil pindai/gambar). Untuk PDF hasil pindai, isinya perlu diketik ulang atau dijalankan OCR terlebih dahulu.';

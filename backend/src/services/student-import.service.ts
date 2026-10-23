@@ -29,7 +29,11 @@ import prisma from '../lib/prisma';
 // hanya membaca teks PDF (tidak pernah merender halaman), jadi polyfill tersebut
 // tidak dibutuhkan dan build modern tidak menyentuh `canvas` sama sekali.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const pdfjs = require('pdfjs-dist/build/pdf.js');
+// Ubah dari:
+// const pdfjsLib = require('pdfjs-dist');
+
+// Menjadi:
+const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
 
 export interface BarisMahasiswa {
   nama: string;
