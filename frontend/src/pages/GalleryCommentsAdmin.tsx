@@ -148,7 +148,7 @@ export default function GalleryCommentsAdmin() {
         </div>
         <Link
           to="/gallery"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg text-amber-400 bg-amber-100 hover:bg-amber-200 dark:text-amber-300 dark:bg-amber-100 dark:hover:bg-amber-200"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg text-amber-400 bg-amber-100 hover:bg-amber-200 dark:text-white dark:bg-amber-400 dark:hover:bg-amber-500"
         >
           <ImageIcon className="w-4 h-4" /> Lihat Halaman Galeri
         </Link>
