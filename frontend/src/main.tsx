@@ -4,9 +4,12 @@ import { HashRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProfileDialogProvider } from './contexts/ProfileDialogContext';
+import { SeasonalThemeProvider } from './contexts/SeasonalThemeContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import VercelAnalytics from './components/VercelAnalytics';
 import './index.css';
+// Dimuat SETELAH index.css agar aksen musiman menimpa utilitas Tailwind.
+import './tema-musiman.css';
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('Root element not found');
@@ -18,11 +21,13 @@ const aplikasi = (
           tidak merender elemen apa pun (aman untuk hidrasi prerender). */}
       <VercelAnalytics />
       <ThemeProvider>
-        <AuthProvider>
-          <ProfileDialogProvider>
-            <App />
-          </ProfileDialogProvider>
-        </AuthProvider>
+        <SeasonalThemeProvider>
+          <AuthProvider>
+            <ProfileDialogProvider>
+              <App />
+            </ProfileDialogProvider>
+          </AuthProvider>
+        </SeasonalThemeProvider>
       </ThemeProvider>
     </HashRouter>
   </StrictMode>

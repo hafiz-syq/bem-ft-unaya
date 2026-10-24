@@ -31,6 +31,7 @@ const PublicComments = lazy(() => import('./pages/PublicComments'));
 const Faq = lazy(() => import('./pages/Faq'));
 const Demisioner = lazy(() => import('./pages/Demisioner'));
 const GalleryCommentsAdmin = lazy(() => import('./pages/GalleryCommentsAdmin'));
+const SeasonalTheme = lazy(() => import('./pages/SeasonalTheme'));
 
 /** Tampilan sementara saat potongan halaman sedang diunduh. */
 function MemuatHalaman() {
@@ -146,6 +147,15 @@ function App() {
         <ProtectedRoute>
           <DashboardLayout>
             <DeviceDetail />
+          </DashboardLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* Pengaturan tema musiman: halaman menolak sendiri bila bukan SUPERADMIN. */}
+      <Route path="/tema-musiman" element={
+        <ProtectedRoute>
+          <DashboardLayout>
+            <SeasonalTheme />
           </DashboardLayout>
         </ProtectedRoute>
       } />

@@ -28,12 +28,19 @@ import prisma from '../lib/prisma';
 // mencetak peringatan "Cannot polyfill ..." di setiap start server. Jalur ini
 // hanya membaca teks PDF (tidak pernah merender halaman), jadi polyfill tersebut
 // tidak dibutuhkan dan build modern tidak menyentuh `canvas` sama sekali.
+// Build "modern" tetap dipakai lebih dulu karena tidak menyentuh `canvas`,
+// lalu legacy hanya sebagai cadangan bila lingkungan Node tertentu menolak
+// build modern. Keduanya membaca teks dengan hasil yang sama.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-// Ubah dari:
-// const pdfjsLib = require('pdfjs-dist');
-
-// Menjadi:
-const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
+const pdfjs = (() => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('pdfjs-dist/build/pdf.js');
+  } catch {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('pdfjs-dist/legacy/build/pdf.js');
+  }
+})();
 
 export interface BarisMahasiswa {
   nama: string;
@@ -77,6 +84,9 @@ async function bacaIsiPdf(buffer: Buffer): Promise<string> {
     data: new Uint8Array(buffer),
     isEvalSupported: false,
     useSystemFonts: false,
+    // Peringatan font internal PDF (mis. "TT: undefined function") tidak perlu
+    // memenuhi log server; kegagalan nyata tetap dilempar sebagai error.
+    verbosity: 0,
   });
   const dokumen = await tugas.promise;
 
@@ -94,6 +104,82 @@ async function bacaIsiPdf(buffer: Buffer): Promise<string> {
 
   await dokumen.destroy();
   return baris.join('');
+}
+
+/** Program studi yang dikenali, dipakai juga oleh pembaca cadangan. */
+const POLA_PRODI = /(SISTEM INFORMASI|TEKNIK MESIN|TEKNIK SIPIL)/i;
+
+/**
+ * Pembaca cadangan untuk PDF yang tata letaknya tidak persis "Nama | NIM | Prodi".
+ *
+ * Dipakai HANYA bila pembaca utama tidak menemukan satu baris pun. Cara kerjanya
+ * lebih longgar: setiap baris yang memuat 8 digit NIM dianggap kandidat, nama
+ * diambil dari teks sebelum NIM (atau baris di atasnya), dan program studi boleh
+ * berada di baris yang sama maupun satu-dua baris di sekitarnya. Dengan begitu
+ * PDF hasil ekspor akademik yang kolomnya terpisah tetap bisa dibaca tanpa
+ * mengubah hasil untuk PDF yang sudah cocok dengan pola utama.
+ */
+function parsingCadangan(teks: string): BarisMahasiswa[] {
+  const baris = teks
+    .split('\n')
+    .map((b) => b.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  const hasil: BarisMahasiswa[] = [];
+  const sudah = new Set<string>();
+
+  const prodiDi = (indeks: number): string | null => {
+    const cocok = baris[indeks]?.match(POLA_PRODI);
+    return cocok ? cocok[1].toUpperCase() : null;
+  };
+
+  for (let i = 0; i < baris.length; i++) {
+    const nimCocok = baris[i].match(/\b\d{8}[A-Za-z]?\b/);
+    if (!nimCocok || nimCocok.index === undefined) continue;
+
+    const nim = nimCocok[0].toUpperCase();
+    if (!POLA_NIM.test(nim) || sudah.has(nim)) continue;
+
+    // Program studi: baris ini, lalu baris berikutnya/sebelumnya.
+    let prodi = prodiDi(i);
+    for (const j of [i + 1, i + 2, i - 1, i - 2]) {
+      if (prodi) break;
+      if (j >= 0 && j < baris.length) prodi = prodiDi(j);
+    }
+    if (!prodi) continue;
+
+    // Nama: teks sebelum NIM pada baris yang sama; bila kosong, baris di atasnya.
+    const sebelum = baris[i]
+      .slice(0, nimCocok.index)
+      .replace(/[|,;:]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    let nama = sebelum;
+    if (!nama && i > 0) {
+      nama = baris[i - 1]
+        .replace(POLA_PRODI, ' ')
+        .replace(/\b\d{8}[A-Za-z]?\b/g, ' ')
+        .replace(/[|,;:]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    if (!nama) {
+      nama = baris[i]
+        .slice(nimCocok.index + nim.length)
+        .replace(POLA_PRODI, ' ')
+        .replace(/[|,;:]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    if (!nama || nama.toLowerCase().includes('nama mahasiswa')) continue;
+
+    sudah.add(nim);
+    hasil.push({ nama, nim, program_studi: prodi });
+  }
+
+  return hasil;
 }
 
 /**
@@ -132,6 +218,15 @@ export async function parsingPdfMahasiswa(buffer: Buffer): Promise<HasilParsing>
 
     nimSudahDipakai.add(nim);
     valid.push({ nama, nim, program_studi: prodi });
+  }
+
+  // Pola utama bisa gagal total pada PDF yang memisahkan kolom ke baris lain.
+  // Sebelum menyerah, coba pembaca cadangan yang lebih longgar.
+  if (valid.length === 0) {
+    const cadangan = parsingCadangan(teks);
+    if (cadangan.length > 0) {
+      return { valid: cadangan, bermasalah, totalDibaca: cadangan.length };
+    }
   }
 
   return { valid, bermasalah, totalDibaca: kecocokan.length };

@@ -2,13 +2,15 @@ import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api, assetUrl } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useSeasonalTheme } from '../contexts/SeasonalThemeContext';
+import { LABEL_TEMA, UCAPAN_TEMA } from '../lib/tema-musiman';
 import { isMahasiswaOrAbove, targetLabel } from '../lib/roles';
 import ThemeToggle from '../components/ThemeToggle';
 import GalleryComments from '../components/GalleryComments';
 import UserAvatar from '../components/UserAvatar';
 import LazyImage from '../components/LazyImage';
 import { formatRentangTanggal, jumlahHariAgenda } from '../lib/tanggal';
-import { Send, LogIn, Code2, Users, Building, ShieldCheck, Loader2, Calendar, Newspaper, ArrowRight, MapPin, Clock, Image as ImageIcon, Landmark, X, ExternalLink, Menu, LayoutDashboard, MessageSquare, Award, ChevronLeft, ChevronRight, Megaphone, AlertCircle, Layers, CornerDownRight, Share2, Lock } from 'lucide-react';
+import { Send, LogIn, Code2, Users, Building, ShieldCheck, Loader2, Calendar, Newspaper, ArrowRight, MapPin, Clock, Image as ImageIcon, Landmark, X, ExternalLink, Menu, LayoutDashboard, MessageSquare, Award, ChevronLeft, ChevronRight, Megaphone, AlertCircle, Layers, CornerDownRight, Share2, Lock, MoonStar, PartyPopper, Flag } from 'lucide-react';
 import axios from 'axios';
 
 // Data statis hasil prerender dibaca sekali di sini; deklarasi tipe supaya
@@ -82,6 +84,9 @@ interface DemisionerItem {
 
 export default function Landing() {
   const { user } = useAuth(); // Ambil status login user saat ini
+  const { tema: temaMusiman } = useSeasonalTheme();
+  const ucapanMusiman = UCAPAN_TEMA[temaMusiman];
+  const IkonMusiman = temaMusiman === 'RAMADAN' ? MoonStar : temaMusiman === 'LEBARAN' ? PartyPopper : Flag;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // State menu burger
 
   const mobileMenuAnchorRef = useRef<HTMLButtonElement>(null);
@@ -343,6 +348,18 @@ export default function Landing() {
       {/* HERO SECTION */}
       <section className="px-4 py-20 overflow-hidden text-white sm:px-6 sm:py-24 bg-gradient-to-br from-neutral-700 via-neutral-800 to-zinc-900">
         <div className="max-w-4xl mx-auto space-y-6 text-center">
+          {/* Spanduk musiman: hanya tampil saat superadmin mengaktifkan tema. */}
+          {temaMusiman !== 'NONE' && ucapanMusiman && (
+            <RevealOnScroll delay={0}>
+              <div className="musim-spanduk mx-auto flex max-w-2xl flex-col items-center gap-2 px-5 py-3 text-sm font-bold text-white shadow-lg rounded-2xl sm:flex-row sm:justify-center sm:gap-3">
+                <IkonMusiman className="w-5 h-5 shrink-0" aria-hidden="true" />
+                <span>{ucapanMusiman}</span>
+                <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wide bg-white/20 rounded-full shrink-0">
+                  {LABEL_TEMA[temaMusiman]}
+                </span>
+              </div>
+            </RevealOnScroll>
+          )}
           <RevealOnScroll delay={100}>
             {/* Responsif untuk teks hero */}
             <h2 className="text-3xl font-black leading-tight sm:text-4xl md:text-5xl lg:text-6xl">

@@ -4,6 +4,7 @@ import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
 import {
   hitungAngkatan,
+  purgeStudentAccount,
   runAccountLifecycleJob,
   tenggatHapusEfektif,
 } from '../services/account-lifecycle.service';
@@ -19,6 +20,8 @@ const akunSelect = {
   role: true,
   isActive: true,
   first_login: true,
+  // Email akun (dipakai akun ADMIN yang tidak punya StudentProfile).
+  email: true,
   deactivatedAt: true,
   deactivationType: true,
   tenggatHapus: true,
@@ -519,6 +522,200 @@ export const updateStudentRole = async (req: any, res: Response, next: NextFunct
       message: `Role ${target.profile?.nama || target.nim} berhasil diubah menjadi ${role}.`,
       data: { ...updated, angkatan: hitungAngkatan(updated.nim) },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** Pola email yang diterima fitur lupa password. */
+const POLA_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const batasTeks = (nilai: unknown, panjangMaks: number): string =>
+  String(nilai ?? '').trim().slice(0, panjangMaks);
+
+/**
+ * 4b. Menyunting data profil seorang mahasiswa (ADMIN & SUPERADMIN).
+ *
+ * Yang boleh diubah: nama, program studi, email, dan nomor HP. NIM sengaja
+ * tidak dapat diubah karena sekaligus dipakai sebagai username login dan sudah
+ * tercatat pada seluruh riwayat (tiket, audit, dsb.).
+ *
+ * Akun ADMIN yang tampil di daftar SUPERADMIN tidak punya StudentProfile,
+ * sehingga untuk mereka hanya email akun yang dapat disunting.
+ */
+export const updateStudent = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const target = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        nim: true,
+        role: true,
+        profile: {
+          select: { id: true, nama: true, program_studi: true, email: true, no_hp: true },
+        },
+      },
+    });
+
+    if (!target) {
+      res.status(404).json({ message: 'Akun tidak ditemukan.' });
+      return;
+    }
+
+    // SUPERADMIN tidak pernah muncul di halaman ini dan tidak boleh disunting.
+    if (target.role === 'SUPERADMIN') {
+      res.status(403).json({ message: 'Akun superadmin tidak dapat disunting dari halaman data mahasiswa.' });
+      return;
+    }
+
+    // Akun ADMIN hanya boleh disunting SUPERADMIN (menyangkut akses pengelola).
+    if (target.role === 'ADMIN' && req.user.role !== 'SUPERADMIN') {
+      res.status(403).json({ message: 'Data akun administrator hanya dapat disunting oleh superadmin.' });
+      return;
+    }
+
+    const ada = (kunci: string) => Object.prototype.hasOwnProperty.call(req.body ?? {}, kunci);
+
+    const nama = ada('nama') ? batasTeks(req.body.nama, 120) : undefined;
+    const programStudi = ada('program_studi') ? batasTeks(req.body.program_studi, 80).toUpperCase() : undefined;
+    const noHp = ada('no_hp') ? batasTeks(req.body.no_hp, 30) : undefined;
+
+    // Email kosong berarti dikosongkan (fitur lupa password tidak berlaku lagi).
+    let email: string | null | undefined;
+    if (ada('email')) {
+      const isian = String(req.body.email ?? '').trim().toLowerCase();
+      if (isian && !POLA_EMAIL.test(isian)) {
+        res.status(400).json({ message: 'Format email tidak valid.' });
+        return;
+      }
+      email = isian || null;
+    }
+
+    if (nama !== undefined && !nama) {
+      res.status(400).json({ message: 'Nama tidak boleh kosong.' });
+      return;
+    }
+    if (programStudi !== undefined && !programStudi) {
+      res.status(400).json({ message: 'Program studi tidak boleh kosong.' });
+      return;
+    }
+
+    // Email dipakai untuk lupa password dan harus unik di seluruh akun.
+    if (email) {
+      const dipakai = await prisma.user.findFirst({
+        where: { email, id: { not: target.id } },
+        select: { id: true },
+      });
+      if (dipakai) {
+        res.status(409).json({ message: 'Email ini sudah dipakai akun lain.' });
+        return;
+      }
+    }
+
+    if (!target.profile && (nama !== undefined || programStudi !== undefined || noHp !== undefined)) {
+      res.status(400).json({
+        message: 'Akun ini tidak memiliki profil mahasiswa. Hanya email akun yang dapat disunting.',
+      });
+      return;
+    }
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: {
+        ...(email !== undefined ? { email } : {}),
+        ...(target.profile
+          ? {
+              profile: {
+                update: {
+                  ...(nama !== undefined ? { nama } : {}),
+                  ...(programStudi !== undefined ? { program_studi: programStudi } : {}),
+                  ...(noHp !== undefined ? { no_hp: noHp || null } : {}),
+                  ...(email !== undefined ? { email } : {}),
+                },
+              },
+            }
+          : {}),
+      },
+      select: akunSelect,
+    });
+
+    // Nama baru dipakai di pesan & audit supaya admin langsung melihat hasilnya.
+    const namaTampil = updated.profile?.nama || updated.nim;
+    await logActivity(
+      req.user.id,
+      'UPDATE_STUDENT',
+      'User',
+      `Menyunting data akun ${namaTampil} (${updated.nim})`,
+      id
+    );
+
+    res.status(200).json({
+      message: `Data ${namaTampil} berhasil diperbarui.`,
+      data: {
+        ...updated,
+        angkatan: hitungAngkatan(updated.nim),
+        tenggatHapusEfektif: tenggatHapusEfektif(updated),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 4c. Menghapus satu akun mahasiswa secara permanen — KHUSUS SUPERADMIN.
+ *
+ * Penghapusan memakai `purgeStudentAccount` yang sama dengan siklus hidup akun
+ * otomatis, sehingga seluruh data turunannya (tiket miliknya, jabatan, profil,
+ * perangkat, notifikasi) ikut dibersihkan dalam satu transaksi dan tidak ada
+ * baris yatim yang tertinggal.
+ *
+ * Akun pengelola (ADMIN/SUPERADMIN) tidak pernah dihapus dari halaman ini; akun
+ * sendiri juga tidak, supaya superadmin tidak mengunci dirinya sendiri.
+ */
+export const deleteStudent = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    if (id === req.user.id) {
+      res.status(403).json({ message: 'Anda tidak dapat menghapus akun sendiri.' });
+      return;
+    }
+
+    const target = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, nim: true, role: true, profile: { select: { nama: true } } },
+    });
+
+    if (!target) {
+      res.status(404).json({ message: 'Akun tidak ditemukan.' });
+      return;
+    }
+
+    if (isAdminRole(target.role)) {
+      res.status(403).json({
+        message: 'Akun administrator dan superadmin tidak dapat dihapus dari halaman data mahasiswa.',
+      });
+      return;
+    }
+
+    const nama = target.profile?.nama || target.nim;
+    await purgeStudentAccount(target.id);
+
+    // Dicatat SETELAH penghapusan: purge juga menghapus audit log milik akun
+    // tersebut, tetapi catatan tindakan superadmin ini harus tetap ada.
+    await logActivity(
+      req.user.id,
+      'DELETE_STUDENT',
+      'User',
+      `Menghapus permanen akun ${nama} (${target.nim}) beserta data turunannya`,
+      undefined,
+      { nim: target.nim, nama, role: target.role }
+    );
+
+    res.status(200).json({ message: `Akun ${nama} (${target.nim}) dihapus permanen.` });
   } catch (error) {
     next(error);
   }

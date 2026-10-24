@@ -24,6 +24,7 @@ import notifikasiPerpanjanganRoutes from './routes/notifikasi-perpanjangan.route
 import deviceRoutes from './routes/device.routes';
 import imageConvertRoutes from './routes/image-convert.routes';
 import internalRoutes from './routes/internal.routes';
+import siteThemeRoutes from './routes/site-theme.routes';
 import { UPLOAD_LIMITS } from './middlewares/upload.middleware';
 import { bolehkanOrigin } from './lib/cors-origin';
 import { folderUploads } from './lib/uploads';
@@ -110,6 +111,8 @@ app.use('/api/demisioner', demisionerRoutes);
 app.use('/api/faqs', faqRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/image-convert', imageConvertRoutes);
+// Tema musiman: dibaca publik, diubah hanya oleh SUPERADMIN.
+app.use('/api/site-theme', siteThemeRoutes);
 // Endpoint untuk cron hPanel (siklus akun & notifikasi) — lihat routes/internal.routes.ts.
 app.use('/api/internal', internalRoutes);
 

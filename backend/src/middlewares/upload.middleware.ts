@@ -198,7 +198,14 @@ export const denganWebp = (unggah: multer.Multer) => ({
 // pernah menyentuh disk: dengan begitu tidak ada berkas sementara yang perlu
 // dibersihkan setelah proses selesai (berhasil maupun gagal).
 const pdfFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  if (file.mimetype === 'application/pdf') {
+  // Beberapa browser (terutama dari HP/penyimpanan awan) mengirim PDF dengan
+  // MIME `application/octet-stream` atau kosong. Yang penting adalah ekstensi
+  // .pdf; isi berkasnya tetap diverifikasi lewat tanda tangan %PDF- di
+  // controller sebelum diproses.
+  const mimePdf = ['application/pdf', 'application/x-pdf'].includes(file.mimetype);
+  const ekstensiPdf = path.extname(file.originalname || '').toLowerCase() === '.pdf';
+
+  if (mimePdf || ekstensiPdf) {
     cb(null, true);
   } else {
     cb(uploadError('Berkas impor harus berupa PDF.'));

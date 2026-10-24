@@ -3,9 +3,21 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfileDialog } from '../contexts/ProfileDialogContext';
 import { api, assetUrl } from '../lib/axios';
-import { ROLE_LABEL, isAdminRole, isStaff } from '../lib/roles';
+import { ROLE_LABEL, ROLE_SUPERADMIN, isAdminRole, isStaff } from '../lib/roles';
 import ThemeToggle from '../components/ThemeToggle';
-import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2, Images, Smartphone } from 'lucide-react';
+import SeasonalBadge from '../components/SeasonalBadge';
+import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2, Images, Smartphone, Palette, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+
+const KUNCI_SIDEBAR = 'bem-ft-sidebar-tutup';
+
+/** Preferensi sidebar desktop disimpan agar tidak berubah setiap pindah halaman. */
+function bacaSidebarTutup(): boolean {
+  try {
+    return localStorage.getItem(KUNCI_SIDEBAR) === '1';
+  } catch {
+    return false;
+  }
+}
 
 interface Notification {
   id: string; title: string; message: string; isRead: boolean; createdAt: string;
@@ -17,6 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [sidebarTutup, setSidebarTutup] = useState(bacaSidebarTutup);
 
   // State Notifikasi
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -48,6 +61,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     navigate('/login');
   };
 
+  const toggleSidebar = () => {
+    setSidebarTutup((tutup) => {
+      const baru = !tutup;
+      try {
+        localStorage.setItem(KUNCI_SIDEBAR, baru ? '1' : '0');
+      } catch {
+        // Penyimpanan diblokir: preferensi berlaku untuk sesi ini saja.
+      }
+      return baru;
+    });
+  };
+
   const role = user?.role || '';
 
   /**
@@ -67,6 +92,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Perangkat & Sesi', path: '/devices', icon: Smartphone, show: isAdminRole(role) },
     { name: 'Master Organisasi', path: '/organizations', icon: Building2, show: isAdminRole(role) },
     { name: 'Kepengurusan', path: '/positions', icon: UserPlus, show: isAdminRole(role) },
+    { name: 'Tema Musiman', path: '/tema-musiman', icon: Palette, show: role === ROLE_SUPERADMIN },
     { name: 'Konten Web Publik', path: '/cms', icon: Globe, show: isStaff(role) },
     { name: 'Komentar Galeri', path: '/galeri-komentar', icon: Images, show: isStaff(role) },
     { name: 'Audit Log', path: '/audit', icon: Activity, show: isAdminRole(role) },
@@ -90,38 +116,75 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </a>
 
       {/* Sidebar Desktop */}
-      <aside className="fixed z-10 flex-col hidden w-64 h-full bg-white border-r border-gray-200 dark:bg-gray-900 dark:border-gray-800 md:flex">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-800">
-          <h1 className="text-xl font-black tracking-tight text-gray-900 dark:text-gray-100">BEM-FT UNAYA</h1>
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Portal Resmi Mahasiswa</p>
+      <aside
+        className={`fixed z-10 hidden h-full flex-col border-r border-gray-200 bg-white transition-[width] duration-300 ease-out dark:border-gray-800 dark:bg-gray-900 md:flex ${sidebarTutup ? 'w-20' : 'w-64'}`}
+        aria-label="Navigasi utama"
+      >
+        <div className={`flex items-center border-b border-gray-200 dark:border-gray-800 ${sidebarTutup ? 'justify-center px-2 py-4' : 'justify-between gap-2 p-5'}`}>
+          {sidebarTutup ? (
+            <span className="text-sm font-black tracking-tight text-gray-900 dark:text-gray-100">BEM</span>
+          ) : (
+            <div className="min-w-0">
+              <h1 className="text-xl font-black tracking-tight text-gray-900 dark:text-gray-100">BEM-FT UNAYA</h1>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Portal Resmi Mahasiswa</p>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label={sidebarTutup ? 'Buka menu samping' : 'Tutup menu samping'}
+            title={sidebarTutup ? 'Buka menu samping' : 'Tutup menu samping'}
+            className="inline-flex items-center justify-center w-8 h-8 text-gray-500 transition rounded-lg shrink-0 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+          >
+            {sidebarTutup ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+          </button>
         </div>
-        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+
+        {!sidebarTutup && (
+          <div className="px-5 pt-3">
+            <SeasonalBadge />
+          </div>
+        )}
+
+        <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto">
           {allowedMenus.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
             return (
-              <Link key={item.path} to={item.path} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition duration-200 ${isActive ? 'bg-amber-400 text-white shadow-md dark:bg-amber-500' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'}`}>
-                <Icon className="w-5 h-5 shrink-0" /> {item.name}
+              <Link
+                key={item.path}
+                to={item.path}
+                title={sidebarTutup ? item.name : undefined}
+                aria-label={item.name}
+                className={`flex items-center gap-3 rounded-xl text-sm font-bold transition duration-200 ${sidebarTutup ? 'justify-center px-2 py-3' : 'px-4 py-3'} ${isActive ? 'bg-amber-400 text-white shadow-md dark:bg-amber-500' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'}`}
+              >
+                <Icon className="w-5 h-5 shrink-0" />
+                {!sidebarTutup && <span className="truncate">{item.name}</span>}
               </Link>
             );
           })}
         </nav>
         <Link
           to="/"
-          className="flex items-center gap-3 px-4 py-3 mx-4 mb-4 text-sm font-bold text-gray-700 transition border border-gray-200 rounded-lg shadow-sm bg-gray-50 hover:bg-amber-100 hover:text-amber-700 dark:text-gray-300 dark:border-gray-800 dark:bg-gray-800 dark:hover:bg-amber-900/40 dark:hover:text-amber-300"
+          title="Lihat Halaman Utama"
+          className={`flex items-center gap-3 py-3 mb-3 text-sm font-bold text-gray-700 transition border border-gray-200 rounded-lg shadow-sm bg-gray-50 hover:bg-amber-100 hover:text-amber-700 dark:text-gray-300 dark:border-gray-800 dark:bg-gray-800 dark:hover:bg-amber-900/40 dark:hover:text-amber-300 ${sidebarTutup ? 'justify-center mx-2 px-2' : 'mx-4 px-4'}`}
         >
           <Home className="w-5 h-5 shrink-0" />
-          Lihat Halaman Utama
+          {!sidebarTutup && 'Lihat Halaman Utama'}
         </Link>
-        <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-          <button onClick={handleLogout} className="flex items-center w-full gap-3 px-4 py-3 text-sm font-bold text-red-600 transition rounded-xl hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60">
-            <LogOut className="w-5 h-5 shrink-0" /> Keluar
+        <div className="p-3 border-t border-gray-200 dark:border-gray-800">
+          <button
+            onClick={handleLogout}
+            title="Keluar"
+            className={`flex items-center w-full gap-3 py-3 text-sm font-bold text-red-600 transition rounded-xl hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60 ${sidebarTutup ? 'justify-center px-2' : 'px-4'}`}
+          >
+            <LogOut className="w-5 h-5 shrink-0" /> {!sidebarTutup && 'Keluar'}
           </button>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex flex-col flex-1 w-full min-w-0 min-h-screen md:ml-64">
+      <div className={`flex flex-col flex-1 w-full min-w-0 min-h-screen transition-[margin] duration-300 ease-out ${sidebarTutup ? 'md:ml-20' : 'md:ml-64'}`}>
 
         {/* Header / Topbar */}
         <header className="sticky top-0 z-50 flex items-center justify-between w-full px-3 py-3 bg-white border-b border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800 sm:px-4 md:px-6">

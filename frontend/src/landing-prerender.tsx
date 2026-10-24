@@ -17,6 +17,7 @@
 import { renderToReadableStream } from 'react-dom/server';
 import { StaticRouter } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { SeasonalThemeProvider } from './contexts/SeasonalThemeContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import App from './App';
 
@@ -36,9 +37,11 @@ export async function renderMarkupLanding(): Promise<string> {
   const strim = await renderToReadableStream(
     <StaticRouter location="/">
       <ThemeProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
+        <SeasonalThemeProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </SeasonalThemeProvider>
       </ThemeProvider>
     </StaticRouter>
   );

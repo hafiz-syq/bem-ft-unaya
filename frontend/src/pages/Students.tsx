@@ -3,10 +3,11 @@ import { api } from '../lib/axios';
 import {
   Search, Loader2, ChevronLeft, ChevronRight, Download, FileSpreadsheet,
   Upload, UserCog, CalendarClock, X, AlertTriangle, CheckCircle2, FileUp, UserPlus,
-  ShieldCheck,
+  ShieldCheck, Pencil, Trash2, Save,
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { useProfileDialog } from '../contexts/ProfileDialogContext';
 import UserAvatar from '../components/UserAvatar';
 import {
   ASSIGNABLE_ROLES, ROLE_ADMIN, ROLE_LABEL, ROLE_SUPERADMIN, isAdminRole,
@@ -17,6 +18,7 @@ interface Student {
   nim: string;
   role: string;
   isActive: boolean;
+  email?: string | null;
   jabatan: string | null;
   organisasi: string | null;
   deactivatedAt: string | null;
@@ -32,6 +34,7 @@ interface Student {
     nama: string;
     program_studi: string;
     email: string | null;
+    no_hp: string | null;
     foto?: string | null;
   } | null;
 }
@@ -115,6 +118,7 @@ const formatTanggal = (nilai: string | null): string =>
 
 export default function Students() {
   const { user } = useAuth();
+  const { bukaProfil } = useProfileDialog();
   const isAdmin = isAdminRole(user?.role);
   const isSuperadmin = user?.role === ROLE_SUPERADMIN;
 
@@ -131,6 +135,17 @@ export default function Students() {
   const [notice, setNotice] = useState('');
   const [exporting, setExporting] = useState(false);
   const [sedangProses, setSedangProses] = useState<string | null>(null);
+
+  // --- Modal sunting data mahasiswa (admin & superadmin) ---
+  const [edit, setEdit] = useState<Student | null>(null);
+  const [formEdit, setFormEdit] = useState({
+    nama: '',
+    program_studi: PROGRAM_STUDI[0] as string,
+    email: '',
+    no_hp: '',
+  });
+  const [menyimpanEdit, setMenyimpanEdit] = useState(false);
+  const [galatEdit, setGalatEdit] = useState('');
 
   // Batas tanggal dihitung sekali saat komponen dipasang, bukan setiap render
   // (memanggil Date.now() saat render membuat hasilnya tidak stabil).
@@ -293,6 +308,77 @@ export default function Students() {
       await fetchStudents();
     } catch (err) {
       setError(await pesanKesalahan(err, 'Gagal mengubah status akun.'));
+    } finally {
+      setSedangProses(null);
+    }
+  };
+
+  // ---------------- Sunting & hapus akun ----------------
+
+  /** Hanya superadmin, dan bukan akun sendiri/pengelola, yang boleh dihapus. */
+  const bolehHapus = (s: Student): boolean =>
+    isSuperadmin && s.id !== user?.id && s.role !== ROLE_SUPERADMIN && s.role !== ROLE_ADMIN;
+
+  const bukaEdit = (s: Student) => {
+    const prodiSaatIni = s.profile?.program_studi ?? PROGRAM_STUDI[0];
+    setEdit(s);
+    setFormEdit({
+      nama: s.profile?.nama ?? '',
+      program_studi: prodiSaatIni,
+      // Akun ADMIN tidak punya profil; emailnya diambil dari akun (kolom User).
+      email: s.profile?.email ?? s.email ?? '',
+      no_hp: s.profile?.no_hp ?? '',
+    });
+    setGalatEdit('');
+  };
+
+  const simpanEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!edit) return;
+
+    setMenyimpanEdit(true);
+    setGalatEdit('');
+    try {
+      const body = edit.profile
+        ? {
+            nama: formEdit.nama.trim(),
+            program_studi: formEdit.program_studi,
+            email: formEdit.email.trim(),
+            no_hp: formEdit.no_hp.trim(),
+          }
+        : { email: formEdit.email.trim() };
+
+      const res = await api.put(`/students/${edit.id}`, body);
+      setNotice(res.data.message || 'Data akun diperbarui.');
+      setEdit(null);
+      await fetchStudents();
+    } catch (err) {
+      setGalatEdit(await pesanKesalahan(err, 'Gagal menyimpan perubahan.'));
+    } finally {
+      setMenyimpanEdit(false);
+    }
+  };
+
+  const hapusStudent = async (s: Student) => {
+    const nama = s.profile?.nama || s.nim;
+    const yakin = window.confirm(
+      `Hapus PERMANEN akun ${nama} (${s.nim})?\n\n` +
+        'Seluruh data turunannya (tiket yang ia kirim, jabatan, komentar, perangkat, dan profil) ' +
+        'ikut terhapus dan tidak dapat dipulihkan. Bila hanya ingin menonaktifkan, gunakan tombol status.'
+    );
+    if (!yakin) return;
+
+    setSedangProses(s.id);
+    setError('');
+    setNotice('');
+    try {
+      const res = await api.delete(`/students/${s.id}`);
+      setNotice(res.data.message || 'Akun dihapus permanen.');
+      // Bila baris terakhir di halaman ini terhapus, mundur satu halaman.
+      if (students.length === 1 && page > 1) setPage((p) => p - 1);
+      else await fetchStudents();
+    } catch (err) {
+      setError(await pesanKesalahan(err, 'Gagal menghapus akun.'));
     } finally {
       setSedangProses(null);
     }
@@ -600,7 +686,22 @@ export default function Students() {
                 </tr>
               ) : (
                 students.map((student) => (
-                  <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/60">
+                  <tr
+                    key={student.id}
+                    onClick={() => bukaProfil(student.id)}
+                    onKeyDown={(e) => {
+                      // Hanya saat fokus ada di baris itu sendiri, bukan di
+                      // tombol/select di dalamnya (Enter pada kontrol tetap
+                      // menjalankan kontrol tersebut).
+                      if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault();
+                        bukaProfil(student.id);
+                      }
+                    }}
+                    tabIndex={0}
+                    title={`Klik untuk melihat profil ${student.profile?.nama || student.nim}`}
+                    className="cursor-pointer transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400 dark:hover:bg-gray-800/60"
+                  >
                     <td className="p-4 font-medium text-gray-900 dark:text-gray-100">{student.nim}</td>
                     <td className="p-4 text-gray-700 dark:text-gray-300">
                       <div className="flex items-center min-w-0 gap-3">
@@ -621,7 +722,8 @@ export default function Students() {
                       </div>
                     </td>
                     <td className="p-4 text-gray-600 dark:text-gray-400">{student.profile?.program_studi ?? '-'}</td>
-                    <td className="p-4">
+                    <td className="p-4" onClick={(e) => e.stopPropagation()}>
+
                       {bolehUbahRole(student) ? (
                         <div className="flex items-center gap-2">
                           <select
@@ -640,7 +742,7 @@ export default function Students() {
                         <span className="text-gray-600 dark:text-gray-400">{ROLE_LABEL[student.role] ?? student.role}</span>
                       )}
                     </td>
-                    <td className="p-4 text-center">
+                    <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={() => ubahStatus(student)}
@@ -655,14 +757,37 @@ export default function Students() {
                       </button>
                     </td>
                     {isAdmin && (
-                      <td className="p-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => bukaKelola(student)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-gray-700 rounded-lg bg-gray-100 hover:bg-gray-200 dark:text-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
-                        >
-                          <CalendarClock className="w-3.5 h-3.5" /> Kelola
-                        </button>
+                      <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex flex-wrap items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => bukaKelola(student)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-gray-700 rounded-lg bg-gray-100 hover:bg-gray-200 dark:text-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
+                          >
+                            <CalendarClock className="w-3.5 h-3.5" /> Kelola
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => bukaEdit(student)}
+                            title={`Sunting data ${student.profile?.nama || student.nim}`}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 dark:hover:bg-amber-900/40"
+                          >
+                            <Pencil className="w-3.5 h-3.5" /> Edit
+                          </button>
+                          {bolehHapus(student) && (
+                            <button
+                              type="button"
+                              onClick={() => hapusStudent(student)}
+                              disabled={sedangProses === student.id}
+                              title={`Hapus permanen ${student.profile?.nama || student.nim}`}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-red-600 rounded-lg bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-950/60 dark:hover:bg-red-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {sedangProses === student.id
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <Trash2 className="w-3.5 h-3.5" />} Hapus
+                            </button>
+                          )}
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -696,6 +821,141 @@ export default function Students() {
           </div>
         )}
       </div>
+
+      {/* MODAL SUNTING DATA AKUN */}
+      {edit && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Sunting data akun"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/70 backdrop-blur-sm"
+          onClick={() => setEdit(null)}
+        >
+          <form
+            onSubmit={simpanEdit}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl dark:bg-gray-900 dark:border dark:border-gray-800"
+          >
+            <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100 dark:border-gray-800">
+              <div>
+                <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
+                  <Pencil className="w-5 h-5 text-amber-400" /> Sunting Data Akun
+                </h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {edit.profile?.nama ?? edit.nim} • {edit.nim}
+                </p>
+              </div>
+              <button type="button" onClick={() => setEdit(null)} aria-label="Tutup" className="p-1 text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {galatEdit && (
+                <div className="flex items-start gap-2 p-3 text-sm text-red-700 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {galatEdit}
+                </div>
+              )}
+
+              {edit.profile ? (
+                <>
+                  <div>
+                    <label htmlFor="edit-nama" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Nama Lengkap</label>
+                    <input
+                      id="edit-nama"
+                      type="text"
+                      required
+                      maxLength={120}
+                      value={formEdit.nama}
+                      onChange={(e) => setFormEdit((f) => ({ ...f, nama: e.target.value }))}
+                      className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="edit-prodi" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Program Studi</label>
+                    <select
+                      id="edit-prodi"
+                      value={formEdit.program_studi}
+                      onChange={(e) => setFormEdit((f) => ({ ...f, program_studi: e.target.value }))}
+                      className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
+                    >
+                      {(PROGRAM_STUDI as readonly string[]).includes(formEdit.program_studi)
+                        ? PROGRAM_STUDI.map((p) => <option key={p} value={p}>{p}</option>)
+                        : [formEdit.program_studi, ...PROGRAM_STUDI].map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="edit-email" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+                      <input
+                        id="edit-email"
+                        type="email"
+                        value={formEdit.email}
+                        onChange={(e) => setFormEdit((f) => ({ ...f, email: e.target.value }))}
+                        className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="edit-hp" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">No. HP/WA</label>
+                      <input
+                        id="edit-hp"
+                        type="tel"
+                        maxLength={30}
+                        value={formEdit.no_hp}
+                        onChange={(e) => setFormEdit((f) => ({ ...f, no_hp: e.target.value }))}
+                        className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="p-3 text-xs rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+                    Akun administrator tidak memiliki profil mahasiswa. Hanya email akun yang dapat disunting di sini.
+                  </div>
+                  <div>
+                    <label htmlFor="edit-email" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Email Akun</label>
+                    <input
+                      id="edit-email"
+                      type="email"
+                      value={formEdit.email}
+                      onChange={(e) => setFormEdit((f) => ({ ...f, email: e.target.value }))}
+                      className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="flex items-start gap-2 p-3 text-xs rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <p>
+                  NIM tidak dapat diubah karena dipakai sebagai username login. Email dipakai untuk fitur lupa
+                  password; kosongkan bila akun tidak perlu punya email.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-gray-800">
+              <button
+                type="button"
+                onClick={() => setEdit(null)}
+                className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={menyimpanEdit}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
+              >
+                {menyimpanEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Simpan</>}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* MODAL KELOLA AKUN */}
       {kelola && (

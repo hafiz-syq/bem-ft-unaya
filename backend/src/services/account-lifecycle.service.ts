@@ -115,6 +115,12 @@ export async function purgeStudentAccount(userId: string): Promise<void> {
       where: { moderatedById: userId },
       data: { moderatedById: null, moderatedAt: null },
     });
+    // Jejak moderasi komentar galeri: relasi moderator tidak memakai cascade,
+    // jadi harus dilepas sebelum akunnya dihapus.
+    await tx.galleryComment.updateMany({
+      where: { moderatedById: userId },
+      data: { moderatedById: null, moderatedAt: null },
+    });
     await tx.content.deleteMany({ where: { authorId: userId } });
     await tx.agenda.deleteMany({ where: { authorId: userId } });
 

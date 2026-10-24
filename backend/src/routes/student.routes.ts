@@ -6,6 +6,8 @@ import {
   updateStudentStatus,
   perpanjangAkun,
   updateStudentRole,
+  updateStudent,
+  deleteStudent,
   runLifecycle,
   requireOfficer,
   requireAdmin,
@@ -36,5 +38,9 @@ router.patch('/:id/status', updateStudentStatus);
 // keberadaan akun.
 router.patch('/:id/perpanjangan', requireAdmin, perpanjangAkun);
 router.patch('/:id/role', requireAdmin, updateStudentRole);
+// Sunting data profil mahasiswa: ADMIN & SUPERADMIN.
+router.put('/:id', requireAdmin, updateStudent);
+// Hapus permanen: hanya SUPERADMIN (admin biasa tidak boleh menghapus akun).
+router.delete('/:id', requireRole(['SUPERADMIN']), deleteStudent);
 
 export default router;

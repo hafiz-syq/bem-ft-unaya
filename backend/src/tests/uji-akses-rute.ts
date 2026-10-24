@@ -405,6 +405,18 @@ const BARIS: Baris[] = [
   { metode: 'PATCH', jalur: '/students/:id/perpanjangan', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
   { metode: 'PATCH', jalur: '/students/:id/role', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' } },
   {
+    metode: 'PUT',
+    jalur: '/students/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    catatan: 'sunting data mahasiswa: admin & superadmin (id uji tidak ada → 404)',
+  },
+  {
+    metode: 'DELETE',
+    jalur: '/students/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 403 },
+    catatan: 'hapus mahasiswa hanya SUPERADMIN; admin biasa selalu 403',
+  },
+  {
     metode: 'POST',
     jalur: '/students/maintenance/run-lifecycle',
     harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 },
@@ -418,6 +430,21 @@ const BARIS: Baris[] = [
     catatan: 'pembuatan akun ADMIN hanya untuk SUPERADMIN, jadi ADMIN pun ditolak.',
   },
   { metode: 'POST', jalur: '/students/import/simpan', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
+
+  // ── site-theme.routes.ts ────────────────────────────────────────────────
+  {
+    metode: 'GET',
+    jalur: '/site-theme',
+    harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' },
+    catatan: 'tema musiman dibaca publik agar halaman depan ikut bertema',
+  },
+  {
+    metode: 'PUT',
+    jalur: '/site-theme',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 403 },
+    catatan: 'mengubah tema musiman hanya SUPERADMIN',
+    amanDiuji: true,
+  },
 
   // ── rute yang didaftarkan langsung di app.ts ────────────────────────────
   {

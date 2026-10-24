@@ -25,6 +25,13 @@
           var html = document.documentElement;
           if (tema === 'dark') html.classList.add('dark');
           html.style.colorScheme = tema;
+
+          // Tema musiman yang tersimpan dipasang sebelum React dimuat supaya
+          // warna musiman tidak berkedip kembali ke aksen bawaan.
+          var musiman = localStorage.getItem('tema-musiman');
+          if (musiman === 'RAMADAN' || musiman === 'LEBARAN' || musiman === 'NUSANTARA') {
+            html.setAttribute('data-musim', musiman);
+          }
         } catch (e) {
           /* localStorage diblokir: biarkan tema terang */
         }

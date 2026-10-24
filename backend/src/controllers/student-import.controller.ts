@@ -24,6 +24,20 @@ const BATAS_DETAIL = 100;
 /** Pesan baku kalau PDF tidak bisa diparsing sama sekali. */
 const PESAN_PDF_TIDAK_BISA = 'Berkas PDF tidak dapat dibaca. Pastikan berkasnya PDF asli (bukan hasil pindai/gambar). Untuk PDF hasil pindai, isinya perlu diketik ulang atau dijalankan OCR terlebih dahulu.';
 
+/** Pesan saat berkas bisa dibuka tetapi tidak ada satu baris mahasiswa pun. */
+const PESAN_TANPA_BARIS =
+  'PDF berhasil dibuka, tetapi tidak ada baris data mahasiswa yang dikenali. ' +
+  'Pastikan isinya memuat Nama, NIM 8 digit, dan Program Studi (SISTEM INFORMASI, TEKNIK MESIN, atau TEKNIK SIPIL). ' +
+  'PDF hasil pindai/gambar perlu di-OCR atau diketik ulang lebih dulu.';
+
+/** Pesan saat berkas yang diunggah ternyata bukan PDF yang sah. */
+const PESAN_BUKAN_PDF =
+  'Berkas yang diunggah bukan PDF yang sah. Pilih ulang berkas .pdf, lalu coba lagi.';
+
+/** Tanda tangan berkas PDF: setiap PDF asli diawali "%PDF-". */
+const pdfSah = (buffer?: Buffer): boolean =>
+  Boolean(buffer && buffer.length >= 5 && buffer.subarray(0, 5).toString('latin1') === '%PDF-');
+
 /** Sematkan ringkasan impor ke log aktivitas supaya AudtLog tetap menangkap
  * siapa, kapan, dan berapa yg dibuat/dilewati/gagal. */
 const catatImporMassal = async (
@@ -64,6 +78,11 @@ export const pratinjauImpor = async (req: any, res: Response, next: NextFunction
       return;
     }
 
+    if (!pdfSah(req.file.buffer)) {
+      res.status(400).json({ message: PESAN_BUKAN_PDF });
+      return;
+    }
+
     let hasil;
     try {
       hasil = await parsingPdfMahasiswa(req.file.buffer);
@@ -82,7 +101,10 @@ export const pratinjauImpor = async (req: any, res: Response, next: NextFunction
     const sudahTerdaftar = hasil.valid.filter((v) => nimSudah.has(v.nim)).length;
 
     res.status(200).json({
-      message: `${siap.length} akun siap dibuat dari ${hasil.totalDibaca} baris yang terbaca.`,
+      message:
+        hasil.valid.length === 0
+          ? PESAN_TANPA_BARIS
+          : `${siap.length} akun siap dibuat dari ${hasil.totalDibaca} baris yang terbaca.`,
       data: {
         totalDibaca: hasil.totalDibaca,
         valid: hasil.valid.length,
@@ -118,6 +140,11 @@ export const simpanImpor = async (req: any, res: Response, next: NextFunction): 
       return;
     }
 
+    if (!pdfSah(req.file.buffer)) {
+      res.status(400).json({ message: PESAN_BUKAN_PDF });
+      return;
+    }
+
     let hasil;
     try {
       hasil = await parsingPdfMahasiswa(req.file.buffer);
@@ -131,7 +158,7 @@ export const simpanImpor = async (req: any, res: Response, next: NextFunction): 
     }
 
     if (hasil.valid.length === 0) {
-      res.status(400).json({ message: PESAN_PDF_TIDAK_BISA });
+      res.status(400).json({ message: PESAN_TANPA_BARIS });
       return;
     }
 
