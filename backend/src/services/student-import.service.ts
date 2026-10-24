@@ -31,16 +31,38 @@ import prisma from '../lib/prisma';
 // Build "modern" tetap dipakai lebih dulu karena tidak menyentuh `canvas`,
 // lalu legacy hanya sebagai cadangan bila lingkungan Node tertentu menolak
 // build modern. Keduanya membaca teks dengan hasil yang sama.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const pdfjs = (() => {
+//
+// Worker dimuat STATIS bersama pustakanya. Di Node, pdfjs memakai "fake worker"
+// yang memanggil require(workerSrc) secara dinamis; di Vercel pemanggilan itu
+// tidak terlacak saat fungsi dibundel, sehingga berkas pdf.worker.js tidak ikut
+// dan unggahan gagal dengan "Setting up fake worker failed". Dengan menyediakan
+// WorkerMessageHandler di globalThis, pdfjs tidak perlu membaca berkas worker
+// dari disk sama sekali.
+const muatPdfJs = () => {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require('pdfjs-dist/build/pdf.js');
+    return {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      pdfjs: require('pdfjs-dist/build/pdf.js'),
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      worker: require('pdfjs-dist/build/pdf.worker.js'),
+    };
   } catch {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require('pdfjs-dist/legacy/build/pdf.js');
+    return {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      pdfjs: require('pdfjs-dist/legacy/build/pdf.js'),
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      worker: require('pdfjs-dist/legacy/build/pdf.worker.js'),
+    };
   }
-})();
+};
+
+const { pdfjs, worker: pdfjsWorker } = muatPdfJs();
+
+if (pdfjsWorker?.WorkerMessageHandler) {
+  (globalThis as any).pdfjsWorker = {
+    WorkerMessageHandler: pdfjsWorker.WorkerMessageHandler,
+  };
+}
 
 export interface BarisMahasiswa {
   nama: string;
