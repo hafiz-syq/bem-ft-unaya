@@ -10,6 +10,7 @@ export const UPLOAD_LIMITS = {
   foto: 2 * 1024 * 1024, // foto profil (login pertama)
   file: 5 * 1024 * 1024, // lampiran tiket & CMS
   pdfImpor: 10 * 1024 * 1024, // KHUSUS untuk impor data mahasiswa
+  dokumen: 10 * 1024 * 1024, // arsip surat & proposal
 } as const;
 
 // Error validasi unggahan adalah kesalahan INPUT PENGGUNA, bukan kegagalan server.
@@ -219,4 +220,38 @@ export const uploadPdfImpor = multer({
   // dari UPLOAD_LIMITS. Impor PDF punya batas sendiri (pdfImpor) karena daftar
   // mahasiswa satu angkatan bisa lebih besar dari lampiran biasa.
   limits: { fileSize: UPLOAD_LIMITS.pdfImpor, files: 1 }
+});
+
+// --- Arsip surat & proposal ------------------------------------------------
+// Berkas disimpan di folder unggahan yang sama dengan lampiran lain. Format
+// dokumen kantor yang umum diterima; SVG dan berkas executable ditolak.
+const dokumenStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, pastikanFolderUploads());
+  },
+  filename: function (req, file, cb) {
+    const unik = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    cb(null, 'DOKUMEN-' + unik + ext);
+  },
+});
+
+const dokumenFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const izin = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ];
+  if (izin.includes(file.mimetype)) cb(null, true);
+  else cb(uploadError('Format dokumen tidak didukung. Gunakan PDF, DOC/DOCX, XLS/XLSX, atau PPT/PPTX.'));
+};
+
+export const uploadDokumen = multer({
+  storage: dokumenStorage,
+  fileFilter: dokumenFileFilter,
+  limits: { fileSize: UPLOAD_LIMITS.dokumen, files: 1 },
 });

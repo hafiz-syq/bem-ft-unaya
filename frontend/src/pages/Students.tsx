@@ -3,7 +3,7 @@ import { api } from '../lib/axios';
 import {
   Search, Loader2, ChevronLeft, ChevronRight, Download, FileSpreadsheet,
   Upload, UserCog, CalendarClock, X, AlertTriangle, CheckCircle2, FileUp, UserPlus,
-  ShieldCheck, Pencil, Trash2, Save, GraduationCap,
+  ShieldCheck, Pencil, Trash2, Save, GraduationCap, Power, Smartphone, Undo2, RefreshCw,
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -67,6 +67,17 @@ interface HasilSimpan {
   bermasalah: number;
   daftarGagal: string[];
 }
+
+interface StudentSampah {
+  id: string;
+  nim: string;
+  role: string;
+  deletedAt: string;
+  deletionReason: string | null;
+  profile: { nama: string; program_studi: string; foto: string | null } | null;
+}
+
+type TabData = 'AKTIF' | 'SAMPAH';
 
 const LIMIT = 20;
 
@@ -142,6 +153,15 @@ export default function Students() {
   const [exporting, setExporting] = useState(false);
   const [sedangProses, setSedangProses] = useState<string | null>(null);
 
+  // --- Aksi massal & tempat sampah ---
+  const [tab, setTab] = useState<TabData>('AKTIF');
+  const [dipilih, setDipilih] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkRole, setBulkRole] = useState('MAHASISWA');
+  const [sampah, setSampah] = useState<StudentSampah[]>([]);
+  const [memuatSampah, setMemuatSampah] = useState(false);
+  const [sampahTotal, setSampahTotal] = useState(0);
+
   // --- Modal sunting data mahasiswa (admin & superadmin) ---
   const [edit, setEdit] = useState<Student | null>(null);
   const [formEdit, setFormEdit] = useState({
@@ -205,6 +225,7 @@ export default function Students() {
       });
       setStudents(response.data.data);
       setMeta(response.data.meta);
+      setDipilih(new Set());
     } catch (err) {
       setError(await pesanKesalahan(err, 'Gagal memuat data mahasiswa'));
     } finally {
@@ -212,10 +233,31 @@ export default function Students() {
     }
   }, [page, kataKunci, status, role, angkatan]);
 
+  const fetchSampah = useCallback(async () => {
+    setMemuatSampah(true);
+    setError('');
+    try {
+      const res = await api.get('/students/trash', {
+        params: { search: kataKunci || undefined },
+      });
+      setSampah(res.data.data);
+      setSampahTotal(res.data.meta?.total || 0);
+    } catch (err) {
+      setError(await pesanKesalahan(err, 'Gagal memuat tempat sampah.'));
+    } finally {
+      setMemuatSampah(false);
+    }
+  }, [kataKunci]);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchStudents();
-  }, [fetchStudents]);
+    if (tab === 'AKTIF') fetchStudents();
+  }, [fetchStudents, tab]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (tab === 'SAMPAH') fetchSampah();
+  }, [fetchSampah, tab]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -369,9 +411,9 @@ export default function Students() {
   const hapusStudent = async (s: Student) => {
     const nama = s.profile?.nama || s.nim;
     const yakin = window.confirm(
-      `Hapus PERMANEN akun ${nama} (${s.nim})?\n\n` +
-        'Seluruh data turunannya (tiket yang ia kirim, jabatan, komentar, perangkat, dan profil) ' +
-        'ikut terhapus dan tidak dapat dipulihkan. Bila hanya ingin menonaktifkan, gunakan tombol status.'
+      `Pindahkan akun ${nama} (${s.nim}) ke Tempat Sampah?\n\n` +
+        'Akun langsung tidak bisa login dan hilang dari daftar, tetapi masih bisa dipulihkan dalam 30 hari. ' +
+        'Penghapusan permanen hanya dilakukan dari tab Tempat Sampah.'
     );
     if (!yakin) return;
 
@@ -380,12 +422,93 @@ export default function Students() {
     setNotice('');
     try {
       const res = await api.delete(`/students/${s.id}`);
-      setNotice(res.data.message || 'Akun dihapus permanen.');
+      setNotice(res.data.message || 'Akun dipindahkan ke Tempat Sampah.');
       // Bila baris terakhir di halaman ini terhapus, mundur satu halaman.
       if (students.length === 1 && page > 1) setPage((p) => p - 1);
       else await fetchStudents();
     } catch (err) {
       setError(await pesanKesalahan(err, 'Gagal menghapus akun.'));
+    } finally {
+      setSedangProses(null);
+    }
+  };
+
+  // ---------------- Aksi massal & tempat sampah ----------------
+
+  const togglePilih = (id: string) => {
+    setDipilih((lama) => {
+      const baru = new Set(lama);
+      if (baru.has(id)) baru.delete(id);
+      else baru.add(id);
+      return baru;
+    });
+  };
+
+  const semuaTerpilih = students.length > 0 && students.every((s) => dipilih.has(s.id));
+
+  const toggleSemua = () => {
+    setDipilih(semuaTerpilih ? new Set() : new Set(students.map((s) => s.id)));
+  };
+
+  const jalankanBulk = async (action: string, role?: string) => {
+    const ids = [...dipilih];
+    if (ids.length === 0) return;
+
+    const label: Record<string, string> = {
+      AKTIFKAN: 'mengaktifkan',
+      NONAKTIFKAN: 'menonaktifkan',
+      PUTUS_PERANGKAT: 'memutus semua perangkat',
+      UBAH_ROLE: `mengubah role menjadi ${ROLE_LABEL[role || ''] || role}`,
+      HAPUS: 'memindahkan ke Tempat Sampah',
+    };
+    if (!window.confirm(`Yakin ${label[action] || action} ${ids.length} akun terpilih?`)) return;
+
+    setBulkBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const res = await api.patch('/students/bulk', { ids, action, role });
+      setNotice(res.data.message || 'Aksi massal selesai.');
+      setDipilih(new Set());
+      await fetchStudents();
+    } catch (err) {
+      setError(await pesanKesalahan(err, 'Gagal menjalankan aksi massal.'));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const pulihkanSiswa = async (s: StudentSampah) => {
+    if (!window.confirm(`Pulihkan akun ${s.profile?.nama || s.nim} (${s.nim})?`)) return;
+    setSedangProses(s.id);
+    try {
+      const res = await api.put(`/students/${s.id}/restore`);
+      setNotice(res.data.message || 'Akun dipulihkan.');
+      await fetchSampah();
+    } catch (err) {
+      setError(await pesanKesalahan(err, 'Gagal memulihkan akun.'));
+    } finally {
+      setSedangProses(null);
+    }
+  };
+
+  const hapusPermanen = async (s: StudentSampah) => {
+    const nama = s.profile?.nama || s.nim;
+    if (
+      !window.confirm(
+        `Hapus PERMANEN akun ${nama} (${s.nim})?\n\n` +
+          'Tiket, jabatan, komentar, perangkat, dan profil miliknya ikut terhapus. Tindakan ini tidak dapat dibatalkan.'
+      )
+    )
+      return;
+
+    setSedangProses(s.id);
+    try {
+      const res = await api.delete(`/students/${s.id}/permanent`);
+      setNotice(res.data.message || 'Akun dihapus permanen.');
+      await fetchSampah();
+    } catch (err) {
+      setError(await pesanKesalahan(err, 'Gagal menghapus permanen.'));
     } finally {
       setSedangProses(null);
     }
@@ -551,6 +674,130 @@ export default function Students() {
     }
   };
 
+  const tombolTab = isAdmin ? (
+    <div className="inline-flex p-1 border border-gray-200 rounded-xl bg-gray-100 dark:bg-gray-800 dark:border-gray-700">
+      <button
+        type="button"
+        onClick={() => { setTab('AKTIF'); setDipilih(new Set()); }}
+        aria-pressed={tab === 'AKTIF'}
+        className={`px-3 py-1.5 text-sm font-bold rounded-lg transition ${tab === 'AKTIF' ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-gray-100' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'}`}
+      >
+        Data Aktif
+      </button>
+      {isSuperadmin && (
+        <button
+          type="button"
+          onClick={() => setTab('SAMPAH')}
+          aria-pressed={tab === 'SAMPAH'}
+          className={`px-3 py-1.5 text-sm font-bold rounded-lg transition ${tab === 'SAMPAH' ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-gray-100' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'}`}
+        >
+          Tempat Sampah {sampahTotal > 0 && <span className="ml-1 text-xs text-amber-600 dark:text-amber-300">({sampahTotal})</span>}
+        </button>
+      )}
+    </div>
+  ) : null;
+
+  if (tab === 'SAMPAH') {
+    return (
+      <div className="max-w-6xl p-6 mx-auto space-y-6 md:p-8">
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div>
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
+              <Trash2 className="w-6 h-6 text-amber-500" /> Tempat Sampah Mahasiswa
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {sampahTotal} akun menunggu pemulihan atau penghapusan permanen. Akun dihapus otomatis setelah 30 hari.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {tombolTab}
+            <button
+              type="button"
+              onClick={() => fetchSampah()}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800"
+            >
+              <RefreshCw className={`w-4 h-4 ${memuatSampah ? 'animate-spin' : ''}`} /> Segarkan
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSearch} className="flex gap-2">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute w-4 h-4 text-gray-400 left-3 top-3" />
+            <input
+              type="text"
+              placeholder="Cari NIM atau nama di tempat sampah..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full py-2 pl-9 pr-3 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700"
+            />
+          </div>
+          <button type="submit" className="px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500">
+            Cari
+          </button>
+        </form>
+
+        {error && <div className="p-4 text-sm text-red-600 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">{error}</div>}
+        {notice && <div className="p-4 text-sm text-green-700 rounded-lg bg-green-50 dark:bg-green-950/60 dark:text-green-300">{notice}</div>}
+
+        <div className="overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800 rounded-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="text-sm text-gray-500 border-b border-gray-200 dark:text-gray-400 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
+                  <th className="p-4 font-medium">NIM</th>
+                  <th className="p-4 font-medium">Nama</th>
+                  <th className="p-4 font-medium">Program Studi</th>
+                  <th className="p-4 font-medium">Dihapus</th>
+                  <th className="p-4 font-medium text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                {memuatSampah ? (
+                  <tr><td colSpan={5} className="p-8 text-center"><Loader2 className="w-6 h-6 mx-auto text-amber-400 animate-spin" /></td></tr>
+                ) : sampah.length === 0 ? (
+                  <tr><td colSpan={5} className="p-8 text-center text-gray-500 dark:text-gray-400">Tempat sampah kosong.</td></tr>
+                ) : (
+                  sampah.map((s) => (
+                    <tr key={s.id} className="transition hover:bg-gray-50 dark:hover:bg-gray-800/60">
+                      <td className="p-4 font-medium text-gray-900 dark:text-gray-100">{s.nim}</td>
+                      <td className="p-4 text-gray-700 dark:text-gray-300">
+                        <p className="font-bold">{s.profile?.nama || '-'}</p>
+                        {s.deletionReason && <p className="text-xs text-gray-400">{s.deletionReason}</p>}
+                      </td>
+                      <td className="p-4 text-gray-600 dark:text-gray-400">{s.profile?.program_studi || '-'}</td>
+                      <td className="p-4 text-sm text-gray-600 dark:text-gray-400">{formatTanggal(s.deletedAt)}</td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => pulihkanSiswa(s)}
+                            disabled={sedangProses === s.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-green-700 rounded-lg bg-green-50 hover:bg-green-100 dark:text-green-300 dark:bg-green-950/60 disabled:opacity-50"
+                          >
+                            <Undo2 className="w-3.5 h-3.5" /> Pulihkan
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => hapusPermanen(s)}
+                            disabled={sedangProses === s.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-red-600 rounded-lg bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-950/60 disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Hapus permanen
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl p-6 mx-auto space-y-6 md:p-8">
 
@@ -623,6 +870,8 @@ export default function Students() {
           )}
         </div>
       </div>
+
+      {tombolTab && <div>{tombolTab}</div>}
 
       {/* Filter Status & Role */}
       <div className="flex flex-wrap gap-3 p-4 bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800 rounded-xl">
@@ -738,12 +987,95 @@ export default function Students() {
         </div>
       )}
 
+      {/* Bilah aksi massal */}
+      {isAdmin && dipilih.size > 0 && (
+        <div className="sticky top-16 z-20 flex flex-wrap items-center gap-2 p-3 bg-amber-50 border border-amber-200 shadow-sm rounded-xl dark:bg-amber-950/60 dark:border-amber-900">
+          <span className="mr-1 text-sm font-bold text-amber-800 dark:text-amber-200">
+            {dipilih.size} akun dipilih
+          </span>
+          <button
+            type="button"
+            onClick={() => jalankanBulk('AKTIFKAN')}
+            disabled={bulkBusy}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg text-green-700 bg-green-100 hover:bg-green-200 dark:text-green-300 dark:bg-green-900/50 disabled:opacity-50"
+          >
+            <Power className="w-3.5 h-3.5" /> Aktifkan
+          </button>
+          <button
+            type="button"
+            onClick={() => jalankanBulk('NONAKTIFKAN')}
+            disabled={bulkBusy}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg text-gray-700 bg-white hover:bg-gray-100 border border-gray-200 dark:text-gray-200 dark:bg-gray-800 dark:border-gray-700 disabled:opacity-50"
+          >
+            <Power className="w-3.5 h-3.5" /> Nonaktifkan
+          </button>
+          <button
+            type="button"
+            onClick={() => jalankanBulk('PUTUS_PERANGKAT')}
+            disabled={bulkBusy}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 dark:text-blue-300 dark:bg-blue-950/60 disabled:opacity-50"
+          >
+            <Smartphone className="w-3.5 h-3.5" /> Putus perangkat
+          </button>
+          {isSuperadmin && (
+            <>
+              <span className="flex items-center gap-1 ml-1">
+                <select
+                  value={bulkRole}
+                  onChange={(e) => setBulkRole(e.target.value)}
+                  className="px-2 py-1.5 text-xs font-bold bg-white border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
+                >
+                  {opsiRoleBaru.map((r) => (
+                    <option key={r} value={r}>{ROLE_LABEL[r] ?? r}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => jalankanBulk('UBAH_ROLE', bulkRole)}
+                  disabled={bulkBusy}
+                  className="px-2.5 py-1.5 text-xs font-bold text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 dark:text-amber-200 dark:bg-amber-900/50 disabled:opacity-50"
+                >
+                  Terapkan role
+                </button>
+              </span>
+              <button
+                type="button"
+                onClick={() => jalankanBulk('HAPUS')}
+                disabled={bulkBusy}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg text-red-700 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-950/60 disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Hapus
+              </button>
+            </>
+          )}
+          {bulkBusy && <Loader2 className="w-4 h-4 animate-spin text-amber-500" />}
+          <button
+            type="button"
+            onClick={() => setDipilih(new Set())}
+            className="ml-auto inline-flex items-center gap-1 px-2 py-1.5 text-xs font-bold text-gray-500 rounded-lg hover:bg-white/60 dark:text-gray-400"
+          >
+            <X className="w-3.5 h-3.5" /> Batal pilih
+          </button>
+        </div>
+      )}
+
       {/* Tabel Data Mahasiswa */}
       <div className="overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800 rounded-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="text-sm text-gray-500 border-b border-gray-200 dark:text-gray-400 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
+                {isAdmin && (
+                  <th className="w-10 p-4 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={semuaTerpilih}
+                      onChange={toggleSemua}
+                      aria-label="Pilih semua akun di halaman ini"
+                      className="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                    />
+                  </th>
+                )}
                 <th className="p-4 font-medium">NIM</th>
                 <th className="p-4 font-medium">Nama Mahasiswa</th>
                 <th className="p-4 font-medium">Program Studi</th>
@@ -755,13 +1087,13 @@ export default function Students() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
               {loading ? (
                 <tr>
-                  <td colSpan={isAdmin ? 6 : 5} className="p-8 text-center">
+                  <td colSpan={isAdmin ? 7 : 5} className="p-8 text-center">
                     <Loader2 className="w-6 h-6 mx-auto text-amber-400 animate-spin" />
                   </td>
                 </tr>
               ) : students.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 6 : 5} className="p-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={isAdmin ? 7 : 5} className="p-8 text-center text-gray-500 dark:text-gray-400">
                     Tidak ada data mahasiswa ditemukan.
                   </td>
                 </tr>
@@ -783,6 +1115,17 @@ export default function Students() {
                     title={`Klik untuk melihat profil ${student.profile?.nama || student.nim}`}
                     className="cursor-pointer transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400 dark:hover:bg-gray-800/60"
                   >
+                    {isAdmin && (
+                      <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={dipilih.has(student.id)}
+                          onChange={() => togglePilih(student.id)}
+                          aria-label={`Pilih ${student.profile?.nama || student.nim}`}
+                          className="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                        />
+                      </td>
+                    )}
                     <td className="p-4 font-medium text-gray-900 dark:text-gray-100">{student.nim}</td>
                     <td className="p-4 text-gray-700 dark:text-gray-300">
                       <div className="flex items-center min-w-0 gap-3">

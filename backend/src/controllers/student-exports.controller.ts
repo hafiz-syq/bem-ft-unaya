@@ -26,7 +26,10 @@ export const exportMahasiswa = async (req: any, res: Response, next: NextFunctio
     // Bangun filter. Akun SUPERADMIN tidak pernah ikut diekspor (akun pengelola
     // web); akun ADMIN hanya ikut bila memang difilter oleh SUPERADMIN.
     const bisaLihatAdmin = req.user.role === 'SUPERADMIN';
-    const where: any = { role: { notIn: bisaLihatAdmin ? ['SUPERADMIN'] : ['ADMIN', 'SUPERADMIN'] } };
+    const where: any = {
+      role: { notIn: bisaLihatAdmin ? ['SUPERADMIN'] : ['ADMIN', 'SUPERADMIN'] },
+      deletedAt: null,
+    };
     if (status === 'AKTIF') where.isActive = true;
     else if (status === 'NONAKTIF') where.isActive = false;
 

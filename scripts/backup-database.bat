@@ -35,6 +35,12 @@ set "JALUR_APLIKASI=D:\Coding Apis\bem-ft-unaya"
 set "FOLDER_BACKUP=%JALUR_APLIKASI%\backups"
 set "LOG=%FOLDER_BACKUP%\backup.log"
 set "HARI_SIMPAN=14"
+rem MySQL Laragon berjalan sebagai proses, bukan service Windows. Bila PC baru
+rem menyala atau Laragon belum dijalankan, dump akan gagal dengan error 2002.
+rem Skrip ini menyalakan mysqld sendiri lalu menunggu sampai port siap.
+set "MYSQLD_EXE=C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysqld.exe"
+set "MYSQL_INI=C:\laragon\bin\mysql\mysql-8.4.3-winx64\my.ini"
+set "COBA_MYSQL=12"
 
 if not exist "%FOLDER_BACKUP%" mkdir "%FOLDER_BACKUP%"
 
@@ -67,6 +73,10 @@ if exist "C:\laragon\bin\heidisql\plugins\caching_sha2_password.dll" (
 ) else if exist "C:\Program Files\MySQL\MySQL Server 8.0\lib\plugin\caching_sha2_password.dll" (
   set "ARG_PLUGIN=--plugin-dir=C:\Program Files\MySQL\MySQL Server 8.0\lib\plugin"
 )
+
+rem ---- Pastikan database menerima koneksi --------------------
+call :pastikan_mysql
+if errorlevel 1 goto :gagal
 
 rem ---- Penanda waktu (aman dari format tanggal lokal) ---------
 for /f %%t in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set "STAMP=%%t"
@@ -124,4 +134,51 @@ rem Helper memakai SMTP dari backend\.env; selalu exit 0 walau kirim gagal.
 node "%JALUR_APLIKASI%\backend\scripts\peringatan-backup.cjs" GAGAL "%TARGET%" 2>NUL
 if exist "%TARGET%" del /f "%TARGET%" 2>NUL
 if exist "%ZIP%" del /f "%ZIP%" 2>NUL
+exit /b 1
+
+rem ============================================================
+rem  SUBRUTIN: pastikan MySQL siap menerima koneksi
+rem  ----------------------------------------------------------
+rem  Mengembalikan 0 bila port database sudah bisa dihubungi, 1 bila tetap
+rem  gagal setelah menyalakan mysqld dan menunggu COBA_MYSQL x 5 detik.
+rem ============================================================
+:pastikan_mysql
+rem netstat dipakai, bukan PowerShell: memanggil PowerShell 12 kali bisa
+rem memakan menit di mesin dengan antivirus ketat. Pemeriksaan port instan.
+netstat -ano | findstr /C:":%DB_PORT% " | findstr /C:"LISTENING" >NUL
+if not errorlevel 1 exit /b 0
+
+echo [%date% %time%] MySQL belum menerima koneksi di port %DB_PORT%; mencoba menyalakan mysqld...>> "%LOG%"
+if not exist "%MYSQLD_EXE%" (
+  echo [%date% %time%] GALAT: mysqld.exe tidak ditemukan di %MYSQLD_EXE%. Jalankan Laragon secara manual.>> "%LOG%"
+  exit /b 1
+)
+if not exist "%MYSQL_INI%" (
+  echo [%date% %time%] GALAT: my.ini tidak ditemukan di %MYSQL_INI%. Jalankan Laragon secara manual.>> "%LOG%"
+  exit /b 1
+)
+
+rem Start-Process melepas mysqld dari console skrip. "start /B" membuat
+rem mysqld mewarisi stdout sehingga pemanggil (Task Scheduler/pipa) menunggu
+rem proses database selamanya.
+powershell -NoProfile -Command "Start-Process -FilePath '%MYSQLD_EXE%' -ArgumentList '--defaults-file=%MYSQL_INI%' -WindowStyle Hidden -RedirectStandardOutput '%FOLDER_BACKUP%\mysql-start.out' -RedirectStandardError '%FOLDER_BACKUP%\mysql-start.err'" >NUL 2>&1
+echo [%date% %time%] Perintah menyalakan mysqld dijalankan; menunggu port %DB_PORT%...>> "%LOG%"
+
+set /a COBA=0
+:tunggu_mysql
+set /a COBA+=1
+echo [%date% %time%] Menunggu MySQL (percobaan %COBA%/%COBA_MYSQL%)...>> "%LOG%"
+rem ping dipakai sebagai jeda, bukan timeout: timeout gagal di Task Scheduler
+rem yang tidak punya input console.
+ping -n 6 127.0.0.1 >NUL
+rem netstat dipakai, bukan PowerShell: memanggil PowerShell 12 kali bisa
+rem memakan menit di mesin dengan antivirus ketat. Pemeriksaan port instan.
+netstat -ano | findstr /C:":%DB_PORT% " | findstr /C:"LISTENING" >NUL
+if not errorlevel 1 (
+  echo [%date% %time%] MySQL siap setelah %COBA% percobaan (maksimal %COBA_MYSQL%).>> "%LOG%"
+  exit /b 0
+)
+if %COBA% LSS %COBA_MYSQL% goto :tunggu_mysql
+
+echo [%date% %time%] GALAT: MySQL tetap tidak dapat dihubungi setelah %COBA_MYSQL% percobaan.>> "%LOG%"
 exit /b 1

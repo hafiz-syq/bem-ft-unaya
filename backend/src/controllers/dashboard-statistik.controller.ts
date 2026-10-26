@@ -76,12 +76,12 @@ export const getDashboardStatistik = async (req: any, res: Response, next: NextF
         prisma.ticket.count({ where: { status: { in: ['DIKIRIM', 'DITINJAU', 'DIPROSES'] } } }),
         prisma.ticket.count({ where: { status: 'SELESAI' } }),
         prisma.ticket.count({ where: { moderationStatus: 'PENDING_MODERATION' } }),
-        prisma.user.count({ where: { role: 'MAHASISWA' } }),
-        prisma.user.count({ where: { role: { in: ['PENGURUS', 'ADMIN', 'SUPERADMIN'] } } }),
-        prisma.publicComment.count({ where: { status: 'PENDING' } }),
+        prisma.user.count({ where: { role: 'MAHASISWA', deletedAt: null } }),
+        prisma.user.count({ where: { role: { in: ['PENGURUS', 'ADMIN', 'SUPERADMIN'] }, deletedAt: null } }),
+        prisma.publicComment.count({ where: { status: 'PENDING', deletedAt: null } }),
         prisma.galleryComment.count({ where: { status: 'PENDING' } }),
-        prisma.user.count({ where: { isActive: false, deactivationType: 'AUTO' } }),
-        prisma.user.count({ where: { perpanjanganHingga: { gt: new Date() } } }),
+        prisma.user.count({ where: { isActive: false, deactivationType: 'AUTO', deletedAt: null } }),
+        prisma.user.count({ where: { perpanjanganHingga: { gt: new Date() }, deletedAt: null } }),
         // Dibatasi 2000 tiket terakhir agar respons tetap cepat walau data besar.
         prisma.ticket.findMany({
           where: { createdAt: { gte: duaBelasBulanLalu } },

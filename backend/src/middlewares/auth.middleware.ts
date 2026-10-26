@@ -26,14 +26,14 @@ export const requireAuth = async (req: any, res: Response, next: NextFunction): 
     const akun = await prisma.user.findUnique({
       where: { id: decoded.id },
       select: {
-        id: true, nim: true, role: true, isActive: true,
+        id: true, nim: true, role: true, isActive: true, deletedAt: true,
         deviceId: true, sessionVersion: true,
         // Perangkat tambahan (akun dengan batas perangkat > 1).
         devices: { select: { deviceId: true } },
       },
     });
 
-    if (!akun) {
+    if (!akun || akun.deletedAt) {
       res.status(401).json({ message: 'Akun tidak ditemukan. Silakan login kembali.' });
       return;
     }
@@ -94,7 +94,7 @@ export const optionalAuth = async (req: any, _res: Response, next: NextFunction)
     const akun = await prisma.user.findUnique({
       where: { id: decoded.id },
       select: {
-        id: true, nim: true, role: true, isActive: true,
+        id: true, nim: true, role: true, isActive: true, deletedAt: true,
         deviceId: true, sessionVersion: true,
         devices: { select: { deviceId: true } },
       },
@@ -104,6 +104,7 @@ export const optionalAuth = async (req: any, _res: Response, next: NextFunction)
     // pemakai optionalAuth tetap bisa dibaca publik tanpa menjatuhkan halaman.
     if (
       akun?.isActive &&
+      !akun.deletedAt &&
       !periksaSesiPerangkat({ ...akun, perangkat: akun.devices.map((d) => d.deviceId) }, decoded)
     ) {
       req.user = { ...decoded, id: akun.id, nim: akun.nim, role: akun.role };

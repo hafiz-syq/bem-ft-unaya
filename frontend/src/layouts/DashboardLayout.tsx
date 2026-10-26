@@ -6,7 +6,9 @@ import { api, assetUrl } from '../lib/axios';
 import { ROLE_LABEL, ROLE_SUPERADMIN, isAdminRole, isStaff } from '../lib/roles';
 import ThemeToggle from '../components/ThemeToggle';
 import SeasonalBadge from '../components/SeasonalBadge';
-import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2, Images, Smartphone, Palette, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import GlobalSearch from '../components/GlobalSearch';
+import PushToggle from '../components/PushToggle';
+import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2, Images, Smartphone, Palette, PanelLeftClose, PanelLeftOpen, Megaphone, FolderArchive, ShieldAlert } from 'lucide-react';
 
 const KUNCI_SIDEBAR = 'bem-ft-sidebar-tutup';
 
@@ -88,6 +90,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // Buku tamu terbuka untuk semua role; mahasiswa hanya bisa membaca,
     // tombol moderasi & balasan hanya muncul untuk pengurus dan admin.
     { name: 'Buku Tamu', path: '/buku-tamu', icon: MessageSquare, show: true },
+    { name: 'Pengumuman', path: '/pengumuman', icon: Megaphone, show: true },
+    { name: 'Arsip Surat', path: '/dokumen', icon: FolderArchive, show: isStaff(role) },
     { name: 'Data Mahasiswa', path: '/students', icon: Users, show: isStaff(role) },
     { name: 'Perangkat & Sesi', path: '/devices', icon: Smartphone, show: isAdminRole(role) },
     { name: 'Master Organisasi', path: '/organizations', icon: Building2, show: isAdminRole(role) },
@@ -96,6 +100,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Konten Web Publik', path: '/cms', icon: Globe, show: isStaff(role) },
     { name: 'Komentar Galeri', path: '/galeri-komentar', icon: Images, show: isStaff(role) },
     { name: 'Audit Log', path: '/audit', icon: Activity, show: isAdminRole(role) },
+    { name: 'Pemantauan', path: '/pemantauan', icon: ShieldAlert, show: isAdminRole(role) },
   ];
 
   const allowedMenus = menuItems.filter(item => item.show);
@@ -213,6 +218,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           <div className="relative flex items-center gap-2 sm:gap-4 shrink-0">
+            {/* Pencarian global: NIM, nama, tiket, organisasi, halaman. */}
+            <GlobalSearch />
+
             {/* Tombol Tema */}
             <ThemeToggle />
 
@@ -231,6 +239,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <button onClick={handleMarkAsRead} className="flex items-center gap-1 text-xs font-bold text-amber-400 hover:text-amber-500 dark:text-amber-300 dark:hover:text-amber-200"><Check className="w-3 h-3 shrink-0" /> Tandai</button>
                   )}
                 </div>
+                <PushToggle />
                 <div className="overflow-y-auto max-h-[55vh]">
                   {notifications.length === 0 ? (
                     <div className="p-5 text-sm text-center text-gray-500 dark:text-gray-400">Tidak ada notifikasi.</div>

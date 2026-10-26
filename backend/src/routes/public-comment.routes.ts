@@ -5,14 +5,28 @@ import {
   getCommentsForManagement,
   ubahStatusKomentar,
   hapusKomentar,
+  pulihkanKomentar,
+  hapusKomentarPermanen,
   balasKomentar,
   updateReply,
   deleteReply,
   reportComment,
+  laporkanKomentarPublik,
   getRepliesForComment,
 } from '../controllers/public-comment.controller';
 import { requireAuth, requireRole } from '../middlewares/auth.middleware';
 import { OFFICER_ROLES } from '../lib/ticket-access';
+import rateLimit from 'express-rate-limit';
+
+// Laporan publik tidak butuh login, jadi dibatasi per IP agar tidak dipakai
+// untuk membanjiri antrean moderasi.
+const batasLaporan = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { message: 'Terlalu banyak laporan dari perangkat ini. Coba lagi nanti.' },
+});
 
 const router = Router();
 
@@ -27,6 +41,8 @@ router.post('/manage/:id/replies', ...pengelola, balasKomentar);
 // SUPERADMIN) ada di controller via isAdminRole, bukan di sini, supaya pesan
 // penolakan yang dikembalikan ke pengurus tetap berbahasa Indonesia yang jelas.
 router.delete('/manage/:id', ...pengelola, hapusKomentar);
+router.post('/manage/:id/restore', ...pengelola, pulihkanKomentar);
+router.delete('/manage/:id/permanent', ...pengelola, hapusKomentarPermanen);
 
 // --- Publik (tanpa login) ------------------------------------------------
 // Baca hanya menampilkan komentar yang sudah disetujui dan tanpa data kontak
@@ -39,6 +55,8 @@ router.get('/:commentId/replies', ...pengelola, getRepliesForComment);
 router.patch('/:commentId/replies/:replyId', ...pengelola, updateReply);
 router.delete('/:commentId/replies/:replyId', ...pengelola, deleteReply);
 router.post('/:commentId/report', requireAuth, reportComment);
+// Tombol "Laporkan" untuk pengunjung tanpa akun di halaman buku tamu publik.
+router.post('/:commentId/laporkan', batasLaporan, laporkanKomentarPublik);
 
 
 const publicCommentRouter = router;

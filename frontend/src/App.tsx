@@ -28,6 +28,9 @@ const Gallery = lazy(() => import('./pages/Gallery'));
 const About = lazy(() => import('./pages/About'));
 const PublicContentDetail = lazy(() => import('./pages/PublicContentDetail'));
 const PublicComments = lazy(() => import('./pages/PublicComments'));
+const Announcements = lazy(() => import('./pages/Announcements'));
+const Documents = lazy(() => import('./pages/Documents'));
+const ErrorLogs = lazy(() => import('./pages/ErrorLogs'));
 const Faq = lazy(() => import('./pages/Faq'));
 const Demisioner = lazy(() => import('./pages/Demisioner'));
 const GalleryCommentsAdmin = lazy(() => import('./pages/GalleryCommentsAdmin'));
@@ -164,6 +167,30 @@ function App() {
         <ProtectedRoute>
           <DashboardLayout>
             <PublicComments />
+          </DashboardLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/pengumuman" element={
+        <ProtectedRoute>
+          <DashboardLayout>
+            <Announcements />
+          </DashboardLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/dokumen" element={
+        <ProtectedRoute>
+          <DashboardLayout>
+            <Documents />
+          </DashboardLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/pemantauan" element={
+        <ProtectedRoute>
+          <DashboardLayout>
+            <ErrorLogs />
           </DashboardLayout>
         </ProtectedRoute>
       } />

@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/axios';
 import {
   LayoutDashboard, Users, UserCheck, MessageSquare, AlertCircle, Clock, CheckCircle,
-  Activity, Loader2, ShieldAlert, BarChart3, Timer, Inbox, UserMinus,
+  Activity, Loader2, ShieldAlert, BarChart3, Timer, Inbox, UserMinus, Download, FileSpreadsheet,
 } from 'lucide-react';
 import { isAdminRole, targetLabel } from '../lib/roles';
 import AgendaCalendar from '../components/AgendaCalendar';
@@ -61,6 +61,8 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statistik, setStatistik] = useState<Statistik | null>(null);
   const [loading, setLoading] = useState(true);
+  const [bulanLaporan, setBulanLaporan] = useState(() => new Date().toISOString().slice(0, 7));
+  const [mengunduhLaporan, setMengunduhLaporan] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -87,6 +89,29 @@ export default function Dashboard() {
 
   const kartuStatistik = statistik?.kartu ?? {};
   const pengelola = user?.role !== 'MAHASISWA';
+
+  const unduhLaporan = async () => {
+    setMengunduhLaporan(true);
+    try {
+      const res = await api.get('/reports/monthly', {
+        params: { month: bulanLaporan },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `laporan-bem-ft-unaya-${bulanLaporan}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error(error);
+      alert('Gagal mengunduh laporan bulanan.');
+    } finally {
+      setMengunduhLaporan(false);
+    }
+  };
 
   const kartuTambahan = pengelola
     ? [
@@ -125,6 +150,39 @@ export default function Dashboard() {
         </div>
         <LayoutDashboard className="absolute right-0 w-40 h-40 text-white pointer-events-none sm:w-48 sm:h-48 sm:right-4 -bottom-4 opacity-10" />
       </div>
+
+      {isAdminRole(user?.role) && (
+        <section className="flex flex-col gap-3 p-4 bg-white border border-gray-100 shadow-sm sm:flex-row sm:items-center sm:justify-between rounded-xl dark:bg-gray-900 dark:border-gray-800">
+          <div className="flex items-start gap-3">
+            <span className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300 shrink-0">
+              <FileSpreadsheet className="w-5 h-5" />
+            </span>
+            <div>
+              <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">Laporan Bulanan</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Rekap mahasiswa per angkatan, tiket, buku tamu, dan perubahan data dalam satu berkas Excel.</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="bulan-laporan" className="sr-only">Bulan laporan</label>
+            <input
+              id="bulan-laporan"
+              type="month"
+              value={bulanLaporan}
+              onChange={(e) => setBulanLaporan(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+            />
+            <button
+              type="button"
+              onClick={unduhLaporan}
+              disabled={mengunduhLaporan || !bulanLaporan}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
+            >
+              {mengunduhLaporan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              Unduh Excel
+            </button>
+          </div>
+        </section>
+      )}
 
       <div className="mb-4">
         <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800 dark:text-gray-100 sm:text-xl">

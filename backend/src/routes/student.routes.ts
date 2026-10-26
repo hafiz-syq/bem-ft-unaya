@@ -15,6 +15,12 @@ import {
 import { requireAuth, requireRole } from '../middlewares/auth.middleware';
 import { uploadPdfImpor } from '../middlewares/upload.middleware';
 import { pratinjauImpor, simpanImpor } from '../controllers/student-import.controller';
+import {
+  bulkStudents,
+  getTrashStudents,
+  restoreStudent,
+  deleteStudentPermanent,
+} from '../controllers/student-bulk.controller';
 
 const router = Router();
 
@@ -28,6 +34,10 @@ router.post('/maintenance/run-lifecycle', requireAdmin, runLifecycle);
 router.post('/import/pratinjau', requireAdmin, uploadPdfImpor.single('file'), pratinjauImpor);
 router.post('/import/simpan', requireAdmin, uploadPdfImpor.single('file'), simpanImpor);
 
+// Rute statis harus didaftarkan sebelum rute berparameter /:id.
+router.get('/trash', requireAdmin, getTrashStudents);
+router.patch('/bulk', requireAdmin, bulkStudents);
+
 router.get('/', getStudents);
 // Tambah satu akun mahasiswa secara manual (tanpa PDF), khusus ADMIN/SUPERADMIN.
 router.post('/', requireAdmin, createStudent);
@@ -40,7 +50,10 @@ router.patch('/:id/perpanjangan', requireAdmin, perpanjangAkun);
 router.patch('/:id/role', requireAdmin, updateStudentRole);
 // Sunting data profil mahasiswa: ADMIN & SUPERADMIN.
 router.put('/:id', requireAdmin, updateStudent);
-// Hapus permanen: hanya SUPERADMIN (admin biasa tidak boleh menghapus akun).
+// Hapus dari daftar: superadmin, dipindahkan ke tempat sampah 30 hari.
 router.delete('/:id', requireRole(['SUPERADMIN']), deleteStudent);
+// Pemulihan & penghapusan permanen dari tempat sampah (khusus SUPERADMIN).
+router.put('/:id/restore', requireRole(['SUPERADMIN']), restoreStudent);
+router.delete('/:id/permanent', requireRole(['SUPERADMIN']), deleteStudentPermanent);
 
 export default router;

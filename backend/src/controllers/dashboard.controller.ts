@@ -9,9 +9,9 @@ export const getDashboardStats = async (req: any, res: Response, next: NextFunct
 
     if (isAdminRole(user.role) || user.role === 'PENGURUS') {
       // --- STATISTIK UNTUK ADMIN, SUPERADMIN & PENGURUS ---
-      const totalMahasiswa = await prisma.user.count({ where: { role: 'MAHASISWA' } });
+      const totalMahasiswa = await prisma.user.count({ where: { role: 'MAHASISWA', deletedAt: null } });
       const totalPengurus = await prisma.user.count({
-        where: { role: { in: ['PENGURUS', 'ADMIN', 'SUPERADMIN'] } },
+        where: { role: { in: ['PENGURUS', 'ADMIN', 'SUPERADMIN'] }, deletedAt: null },
       });
       
       const totalAspirasi = await prisma.ticket.count({ where: { type: 'ASPIRASI' } });

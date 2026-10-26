@@ -76,7 +76,9 @@ export const login = async (req: any, res: any, next: any): Promise<void> => {
 
     // 1. Cari user berdasarkan NIM (profil ikut diambil untuk status verifikasi email)
     const user = await prisma.user.findUnique({ where: { nim }, include: { profile: true } });
-    if (!user) {
+    if (!user || user.deletedAt) {
+      // Akun di tempat sampah diperlakukan sama seperti akun tidak ada, supaya
+      // keberadaannya tidak bisa ditebak dari pesan login.
       res.status(401).json({ message: 'NIM atau Password salah.' });
       return; // WAJIB ADA agar eksekusi berhenti di sini
     }

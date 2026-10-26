@@ -4,10 +4,10 @@ import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
 import {
   hitungAngkatan,
-  purgeStudentAccount,
   runAccountLifecycleJob,
   tenggatHapusEfektif,
 } from '../services/account-lifecycle.service';
+import { softDeleteStudentAccount } from '../services/student-trash.service';
 import { ASSIGNABLE_ROLES, OFFICER_ROLES, isAdminRole } from '../lib/ticket-access';
 
 /**
@@ -71,6 +71,8 @@ export const getStudents = async (req: any, res: Response, next: NextFunction): 
     const bisaLihatAdmin = req.user?.role === 'SUPERADMIN';
     const where: any = {
       role: { notIn: bisaLihatAdmin ? ['SUPERADMIN'] : ['ADMIN', 'SUPERADMIN'] },
+      // Akun di tempat sampah tidak pernah muncul di daftar utama.
+      deletedAt: null,
     };
 
     if (role !== 'ALL' && ASSIGNABLE_ROLES.includes(role)) {
@@ -328,10 +330,13 @@ export const updateStudentStatus = async (req: any, res: Response, next: NextFun
 
     const target = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, nim: true, role: true, isActive: true, profile: { select: { nama: true } } },
+      select: {
+        id: true, nim: true, role: true, isActive: true, deletedAt: true,
+        profile: { select: { nama: true } },
+      },
     });
 
-    if (!target) {
+    if (!target || target.deletedAt) {
       res.status(404).json({ message: 'Akun tidak ditemukan.' });
       return;
     }
@@ -385,13 +390,14 @@ export const perpanjangAkun = async (req: any, res: Response, next: NextFunction
         nim: true,
         role: true,
         isActive: true,
+        deletedAt: true,
         deactivationType: true,
         perpanjanganHingga: true,
         profile: { select: { nama: true } },
       },
     });
 
-    if (!target) {
+    if (!target || target.deletedAt) {
       res.status(404).json({ message: 'Akun tidak ditemukan.' });
       return;
     }
@@ -508,10 +514,10 @@ export const updateStudentRole = async (req: any, res: Response, next: NextFunct
 
     const target = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, nim: true, role: true, profile: { select: { nama: true } } },
+      select: { id: true, nim: true, role: true, deletedAt: true, profile: { select: { nama: true } } },
     });
 
-    if (!target) {
+    if (!target || target.deletedAt) {
       res.status(404).json({ message: 'Akun tidak ditemukan.' });
       return;
     }
@@ -598,13 +604,14 @@ export const updateStudent = async (req: any, res: Response, next: NextFunction)
         id: true,
         nim: true,
         role: true,
+        deletedAt: true,
         profile: {
           select: { id: true, nama: true, program_studi: true, email: true, no_hp: true },
         },
       },
     });
 
-    if (!target) {
+    if (!target || target.deletedAt) {
       res.status(404).json({ message: 'Akun tidak ditemukan.' });
       return;
     }
@@ -710,15 +717,11 @@ export const updateStudent = async (req: any, res: Response, next: NextFunction)
 };
 
 /**
- * 4c. Menghapus satu akun mahasiswa secara permanen — KHUSUS SUPERADMIN.
+ * 4c. Memindahkan satu akun mahasiswa ke tempat sampah — KHUSUS SUPERADMIN.
  *
- * Penghapusan memakai `purgeStudentAccount` yang sama dengan siklus hidup akun
- * otomatis, sehingga seluruh data turunannya (tiket miliknya, jabatan, profil,
- * perangkat, notifikasi) ikut dibersihkan dalam satu transaksi dan tidak ada
- * baris yatim yang tertinggal.
- *
- * Akun pengelola (ADMIN/SUPERADMIN) tidak pernah dihapus dari halaman ini; akun
- * sendiri juga tidak, supaya superadmin tidak mengunci dirinya sendiri.
+ * Akun tidak langsung dimusnahkan: ia disembunyikan dari daftar, tidak bisa
+ * login, dan dapat dipulihkan dalam 30 hari. Penghapusan permanen dilakukan
+ * dari tab Tempat Sampah atau oleh job pembersihan setelah tenggat lewat.
  */
 export const deleteStudent = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -731,10 +734,10 @@ export const deleteStudent = async (req: any, res: Response, next: NextFunction)
 
     const target = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, nim: true, role: true, profile: { select: { nama: true } } },
+      select: { id: true, nim: true, role: true, deletedAt: true, profile: { select: { nama: true } } },
     });
 
-    if (!target) {
+    if (!target || target.deletedAt) {
       res.status(404).json({ message: 'Akun tidak ditemukan.' });
       return;
     }
@@ -747,20 +750,21 @@ export const deleteStudent = async (req: any, res: Response, next: NextFunction)
     }
 
     const nama = target.profile?.nama || target.nim;
-    await purgeStudentAccount(target.id);
+    const alasan = String(req.body?.reason || '').trim() || null;
+    await softDeleteStudentAccount(target.id, req.user.id, alasan);
 
-    // Dicatat SETELAH penghapusan: purge juga menghapus audit log milik akun
-    // tersebut, tetapi catatan tindakan superadmin ini harus tetap ada.
     await logActivity(
       req.user.id,
-      'DELETE_STUDENT',
+      'TRASH_STUDENT',
       'User',
-      `Menghapus permanen akun ${nama} (${target.nim}) beserta data turunannya`,
+      `Memindahkan akun ${nama} (${target.nim}) ke tempat sampah 30 hari`,
       undefined,
-      { nim: target.nim, nama, role: target.role }
+      { nim: target.nim, nama, role: target.role, alasan }
     );
 
-    res.status(200).json({ message: `Akun ${nama} (${target.nim}) dihapus permanen.` });
+    res.status(200).json({
+      message: `Akun ${nama} (${target.nim}) dipindahkan ke Tempat Sampah dan dapat dipulihkan dalam 30 hari.`,
+    });
   } catch (error) {
     next(error);
   }

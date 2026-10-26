@@ -14,8 +14,19 @@
  * boleh ikut "gagal" lebih dalam karena pemberitahuan itu sendiri tersendat.
  */
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const nodemailer = require('nodemailer');
+
+/** Lima baris terakhir backup.log, supaya email menyebut penyebab sebenarnya. */
+function jejakLog() {
+  const berkas = path.join(__dirname, '..', '..', 'backups', 'backup.log');
+  try {
+    return fs.readFileSync(berkas, 'utf8').trim().split(/\r?\n/).slice(-5).join('\n');
+  } catch {
+    return '';
+  }
+}
 
 const POLA_EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -50,16 +61,29 @@ function utama() {
   const statusArg = String(process.argv[2] || 'GAGAL').toUpperCase();
   const berkasArg = String(process.argv[3] || '').trim();
 
+  const log = jejakLog();
+  // Error 2002 = MySQL lokal belum menyala. Ini penyebab paling sering dan
+  // biasanya sudah ditangani skrip dengan menyalakan mysqld; bila email tetap
+  // terkirim, subjeknya harus langsung menunjuk masalahnya, bukan "backup gagal".
+  const databaseMati = /2002|Can't connect to MySQL server/i.test(log);
+
   const subjek =
     statusArg === 'GAGAL'
-      ? `[PERINGATAN] Backup bem_ft_unaya GAGAL — ${new Date().toLocaleString('id-ID')}`
+      ? databaseMati
+        ? `[PERINGATAN] MySQL lokal tidak menyala — backup bem_ft_unaya gagal ${new Date().toLocaleString('id-ID')}`
+        : `[PERINGATAN] Backup bem_ft_unaya GAGAL — ${new Date().toLocaleString('id-ID')}`
       : `[INFO] Backup bem_ft_unaya ${statusArg} — ${new Date().toLocaleString('id-ID')}`;
 
   const isi = [
     `Status backup: ${statusArg}`,
     berkasArg ? `Berkas target: ${berkasArg}` : 'Berkas target: (tidak diberikan)',
     '',
-    'Periksa log lengkap di:',
+    databaseMati
+      ? 'Penyebab: MySQL lokal tidak menerima koneksi (error 2002). Skrip sudah mencoba menyalakan mysqld; periksa apakah Laragon/MySQL berjalan.'
+      : 'Baris log terakhir:',
+    ...(log ? ['', log] : []),
+    '',
+    'Log lengkap:',
     '  D:\\Coding Apis\\bem-ft-unaya\\backups\\backup.log',
     '',
     'Pengirim otomatis: scripts\\backup-database.bat + backend\\scripts\\peringatan-backup.cjs',

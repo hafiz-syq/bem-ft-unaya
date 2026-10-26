@@ -53,7 +53,7 @@ export const getPerangkat = async (req: any, res: Response, next: NextFunction):
     const cari = typeof req.query.search === 'string' ? req.query.search.trim() : '';
     const status = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : 'SEMUA';
 
-    const where: any = {};
+    const where: any = { deletedAt: null };
 
     if (cari) {
       where.OR = [
@@ -75,9 +75,9 @@ export const getPerangkat = async (req: any, res: Response, next: NextFunction):
         take: batas,
       }),
       prisma.user.count({ where }),
-      prisma.user.count({ where: { deviceId: { not: null } } }),
-      prisma.user.count({ where: { pendingDeviceId: { not: null } } }),
-      prisma.user.count({ where: { deviceId: null } }),
+      prisma.user.count({ where: { deletedAt: null, deviceId: { not: null } } }),
+      prisma.user.count({ where: { deletedAt: null, pendingDeviceId: { not: null } } }),
+      prisma.user.count({ where: { deletedAt: null, deviceId: null } }),
     ]);
 
     res.status(200).json({

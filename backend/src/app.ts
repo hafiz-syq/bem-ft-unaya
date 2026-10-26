@@ -25,6 +25,12 @@ import deviceRoutes from './routes/device.routes';
 import imageConvertRoutes from './routes/image-convert.routes';
 import internalRoutes from './routes/internal.routes';
 import siteThemeRoutes from './routes/site-theme.routes';
+import announcementRoutes from './routes/announcement.routes';
+import reportRoutes from './routes/report.routes';
+import searchRoutes from './routes/search.routes';
+import errorLogRoutes from './routes/error-log.routes';
+import documentRoutes from './routes/document.routes';
+import pushRoutes from './routes/push.routes';
 import { UPLOAD_LIMITS } from './middlewares/upload.middleware';
 import { bolehkanOrigin } from './lib/cors-origin';
 import { folderUploads } from './lib/uploads';
@@ -113,6 +119,12 @@ app.use('/api/devices', deviceRoutes);
 app.use('/api/image-convert', imageConvertRoutes);
 // Tema musiman: dibaca publik, diubah hanya oleh SUPERADMIN.
 app.use('/api/site-theme', siteThemeRoutes);
+app.use('/api/announcements', announcementRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/error-logs', errorLogRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/push', pushRoutes);
 // Endpoint untuk cron hPanel (siklus akun & notifikasi) — lihat routes/internal.routes.ts.
 app.use('/api/internal', internalRoutes);
 
@@ -180,9 +192,12 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     // Field "file" dipakai dua jalur dengan batas berbeda: impor PDF (pdfImpor)
     // dan lampiran/cover biasa (file). Jalur permintaan menentukan angkanya.
     const imporPdf = /\/students\/import\//.test(String(req.originalUrl || req.url || ''));
+    const arsipDokumen = /\/documents(?:\/|$)/.test(String(req.originalUrl || req.url || ''));
     const batas = imporPdf
       ? UPLOAD_LIMITS.pdfImpor
-      : (UPLOAD_LIMITS as Record<string, number>)[err.field];
+      : arsipDokumen
+        ? UPLOAD_LIMITS.dokumen
+        : (UPLOAD_LIMITS as Record<string, number>)[err.field];
     const pesanMulter: Record<string, string> = {
       LIMIT_FILE_SIZE: batas
         ? `Ukuran file terlalu besar. Maksimal ${Math.round(batas / 1024 / 1024)} MB.`
@@ -204,6 +219,19 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
   // 3. Sisanya benar-benar kegagalan tak terduga
   console.error(err.stack);
+  // Dicatat ke database agar admin bisa meninjaunya di halaman Pemantauan.
+  void import('./services/error-log.service')
+    .then(({ catatErrorLog }) =>
+      catatErrorLog({
+        message: err?.message || 'Kesalahan tidak diketahui',
+        stack: err?.stack || null,
+        method: req.method,
+        path: req.originalUrl || req.url,
+        statusCode: 500,
+        userId: (req as any).user?.id || null,
+      })
+    )
+    .catch(() => undefined);
   res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
 });
 

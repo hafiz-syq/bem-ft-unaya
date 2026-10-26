@@ -1,8 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
-import { logActivity } from '../services/audit.service';
+import { logActivity, logSystemActivity } from '../services/audit.service';
 import { isAdminRole } from '../lib/ticket-access';
+
+/**
+ * Penyaring sederhana untuk pesan yang perlu ditinjau admin. Ini bukan sensor
+ * otomatis: pesan tetap disimpan, hanya ditandai agar masuk antrean moderasi.
+ */
+const POLA_KATA_SENSITIF =
+  /\b(anjing|bangsat|bajingan|kontol|memek|pepek|goblok|tolol|idiot|kampret|sialan|babi|brengsek|fuck|shit|bitch)\b/i;
+
+const alasanFlag = (isi: string): string | null =>
+  POLA_KATA_SENSITIF.test(isi) ? 'Mengandung kata yang perlu ditinjau.' : null;
 
 /**
  * Permintaan dari pengguna yang sudah melewati `requireAuth`.
@@ -91,6 +101,15 @@ export const balasKomentar = async (req: Permintaan, res: Response, next: NextFu
     const parsed = validateReplyContent.safeParse({ content });
     if (!parsed.success) {
       res.status(400).json({ message: (parsed.error as any).issues?.[0]?.message || (parsed.error as any).errors?.[0]?.message || 'Data tidak valid.' });
+      return;
+    }
+
+    const induk = await prisma.publicComment.findUnique({
+      where: { id: idKomentar },
+      select: { deletedAt: true },
+    });
+    if (!induk || induk.deletedAt) {
+      res.status(404).json({ message: 'Pesan buku tamu tidak ditemukan.' });
       return;
     }
 
@@ -248,6 +267,16 @@ export const reportComment = async (req: Permintaan, res: Response, next: NextFu
       return;
     }
 
+    await prisma.publicComment.update({
+      where: { id: commentId },
+      data: {
+        isFlagged: true,
+        flagReason: `Dilaporkan pengguna: ${reason ? String(reason).slice(0, 200) : 'tanpa alasan'}`,
+        reportedCount: { increment: 1 },
+        lastReportedAt: new Date(),
+      },
+    });
+
     const admins = await prisma.user.findMany({
       where: { role: { in: ['ADMIN', 'SUPERADMIN'] } },
       select: { id: true, profile: { select: { nama: true } } },
@@ -267,7 +296,7 @@ export const reportComment = async (req: Permintaan, res: Response, next: NextFu
     await logActivity(
       reporter.id,
       'REPORT_PUBLIC_COMMENT',
-      'PublicCommentReply',
+      'PublicComment',
       `Melaporkan komentar dari ${comment.nama} dengan alasan: ${reason || 'Tidak ada alasan'}`,
       commentId,
     );
@@ -289,8 +318,17 @@ export const createComment = async (req: Request, res: Response, next: NextFunct
     }
 
 
+    const alasan = alasanFlag(String(content));
     const newComment = await prisma.publicComment.create({
-      data: { nama, asal_kampus, email, no_hp, content },
+      data: {
+        nama,
+        asal_kampus,
+        email,
+        no_hp,
+        content,
+        isFlagged: Boolean(alasan),
+        flagReason: alasan,
+      },
     });
 
     res.status(201).json({
@@ -306,7 +344,7 @@ export const createComment = async (req: Request, res: Response, next: NextFunct
 export const getPublicComments = async (_req: Request, res: Response, next: NextFunction) => {
   try {
     const comments = await prisma.publicComment.findMany({
-      where: { status: 'APPROVED' },
+      where: { status: 'APPROVED', deletedAt: null },
       orderBy: { createdAt: 'desc' },
       include: {
         replies: {
@@ -353,9 +391,15 @@ export const getCommentsForManagement = async (req: Permintaan, res: Response, n
 
     const { status } = req.query as { status?: string };
     const where: any = {};
-    if (status && status !== 'ALL') where.status = status;
+    if (status === 'TRASH') {
+      where.deletedAt = { not: null };
+    } else {
+      // Daftar normal tidak pernah menampilkan pesan di tempat sampah.
+      where.deletedAt = null;
+      if (status && status !== 'ALL') where.status = status;
+    }
 
-    const [comments, total, menunggu, disetujui, ditolak] = await Promise.all([
+    const [comments, total, menunggu, disetujui, ditolak, sampah] = await Promise.all([
       prisma.publicComment.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -370,10 +414,11 @@ export const getCommentsForManagement = async (req: Permintaan, res: Response, n
           },
         },
       }),
-      prisma.publicComment.count(),
-      prisma.publicComment.count({ where: { status: 'PENDING' } }),
-      prisma.publicComment.count({ where: { status: 'APPROVED' } }),
-      prisma.publicComment.count({ where: { status: 'REJECTED' } }),
+      prisma.publicComment.count({ where: { deletedAt: null } }),
+      prisma.publicComment.count({ where: { status: 'PENDING', deletedAt: null } }),
+      prisma.publicComment.count({ where: { status: 'APPROVED', deletedAt: null } }),
+      prisma.publicComment.count({ where: { status: 'REJECTED', deletedAt: null } }),
+      prisma.publicComment.count({ where: { deletedAt: { not: null } } }),
     ]);
 
     const data = comments.map((c: any) => ({
@@ -385,6 +430,10 @@ export const getCommentsForManagement = async (req: Permintaan, res: Response, n
       content: c.content,
       status: c.status,
       createdAt: c.createdAt,
+      isFlagged: Boolean((c as any).isFlagged),
+      flagReason: (c as any).flagReason ?? null,
+      reportedCount: (c as any).reportedCount ?? 0,
+      deletedAt: (c as any).deletedAt ?? null,
       moderatedAt: (c as any).moderatedAt ?? null,
       ditinjauOleh: (c as any).ditinjauOleh ?? null,
       balasan: c.replies.map((r: any) => ({
@@ -398,7 +447,7 @@ export const getCommentsForManagement = async (req: Permintaan, res: Response, n
       })),
     }));
 
-    res.json({ data, meta: { total, menunggu, disetujui, ditolak } });
+    res.json({ data, meta: { total, menunggu, disetujui, ditolak, sampah } });
   } catch (error) {
     next(error);
   }
@@ -417,7 +466,7 @@ export const ubahStatusKomentar = async (req: Permintaan, res: Response, next: N
     }
 
     const comment = await prisma.publicComment.findUnique({ where: { id } });
-    if (!comment) {
+    if (!comment || comment.deletedAt) {
       res.status(404).json({ message: 'Komentar tidak ditemukan.' });
       return;
     }
@@ -442,9 +491,8 @@ export const ubahStatusKomentar = async (req: Permintaan, res: Response, next: N
 };
 
 // DELETE /api/public-comments/manage/:id
-// Hapus permanen satu pesan buku tamu beserta seluruh balasannya.
-// Khusus ADMIN/SUPERADMIN: penghapusan ini bersifat permanen, jadi lebih kuat
-// daripada sekadar menolak (REJECTED) yang masih bisa dikembalikan ke antrean.
+// Memindahkan pesan ke tempat sampah 30 hari. Balasan tidak ikut dihapus
+// sampai pesan benar-benar dimusnahkan dari tempat sampah.
 export const hapusKomentar = async (req: Permintaan, res: Response, next: NextFunction) => {
   try {
     if (!req.user) {
@@ -459,27 +507,157 @@ export const hapusKomentar = async (req: Permintaan, res: Response, next: NextFu
     const { id } = req.params;
     const komentar = await prisma.publicComment.findUnique({
       where: { id },
-      select: { id: true, nama: true, content: true },
+      select: { id: true, nama: true, content: true, deletedAt: true },
     });
 
-    if (!komentar) {
+    if (!komentar || komentar.deletedAt) {
       res.status(404).json({ message: 'Pesan tidak ditemukan.' });
       return;
     }
 
-    // Balasan ikut terhapus oleh ON DELETE CASCADE
-    // (migration 20261016090000_komentar_publik_dan_perpanjangan_akun).
+    await prisma.publicComment.update({
+      where: { id: komentar.id },
+      data: { deletedAt: new Date(), deletedById: req.user.id },
+    });
+
+    await logActivity(
+      req.user.id,
+      'TRASH_PUBLIC_COMMENT',
+      'PublicComment',
+      `Memindahkan pesan buku tamu dari ${komentar.nama} ke tempat sampah: "${komentar.content.substring(0, 80)}${komentar.content.length > 80 ? '...' : ''}"`,
+      komentar.id,
+    );
+
+    res.json({ message: 'Pesan dipindahkan ke Tempat Sampah dan dapat dipulihkan dalam 30 hari.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const pulihkanKomentar = async (req: Permintaan, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user || !isAdminRole(req.user.role)) {
+      res.status(403).json({ message: 'Hanya admin dan superadmin yang dapat memulihkan pesan.' });
+      return;
+    }
+
+    const komentar = await prisma.publicComment.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, deletedAt: true },
+    });
+    if (!komentar?.deletedAt) {
+      res.status(404).json({ message: 'Pesan tidak ditemukan di tempat sampah.' });
+      return;
+    }
+
+    await prisma.publicComment.update({
+      where: { id: komentar.id },
+      data: { deletedAt: null, deletedById: null },
+    });
+
+    await logActivity(
+      req.user.id,
+      'RESTORE_PUBLIC_COMMENT',
+      'PublicComment',
+      'Memulihkan pesan buku tamu dari tempat sampah',
+      komentar.id,
+    );
+
+    res.json({ message: 'Pesan berhasil dipulihkan.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const hapusKomentarPermanen = async (req: Permintaan, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user || !isAdminRole(req.user.role)) {
+      res.status(403).json({ message: 'Hanya admin dan superadmin yang dapat menghapus permanen.' });
+      return;
+    }
+
+    const komentar = await prisma.publicComment.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, nama: true, deletedAt: true },
+    });
+    if (!komentar?.deletedAt) {
+      res.status(404).json({ message: 'Pesan tidak ditemukan di tempat sampah.' });
+      return;
+    }
+
+    // Balasan ikut terhapus oleh ON DELETE CASCADE.
     await prisma.publicComment.delete({ where: { id: komentar.id } });
 
     await logActivity(
       req.user.id,
-      'DELETE_PUBLIC_COMMENT',
+      'DELETE_PUBLIC_COMMENT_PERMANENT',
       'PublicComment',
-      `Menghapus pesan buku tamu dari ${komentar.nama}: "${komentar.content.substring(0, 80)}${komentar.content.length > 80 ? '...' : ''}"`,
+      `Menghapus permanen pesan buku tamu dari ${komentar.nama}`,
       komentar.id,
     );
 
-    res.json({ message: 'Pesan beserta seluruh balasannya berhasil dihapus.' });
+    res.json({ message: 'Pesan beserta seluruh balasannya dihapus permanen.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Laporan dari pengunjung tanpa login. Pesan tidak langsung disembunyikan;
+ * hanya ditandai agar admin melihatnya di antrean “Perlu ditinjau”.
+ */
+export const laporkanKomentarPublik = async (req: Permintaan, res: Response, next: NextFunction) => {
+  try {
+    const { commentId } = req.params;
+    const reason = String((req.body as any)?.reason || '').trim().slice(0, 300);
+
+    const komentar = await prisma.publicComment.findUnique({
+      where: { id: commentId },
+      select: { id: true, nama: true, status: true, deletedAt: true },
+    });
+    if (!komentar || komentar.deletedAt) {
+      res.status(404).json({ message: 'Pesan tidak ditemukan.' });
+      return;
+    }
+    if (komentar.status !== 'APPROVED') {
+      res.status(400).json({ message: 'Hanya pesan yang sudah tayang yang dapat dilaporkan.' });
+      return;
+    }
+
+    const [diperbarui, admins] = await Promise.all([
+      prisma.publicComment.update({
+        where: { id: komentar.id },
+        data: {
+          isFlagged: true,
+          flagReason: `Dilaporkan pengunjung: ${reason || 'tanpa alasan'}`,
+          reportedCount: { increment: 1 },
+          lastReportedAt: new Date(),
+        },
+      }),
+      prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'SUPERADMIN'] }, deletedAt: null },
+        select: { id: true },
+      }),
+    ]);
+
+    if (admins.length > 0) {
+      await prisma.notification.createMany({
+        data: admins.map((a) => ({
+          userId: a.id,
+          title: 'Laporan Pesan Buku Tamu',
+          message: `Pesan dari ${komentar.nama} ditandai perlu ditinjau${reason ? `: ${reason}` : '.'}`,
+        })),
+      });
+    }
+
+    await logSystemActivity(
+      'REPORT_PUBLIC_COMMENT_PUBLIK',
+      'PublicComment',
+      `Pengunjung melaporkan pesan dari ${komentar.nama} (${diperbarui.reportedCount}x)`,
+      komentar.id,
+    );
+
+    res.json({ message: 'Terima kasih, laporan Anda diteruskan ke admin.' });
   } catch (error) {
     next(error);
   }

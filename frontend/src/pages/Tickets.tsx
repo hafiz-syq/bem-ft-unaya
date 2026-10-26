@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, API_ORIGIN } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import UserAvatar from '../components/UserAvatar';
 import {
   Plus, MessageSquare, Clock, CheckCircle, XCircle, Search, Loader2, UserCog,
   Paperclip, FileText, Image as ImageIcon, Building2, Download, Eye, EyeOff,
-  ShieldCheck, Info, AlertTriangle
+  ShieldCheck, Info, AlertTriangle, Star, Timer, BookOpen, Save,
 } from 'lucide-react';
 import { canExportKeluhan, targetLabel, TICKET_TARGETS, ROLE_LABEL, isStaff } from '../lib/roles';
 
@@ -28,11 +29,32 @@ interface Attachment {
 interface Ticket {
   id: string; ticket_no: string; type: string; category: string; title: string; content: string;
   status: string; moderationStatus: string; targetOrganization: string | null; createdAt: string;
+  priority: string;
+  firstResponseAt: string | null;
+  resolvedAt: string | null;
+  rating: number | null;
+  ratingComment: string | null;
+  slaDueAt: string | null;
+  slaOverdue: boolean;
   sender: PenulisTiket;
   replies: Reply[];
   assignments: Assignment[];
   attachments: Attachment[];
 }
+
+interface TemplateBalasan {
+  id: string;
+  title: string;
+  content: string;
+}
+
+const PRIORITAS = ['RENDAH', 'NORMAL', 'TINGGI', 'MENDESAK'] as const;
+const GAYA_PRIORITAS: Record<string, string> = {
+  RENDAH: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  NORMAL: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  TINGGI: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  MENDESAK: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+};
 interface Assignee {
   id: string; nim: string; role: string; organisasi: string;
   profile: { nama: string; program_studi: string } | null;
@@ -45,8 +67,11 @@ export default function Tickets() {
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [assigneesList, setAssigneesList] = useState<Assignee[]>([]);
+  const [templates, setTemplates] = useState<TemplateBalasan[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [searchParams] = useSearchParams();
+  const kataCari = (searchParams.get('search') || '').toLowerCase();
 
   // State Modal Buat Tiket
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,8 +86,15 @@ export default function Tickets() {
   // State Balas & Assign
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState('');
+  const [templateDipilih, setTemplateDipilih] = useState<Record<string, string>>({});
   const [selectedAssignee, setSelectedAssignee] = useState<{ [ticketId: string]: string }>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // State penilaian tiket oleh pengirim.
+  const [nilaiTiket, setNilaiTiket] = useState<Ticket | null>(null);
+  const [bintang, setBintang] = useState(5);
+  const [komentarNilai, setKomentarNilai] = useState('');
+  const [menyimpanNilai, setMenyimpanNilai] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -70,8 +102,12 @@ export default function Tickets() {
       setTickets(response.data.data);
 
       if (!isMahasiswa) {
-        const assigneesRes = await api.get('/tickets/assignees');
+        const [assigneesRes, templatesRes] = await Promise.all([
+          api.get('/tickets/assignees'),
+          api.get('/tickets/templates'),
+        ]);
         setAssigneesList(assigneesRes.data.data);
+        setTemplates(templatesRes.data.data);
       }
     } catch (error) { console.error('Gagal memuat data tiket:', error); }
     finally { setLoading(false); }
@@ -129,8 +165,73 @@ export default function Tickets() {
     if (!replyContent.trim()) return;
     try {
       await api.post(`/tickets/${ticketId}/replies`, { content: replyContent });
-      setReplyingTo(null); setReplyContent(''); fetchData();
+      setReplyingTo(null); setReplyContent('');
+      setTemplateDipilih((p) => ({ ...p, [ticketId]: '' }));
+      fetchData();
     } catch (error) { console.error(error); alert('Gagal mengirim balasan'); }
+  };
+
+  const handlePriority = async (ticketId: string, priority: string) => {
+    setBusyId(ticketId);
+    try {
+      await api.patch(`/tickets/${ticketId}/priority`, { priority });
+      fetchData();
+    } catch (error) { console.error(error); alert('Gagal mengubah prioritas tiket.'); }
+    finally { setBusyId(null); }
+  };
+
+  const pakaiTemplate = (ticketId: string, templateId: string) => {
+    const templat = templates.find((t) => t.id === templateId);
+    setTemplateDipilih((p) => ({ ...p, [ticketId]: templateId }));
+    if (templat) {
+      setReplyingTo(ticketId);
+      setReplyContent(templat.content);
+    }
+  };
+
+  const simpanSebagaiTemplate = async () => {
+    if (!replyContent.trim()) {
+      alert('Tulis isi balasan terlebih dahulu, lalu simpan sebagai template.');
+      return;
+    }
+    const judul = window.prompt('Nama template balasan:', 'Balasan umum');
+    if (!judul?.trim()) return;
+    try {
+      const res = await api.post('/tickets/templates', {
+        title: judul.trim(),
+        content: replyContent.trim(),
+      });
+      setTemplates((lama) => [res.data.data, ...lama]);
+      alert('Template tersimpan dan bisa dipakai pada tiket lain.');
+    } catch (error) {
+      console.error(error);
+      alert('Gagal menyimpan template.');
+    }
+  };
+
+  const bukaNilai = (ticket: Ticket) => {
+    setNilaiTiket(ticket);
+    setBintang(ticket.rating || 5);
+    setKomentarNilai(ticket.ratingComment || '');
+  };
+
+  const simpanNilai = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nilaiTiket) return;
+    setMenyimpanNilai(true);
+    try {
+      await api.post(`/tickets/${nilaiTiket.id}/rating`, {
+        rating: bintang,
+        comment: komentarNilai.trim() || undefined,
+      });
+      setNilaiTiket(null);
+      fetchData();
+    } catch (error) {
+      console.error(error);
+      alert('Gagal menyimpan penilaian.');
+    } finally {
+      setMenyimpanNilai(false);
+    }
   };
 
   const handleAssign = async (ticketId: string) => {
@@ -212,6 +313,15 @@ export default function Tickets() {
     }
   };
 
+  const terlihat = tickets.filter((t) => {
+    if (!kataCari) return true;
+    return (
+      t.ticket_no.toLowerCase().includes(kataCari) ||
+      t.title.toLowerCase().includes(kataCari) ||
+      (t.sender.profile?.nama || t.sender.nim).toLowerCase().includes(kataCari)
+    );
+  });
+
   return (
     <div className="max-w-5xl p-6 mx-auto space-y-6 md:p-8">
       <div className="flex flex-col justify-between gap-4 p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm md:flex-row md:items-center rounded-xl">
@@ -254,13 +364,13 @@ export default function Tickets() {
 
       <div className="space-y-4">
         {loading ? <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-amber-400 animate-spin" /></div>
-          : tickets.length === 0 ? (
+          : terlihat.length === 0 ? (
             <div className="p-12 text-center text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900 rounded-xl">
               <Search className="w-12 h-12 mx-auto mb-4 text-gray-300" />
               <p className="text-lg font-medium text-gray-900 dark:text-gray-100">Belum ada tiket</p>
             </div>
           )
-          : tickets.map(ticket => {
+          : terlihat.map(ticket => {
             const activeAssignment = ticket.assignments[0];
 
             return (
@@ -275,6 +385,9 @@ export default function Tickets() {
                             <Building2 className="w-3 h-3" /> {targetLabel(ticket.targetOrganization)}
                           </span>
                         )}
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${GAYA_PRIORITAS[ticket.priority] || GAYA_PRIORITAS.NORMAL}`}>
+                          {ticket.priority}
+                        </span>
                         <span className="text-sm font-medium text-gray-500 dark:text-gray-400">#{ticket.ticket_no}</span>
                         {ticket.moderationStatus === 'PUBLISHED' && (
                           <span className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-green-800 dark:text-green-300 rounded-full bg-green-100 dark:bg-green-900/40">
@@ -308,8 +421,37 @@ export default function Tickets() {
                           ? 'Identitas pengirim disembunyikan saat tiket ini tampil di halaman publik.'
                           : 'Aspirasi ini tampil di halaman publik dengan nama & NIM pengirim.'}
                       </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-2 text-[11px] font-medium">
+                        {ticket.firstResponseAt ? (
+                          <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-300">
+                            <Timer className="w-3.5 h-3.5" /> Respons pertama {new Date(ticket.firstResponseAt).toLocaleString('id-ID')}
+                          </span>
+                        ) : ticket.status !== 'SELESAI' && ticket.status !== 'DITOLAK' ? (
+                          <span className={`inline-flex items-center gap-1 ${ticket.slaOverdue ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                            <Timer className="w-3.5 h-3.5" />
+                            {ticket.slaOverdue ? 'SLA terlampaui' : 'Batas respons'}{' '}
+                            {ticket.slaDueAt ? new Date(ticket.slaDueAt).toLocaleString('id-ID') : '-'}
+                          </span>
+                        ) : null}
+                        {ticket.rating !== null && (
+                          <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-300">
+                            <Star className="w-3.5 h-3.5 fill-current" /> {ticket.rating}/5
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="shrink-0">{getStatusBadge(ticket.status)}</div>
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      {getStatusBadge(ticket.status)}
+                      {ticket.sender.id === user?.id && ticket.status === 'SELESAI' && (
+                        <button
+                          type="button"
+                          onClick={() => bukaNilai(ticket)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60"
+                        >
+                          <Star className="w-3.5 h-3.5" /> {ticket.rating ? 'Ubah penilaian' : 'Beri penilaian'}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="p-4 mb-4 text-sm text-gray-700 dark:text-gray-300 border border-gray-100 dark:border-gray-800 rounded-lg whitespace-pre-wrap bg-gray-50 dark:bg-gray-800">{ticket.content}</div>
@@ -401,6 +543,15 @@ export default function Tickets() {
 
                         <div className="flex flex-wrap gap-2">
                           <select
+                            className="p-2 text-sm font-bold border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800"
+                            value={ticket.priority}
+                            onChange={(e) => handlePriority(ticket.id, e.target.value)}
+                            disabled={busyId === ticket.id}
+                            title="Prioritas tiket"
+                          >
+                            {PRIORITAS.map((p) => <option key={p} value={p}>{p}</option>)}
+                          </select>
+                          <select
                             className="p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800"
                             value={ticket.status}
                             onChange={(e) => handleStatus(ticket.id, e.target.value)}
@@ -434,17 +585,39 @@ export default function Tickets() {
 
                       {/* Baris 2: balasan */}
                       {replyingTo === ticket.id ? (
-                        <div className="flex flex-col w-full gap-2 md:flex-row">
-                          <input
-                            type="text"
-                            placeholder="Tulis balasan resmi..."
-                            className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg"
-                            value={replyContent}
-                            onChange={(e) => setReplyContent(e.target.value)}
-                          />
-                          <div className="flex gap-2">
-                            <button onClick={() => { setReplyingTo(null); setReplyContent(''); }} className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
-                            <button onClick={() => handleSubmitReply(ticket.id)} className="px-3 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500">Kirim</button>
+                        <div className="w-full space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <label className="inline-flex items-center gap-1 text-xs font-bold text-gray-500 dark:text-gray-400">
+                              <BookOpen className="w-3.5 h-3.5" /> Template
+                            </label>
+                            <select
+                              className="flex-1 min-w-[180px] p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800"
+                              value={templateDipilih[ticket.id] || ''}
+                              onChange={(e) => pakaiTemplate(ticket.id, e.target.value)}
+                            >
+                              <option value="">Pilih template balasan...</option>
+                              {templates.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => simpanSebagaiTemplate()}
+                              className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
+                            >
+                              <Save className="w-3.5 h-3.5" /> Simpan template
+                            </button>
+                          </div>
+                          <div className="flex flex-col w-full gap-2 md:flex-row">
+                            <textarea
+                              rows={3}
+                              placeholder="Tulis balasan resmi..."
+                              className="w-full p-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg dark:bg-gray-900"
+                              value={replyContent}
+                              onChange={(e) => setReplyContent(e.target.value)}
+                            />
+                            <div className="flex gap-2 md:flex-col">
+                              <button onClick={() => { setReplyingTo(null); setReplyContent(''); }} className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
+                              <button onClick={() => handleSubmitReply(ticket.id)} className="px-3 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500">Kirim</button>
+                            </div>
                           </div>
                         </div>
                       ) : (
@@ -553,6 +726,79 @@ export default function Tickets() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {nilaiTiket && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Beri penilaian tiket"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm"
+          onClick={() => setNilaiTiket(null)}
+        >
+          <form
+            onSubmit={simpanNilai}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md overflow-hidden bg-white shadow-2xl rounded-2xl dark:bg-gray-900 dark:border dark:border-gray-800"
+          >
+            <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100 dark:border-gray-800">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Nilai Layanan Tiket</h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  #{nilaiTiket.ticket_no} — {nilaiTiket.title}
+                </p>
+              </div>
+              <button type="button" onClick={() => setNilaiTiket(null)} aria-label="Tutup" className="p-1 text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <p className="mb-2 text-sm font-bold text-gray-700 dark:text-gray-300">Seberapa puas Anda dengan penanganannya?</p>
+                <div className="flex gap-1" role="group" aria-label="Pilih bintang 1 sampai 5">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setBintang(n)}
+                      aria-label={`${n} bintang`}
+                      aria-pressed={bintang === n}
+                      className={`p-1.5 rounded-lg transition ${n <= bintang ? 'text-amber-400' : 'text-gray-300 dark:text-gray-600'} hover:bg-amber-50 dark:hover:bg-amber-950/60`}
+                    >
+                      <Star className={`w-7 h-7 ${n <= bintang ? 'fill-current' : ''}`} />
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{bintang} dari 5 bintang</p>
+              </div>
+
+              <div>
+                <label htmlFor="komentar-nilai" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">
+                  Catatan (opsional)
+                </label>
+                <textarea
+                  id="komentar-nilai"
+                  rows={3}
+                  maxLength={1000}
+                  value={komentarNilai}
+                  onChange={(e) => setKomentarNilai(e.target.value)}
+                  placeholder="Apa yang sudah baik, atau apa yang perlu ditingkatkan?"
+                  className="w-full p-2.5 text-sm border border-gray-300 dark:border-gray-700 rounded-lg dark:bg-gray-800"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-gray-800">
+              <button type="button" onClick={() => setNilaiTiket(null)} className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800">
+                Batal
+              </button>
+              <button type="submit" disabled={menyimpanNilai} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
+                {menyimpanNilai ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Kirim penilaian'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

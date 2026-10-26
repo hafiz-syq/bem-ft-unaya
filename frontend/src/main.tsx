@@ -45,3 +45,13 @@ if (rootEl.hasChildNodes()) {
 if (typeof document !== 'undefined' && document.documentElement) {
   document.documentElement.setAttribute('lang', 'id');
 }
+
+// Service worker untuk PWA & notifikasi browser. Hanya didaftarkan di HTTPS
+// atau localhost (syarat browser); kegagalan registrasi tidak mengganggu app.
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator && window.isSecureContext) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((error) => {
+      console.warn('Service worker tidak terdaftar:', error);
+    });
+  });
+}

@@ -2,6 +2,8 @@ import { Response, NextFunction } from 'express';
 import ExcelJS from 'exceljs';
 import prisma from '../lib/prisma';
 import { sendEmailNotification, generateTicketNotificationEmail } from '../services/email.service';
+import { kirimPushKePengguna } from '../services/push.service';
+import { hitungTenggatSla } from './ticket-extra.controller';
 import {
   ADMIN_ROLES,
   OFFICER_ROLES,
@@ -180,7 +182,18 @@ export const getTickets = async (req: any, res: Response, next: NextFunction): P
       orderBy: { createdAt: 'desc' },
     });
 
-    res.status(200).json({ data: tickets });
+    // SLA dihitung di server supaya halaman dan ekspor memakai acuan yang sama.
+    const data = tickets.map((t) => {
+      const tenggat = hitungTenggatSla(t.createdAt, t.priority);
+      const terlambat =
+        !t.firstResponseAt &&
+        t.status !== 'SELESAI' &&
+        t.status !== 'DITOLAK' &&
+        Date.now() > tenggat.getTime();
+      return { ...t, slaDueAt: tenggat, slaOverdue: terlambat };
+    });
+
+    res.status(200).json({ data });
   } catch (error) { next(error); }
 };
 
@@ -266,12 +279,27 @@ export const replyTicket = async (req: any, res: Response, next: NextFunction): 
     });
 
     if (ticket.senderId !== userId) {
+      // Balasan pertama pengurus menghentikan jam SLA dan memindahkan tiket ke
+      // DIPROSES bila sebelumnya masih menunggu.
+      const perubahan: Record<string, unknown> = {};
+      if (!ticket.firstResponseAt) perubahan.firstResponseAt = new Date();
+      if (ticket.status === 'DIKIRIM' || ticket.status === 'DITINJAU') perubahan.status = 'DIPROSES';
+      if (Object.keys(perubahan).length > 0) {
+        await prisma.ticket.update({ where: { id }, data: perubahan });
+      }
+
       await prisma.notification.create({
         data: {
           userId: ticket.senderId,
           title: 'Balasan Baru pada Tiket',
           message: `Tiket #${ticket.ticket_no} Anda telah mendapat balasan baru dari pengurus.`,
         },
+      });
+
+      await kirimPushKePengguna(ticket.senderId, {
+        title: 'Balasan Baru pada Tiket',
+        body: `Tiket #${ticket.ticket_no} — ${ticket.title}`,
+        url: '/tickets',
       });
     }
 
@@ -355,6 +383,12 @@ export const assignTicket = async (req: any, res: Response, next: NextFunction):
       },
     });
 
+    await kirimPushKePengguna(assigneeId, {
+      title: 'Tiket Ditugaskan Kepada Anda',
+      body: `#${ticket.ticket_no} — ${ticket.title}`,
+      url: '/tickets',
+    });
+
     res.status(200).json({ message: 'Tiket berhasil ditugaskan.', data: newAssignment });
   } catch (error) { next(error); }
 };
@@ -385,6 +419,8 @@ export const setTicketModeration = async (req: any, res: Response, next: NextFun
         return;
       }
       data.status = status;
+      // Waktu selesai dipakai laporan bulanan untuk menghitung durasi layanan.
+      data.resolvedAt = status === 'SELESAI' || status === 'DITOLAK' ? new Date() : null;
     }
 
     if (Object.keys(data).length === 0) {
@@ -401,6 +437,29 @@ export const setTicketModeration = async (req: any, res: Response, next: NextFun
     }
 
     const updated = await prisma.ticket.update({ where: { id }, data });
+
+    if (status && status !== ticket.status && ticket.senderId !== req.user.id) {
+      const pesanStatus: Record<string, string> = {
+        DIKIRIM: 'kembali menunggu tinjauan',
+        DITINJAU: 'sedang ditinjau',
+        DIPROSES: 'sedang diproses',
+        SELESAI: 'telah selesai',
+        DITOLAK: 'ditolak',
+      };
+      await prisma.notification.create({
+        data: {
+          userId: ticket.senderId,
+          title: 'Status Tiket Diperbarui',
+          message: `Tiket #${ticket.ticket_no} ${pesanStatus[status] || 'diperbarui'} oleh pengurus.`,
+        },
+      });
+      await kirimPushKePengguna(ticket.senderId, {
+        title: 'Status Tiket Diperbarui',
+        body: `#${ticket.ticket_no} ${pesanStatus[status] || 'diperbarui'}.`,
+        url: '/tickets',
+      });
+    }
+
     res.status(200).json({ message: 'Tiket berhasil diperbarui.', data: updated });
   } catch (error) { next(error); }
 };

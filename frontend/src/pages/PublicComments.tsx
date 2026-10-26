@@ -5,7 +5,8 @@ import UserAvatar from '../components/UserAvatar';
 import { isStaff, isAdminRole, ROLE_LABEL } from '../lib/roles';
 import axios from 'axios';
 import {
-  MessageSquare, Search, Loader2, Check, X, CornerDownRight, Send, Info, UserCircle, Trash2
+  MessageSquare, Search, Loader2, Check, X, CornerDownRight, Send, Info, UserCircle, Trash2,
+  Flag, Undo2,
 } from 'lucide-react';
 
 interface Balasan {
@@ -29,23 +30,29 @@ interface Komentar {
   content: string;
   status?: string;
   createdAt: string;
+  isFlagged?: boolean;
+  flagReason?: string | null;
+  reportedCount?: number;
+  deletedAt?: string | null;
   moderatedAt?: string | null;
   ditinjauOleh?: string | null;
   balasan: Balasan[];
 }
 
-type FilterStatus = 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED';
+type FilterStatus = 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'TRASH';
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Menunggu tinjauan',
   APPROVED: 'Tayang',
   REJECTED: 'Ditolak',
+  TRASH: 'Tempat sampah',
 };
 
 const STATUS_GAYA: Record<string, string> = {
   PENDING: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200',
   APPROVED: 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300',
   REJECTED: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300',
+  TRASH: 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200',
 };
 
 const tanggal = (nilai: string) =>
@@ -64,7 +71,9 @@ export default function PublicComments() {
   const staf = isStaff(user?.role);
 
   const [komentar, setKomentar] = useState<Komentar[]>([]);
-  const [jumlah, setJumlah] = useState<{ total: number; menunggu: number; disetujui: number; ditolak: number } | null>(null);
+  const [jumlah, setJumlah] = useState<{
+    total: number; menunggu: number; disetujui: number; ditolak: number; sampah: number;
+  } | null>(null);
   const [filter, setFilter] = useState<FilterStatus>('ALL');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -121,7 +130,7 @@ export default function PublicComments() {
 
   const hapusPesan = async (k: Komentar) => {
     const yakin = window.confirm(
-      `Yakin ingin menghapus permanen pesan dari ${k.nama}? Pesan beserta seluruh balasannya tidak dapat dipulihkan kembali.`
+      `Pindahkan pesan dari ${k.nama} ke Tempat Sampah?\n\nPesan masih bisa dipulihkan dalam 30 hari.`
     );
     if (!yakin) return;
 
@@ -136,6 +145,50 @@ export default function PublicComments() {
       else alert('Terjadi kesalahan.');
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const pulihkanPesan = async (k: Komentar) => {
+    setBusyId(k.id);
+    setNotice('');
+    try {
+      const res = await api.post(`/public-comments/manage/${k.id}/restore`);
+      setNotice(res.data.message);
+      muat(filter);
+    } catch (err) {
+      if (axios.isAxiosError(err)) alert(err.response?.data?.message || 'Gagal memulihkan pesan.');
+      else alert('Terjadi kesalahan.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const hapusPermanenPesan = async (k: Komentar) => {
+    if (!window.confirm(`Hapus PERMANEN pesan dari ${k.nama} beserta seluruh balasannya? Tindakan ini tidak dapat dibatalkan.`)) return;
+    setBusyId(k.id);
+    setNotice('');
+    try {
+      const res = await api.delete(`/public-comments/manage/${k.id}/permanent`);
+      setNotice(res.data.message);
+      muat(filter);
+    } catch (err) {
+      if (axios.isAxiosError(err)) alert(err.response?.data?.message || 'Gagal menghapus permanen.');
+      else alert('Terjadi kesalahan.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const laporkanPesan = async (k: Komentar) => {
+    const alasan = window.prompt('Alasan melaporkan pesan ini (opsional):', 'Pesan tidak pantas');
+    if (alasan === null) return;
+    try {
+      const res = await api.post(`/public-comments/${k.id}/laporkan`, { reason: alasan.trim() || undefined });
+      setNotice(res.data.message);
+      if (staf) muat(filter);
+    } catch (err) {
+      if (axios.isAxiosError(err)) alert(err.response?.data?.message || 'Gagal mengirim laporan.');
+      else alert('Terjadi kesalahan.');
     }
   };
 
@@ -198,12 +251,13 @@ export default function PublicComments() {
 
       {/* Ringkasan moderasi, hanya untuk staf */}
       {staf && jumlah && (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
           {[
             { label: 'Total pesan', nilai: jumlah.total, warna: 'text-gray-900 dark:text-gray-100' },
             { label: 'Menunggu tinjauan', nilai: jumlah.menunggu, warna: 'text-amber-600 dark:text-amber-300' },
             { label: 'Tayang', nilai: jumlah.disetujui, warna: 'text-green-600 dark:text-green-400' },
             { label: 'Ditolak', nilai: jumlah.ditolak, warna: 'text-red-600 dark:text-red-400' },
+            { label: 'Tempat sampah', nilai: jumlah.sampah, warna: 'text-gray-500 dark:text-gray-400' },
           ].map((kartu) => (
             <div key={kartu.label} className="p-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-xl">
               <p className="text-xs font-bold tracking-wide text-gray-500 dark:text-gray-400 uppercase">{kartu.label}</p>
@@ -215,7 +269,9 @@ export default function PublicComments() {
 
       {staf && (
         <div className="flex flex-wrap gap-2">
-          {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as FilterStatus[]).map((s) => (
+          {(['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'TRASH'] as FilterStatus[])
+            .filter((s) => s !== 'TRASH' || isAdminRole(user?.role))
+            .map((s) => (
             <button
               key={s}
               onClick={() => setFilter(s)}
@@ -280,42 +336,78 @@ export default function PublicComments() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  {staf && k.status && (
-                    <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${STATUS_GAYA[k.status] || 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
-                      {STATUS_LABEL[k.status] || k.status}
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {staf && (
+                    <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${k.deletedAt ? STATUS_GAYA.TRASH : STATUS_GAYA[k.status || ''] || 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}>
+                      {k.deletedAt ? 'Tempat sampah' : STATUS_LABEL[k.status || ''] || k.status}
                     </span>
                   )}
-                  {staf && (
-                    <>
-                      {k.status !== 'APPROVED' && (
+                  {staf && k.isFlagged && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300" title={k.flagReason || undefined}>
+                      <Flag className="w-3 h-3" /> Perlu ditinjau{k.reportedCount ? ` (${k.reportedCount})` : ''}
+                    </span>
+                  )}
+
+                  {k.deletedAt ? (
+                    isAdminRole(user?.role) && (
+                      <>
                         <button
-                          onClick={() => ubahStatus(k, 'APPROVED')}
+                          onClick={() => pulihkanPesan(k)}
                           disabled={busyId === k.id}
                           className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-green-700 dark:text-green-300 transition rounded-lg bg-green-50 dark:bg-green-950/60 hover:bg-green-100 dark:hover:bg-green-900/40 disabled:opacity-50"
                         >
-                          {busyId === k.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Check className="w-3.5 h-3.5" /> Setujui</>}
+                          {busyId === k.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Undo2 className="w-3.5 h-3.5" /> Pulihkan</>}
                         </button>
-                      )}
-                      {k.status !== 'REJECTED' && (
                         <button
-                          onClick={() => ubahStatus(k, 'REJECTED')}
+                          onClick={() => hapusPermanenPesan(k)}
                           disabled={busyId === k.id}
-                          className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-red-700 dark:text-red-300 transition rounded-lg bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50"
-                        >
-                          <X className="w-3.5 h-3.5" /> Tolak
-                        </button>
-                      )}
-                      {/* Hapus permanen: khusus admin/superadmin (penjaga peran
-                          juga ada di backend). Pengurus hanya bisa menolak. */}
-                      {isAdminRole(user?.role) && (
-                        <button
-                          onClick={() => hapusPesan(k)}
-                          disabled={busyId === k.id}
-                          title="Hapus permanen pesan beserta balasannya"
                           className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-red-700 dark:text-red-300 transition border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/60 disabled:opacity-50"
                         >
-                          {busyId === k.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Trash2 className="w-3.5 h-3.5" /> Hapus</>}
+                          <Trash2 className="w-3.5 h-3.5" /> Hapus permanen
+                        </button>
+                      </>
+                    )
+                  ) : (
+                    <>
+                      {staf && (
+                        <>
+                          {k.status !== 'APPROVED' && (
+                            <button
+                              onClick={() => ubahStatus(k, 'APPROVED')}
+                              disabled={busyId === k.id}
+                              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-green-700 dark:text-green-300 transition rounded-lg bg-green-50 dark:bg-green-950/60 hover:bg-green-100 dark:hover:bg-green-900/40 disabled:opacity-50"
+                            >
+                              {busyId === k.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Check className="w-3.5 h-3.5" /> Setujui</>}
+                            </button>
+                          )}
+                          {k.status !== 'REJECTED' && (
+                            <button
+                              onClick={() => ubahStatus(k, 'REJECTED')}
+                              disabled={busyId === k.id}
+                              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-red-700 dark:text-red-300 transition rounded-lg bg-red-50 dark:bg-red-950/60 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50"
+                            >
+                              <X className="w-3.5 h-3.5" /> Tolak
+                            </button>
+                          )}
+                          {isAdminRole(user?.role) && (
+                            <button
+                              onClick={() => hapusPesan(k)}
+                              disabled={busyId === k.id}
+                              title="Pindahkan ke Tempat Sampah"
+                              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-300 transition border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+                            >
+                              {busyId === k.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <><Trash2 className="w-3.5 h-3.5" /> Hapus</>}
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {k.status === 'APPROVED' && (
+                        <button
+                          onClick={() => laporkanPesan(k)}
+                          title="Laporkan pesan yang tidak pantas"
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-gray-500 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                        >
+                          <Flag className="w-3.5 h-3.5" /> Laporkan
                         </button>
                       )}
                     </>
@@ -325,6 +417,16 @@ export default function PublicComments() {
 
               <div className="px-5 pb-4">
                 <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300 whitespace-pre-line">{k.content}</p>
+                {staf && k.isFlagged && k.flagReason && (
+                  <p className="mt-2 text-xs text-orange-700 dark:text-orange-300">
+                    <Flag className="inline w-3 h-3 mr-1" /> {k.flagReason}
+                  </p>
+                )}
+                {staf && k.deletedAt && (
+                  <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                    Dihapus {tanggal(k.deletedAt)} — dapat dipulihkan dalam 30 hari.
+                  </p>
+                )}
                 {staf && k.moderatedAt && (
                   <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
                     Ditinjau {tanggal(k.moderatedAt)}
@@ -359,8 +461,8 @@ export default function PublicComments() {
                 </div>
               )}
 
-              {/* Kolom balasan, hanya untuk staf */}
-              {staf && (
+              {/* Kolom balasan, hanya untuk staf dan bukan pesan di tempat sampah. */}
+              {staf && !k.deletedAt && (
                 <div className="flex flex-col gap-2 p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 sm:flex-row">
                   <div className="relative flex-1">
                     <UserCircle className="absolute w-4 h-4 text-gray-400 dark:text-gray-500 left-3 top-3" />

@@ -3,6 +3,8 @@ import { timingSafeEqual } from 'crypto';
 import { runAccountLifecycleJob } from '../services/account-lifecycle.service';
 import { pemeriksaanPerpanjanganHarian } from '../services/notifikasi-perpanjangan.service';
 import { flushPenolakanCors } from '../services/cors-monitor.service';
+import { purgeExpiredTrash } from '../services/student-trash.service';
+import { kirimPengingatLaporanBulanan } from '../controllers/report.controller';
 
 /**
  * Endpoint untuk cron Hostinger.
@@ -67,6 +69,25 @@ router.post('/cron', async (req: Request, res: Response) => {
     console.error('[cron] Penulisan catatan CORS gagal:', error);
   }
 
+  // Tempat sampah: akun dan pesan yang lewat 30 hari dimusnahkan permanen.
+  let tempatSampah: { akun: number; pesan: number; gagal: number } | null = null;
+  try {
+    const hasil = await purgeExpiredTrash();
+    tempatSampah = { akun: hasil.akun, pesan: hasil.pesan, gagal: hasil.gagal.length };
+  } catch (error) {
+    gagal = true;
+    console.error('[cron] Pembersihan tempat sampah gagal:', error);
+  }
+
+  // Pengingat laporan bulanan pada tanggal 1 (sekali per bulan).
+  let pengingatLaporan = false;
+  try {
+    pengingatLaporan = await kirimPengingatLaporanBulanan();
+  } catch (error) {
+    gagal = true;
+    console.error('[cron] Pengingat laporan bulanan gagal:', error);
+  }
+
   // Balasan sengaja hanya berisi angka agregat: tidak ada NIM, email, atau
   // detail akun yang keluar lewat endpoint ini.
   res.status(gagal ? 500 : 200).json({
@@ -74,6 +95,8 @@ router.post('/cron', async (req: Request, res: Response) => {
     siklusAkun,
     perpanjangan,
     corsTertulis,
+    tempatSampah,
+    pengingatLaporan,
     dijalankanPada: new Date().toISOString(),
   });
 });
