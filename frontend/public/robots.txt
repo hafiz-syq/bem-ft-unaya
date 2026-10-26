@@ -14,3 +14,10 @@ Disallow: /positions
 Disallow: /organizations
 Disallow: /audit
 Disallow: /faq
+Disallow: /pemantauan
+Disallow: /dokumen
+Disallow: /pengumuman
+Disallow: /tema-musiman
+
+# Peta situs: hanya alamat utama, karena halaman memakai rute ber-fragmen (#/).
+Sitemap: https://bem-ft-unaya.vercel.app/sitemap.xml
