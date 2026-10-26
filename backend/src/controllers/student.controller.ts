@@ -56,6 +56,13 @@ export const getStudents = async (req: any, res: Response, next: NextFunction): 
     const search = (req.query.search as string) || '';
     const status = (req.query.status as string) || 'ALL';
     const role = (req.query.role as string) || 'ALL';
+    // Filter angkatan memakai 2 digit pertama NIM. Nilai di luar 2000–2099
+    // diabaikan supaya permintaan aneh tidak menghasilkan daftar kosong palsu.
+    const angkatanDiminta = parseInt(req.query.angkatan as string, 10);
+    const filterAngkatan =
+      Number.isInteger(angkatanDiminta) && angkatanDiminta >= 2000 && angkatanDiminta <= 2099
+        ? angkatanDiminta
+        : null;
     const skip = (page - 1) * limit;
 
     // Akun pengelola tidak tampil di daftar ini, kecuali bagi SUPERADMIN yang
@@ -82,16 +89,47 @@ export const getStudents = async (req: any, res: Response, next: NextFunction): 
       ];
     }
 
-    const [akun, total] = await Promise.all([
+    // Daftar & hitungan halaman ikut filter angkatan; ringkasan per angkatan
+    // TIDAK ikut, supaya semua kartu tahun tetap tampil dan bisa dipilih.
+    const whereDaftar: any = { ...where };
+    if (filterAngkatan !== null) {
+      whereDaftar.nim = { startsWith: String(filterAngkatan).slice(2) };
+    }
+
+    // Role yang dihitung sebagai mahasiswa pada ringkasan angkatan. Akun
+    // ADMIN/SUPERADMIN tidak punya tahun angkatan (usernamenya bebas), jadi
+    // sengaja tidak ikut dihitung walau SUPERADMIN sedang melihat daftar admin.
+    const roleMahasiswa = ['MAHASISWA', ...OFFICER_ROLES];
+
+    const [akun, total, daftarNim] = await Promise.all([
       prisma.user.findMany({
-        where,
+        where: whereDaftar,
         skip,
         take: limit,
         select: akunSelect,
         orderBy: { nim: 'asc' },
       }),
-      prisma.user.count({ where }),
+      prisma.user.count({ where: whereDaftar }),
+      // Ringkasan per angkatan butuh SELURUH baris yang cocok dengan filter,
+      // bukan hanya halaman yang sedang tampil. Hanya kolom nim yang diambil
+      // supaya query tetap ringan.
+      prisma.user.findMany({
+        where: { AND: [where, { role: { in: roleMahasiswa } }] },
+        select: { nim: true },
+      }),
     ]);
+
+    // Tahun angkatan dibaca dari 2 digit pertama NIM, aturan yang sama dengan
+    // kolom angkatan per baris, sehingga hitungan selalu konsisten.
+    const petaAngkatan = new Map<number, number>();
+    for (const { nim } of daftarNim) {
+      const tahun = hitungAngkatan(nim);
+      if (tahun === null) continue;
+      petaAngkatan.set(tahun, (petaAngkatan.get(tahun) ?? 0) + 1);
+    }
+    const perAngkatan = [...petaAngkatan.entries()]
+      .map(([angkatan, jumlah]) => ({ angkatan, jumlah }))
+      .sort((a, b) => b.angkatan - a.angkatan);
 
     const sekarang = new Date();
 
@@ -110,7 +148,14 @@ export const getStudents = async (req: any, res: Response, next: NextFunction): 
 
     res.status(200).json({
       data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        perAngkatan,
+        angkatan: filterAngkatan,
+      },
     });
   } catch (error) {
     next(error);

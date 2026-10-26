@@ -3,7 +3,7 @@ import { api } from '../lib/axios';
 import {
   Search, Loader2, ChevronLeft, ChevronRight, Download, FileSpreadsheet,
   Upload, UserCog, CalendarClock, X, AlertTriangle, CheckCircle2, FileUp, UserPlus,
-  ShieldCheck, Pencil, Trash2, Save,
+  ShieldCheck, Pencil, Trash2, Save, GraduationCap,
 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -44,6 +44,10 @@ interface Meta {
   page: number;
   limit: number;
   totalPages: number;
+  /** Jumlah mahasiswa per tahun angkatan pada filter yang sedang aktif. */
+  perAngkatan?: { angkatan: number; jumlah: number }[];
+  /** Filter angkatan yang sedang dipakai server (null bila tidak ada). */
+  angkatan?: number | null;
 }
 
 interface HasilPratinjau {
@@ -130,6 +134,8 @@ export default function Students() {
   const [kataKunci, setKataKunci] = useState('');
   const [status, setStatus] = useState('ALL');
   const [role, setRole] = useState('ALL');
+  // null = semua angkatan. Diisi dengan tahun (mis. 2022) saat kartu diklik.
+  const [angkatan, setAngkatan] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -194,6 +200,7 @@ export default function Students() {
           search: kataKunci || undefined,
           status: status === 'ALL' ? undefined : status,
           role: role === 'ALL' ? undefined : role,
+          angkatan: angkatan ?? undefined,
         },
       });
       setStudents(response.data.data);
@@ -203,7 +210,7 @@ export default function Students() {
     } finally {
       setLoading(false);
     }
-  }, [page, kataKunci, status, role]);
+  }, [page, kataKunci, status, role, angkatan]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -552,7 +559,7 @@ export default function Students() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Data Mahasiswa</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Total {meta?.total || 0} akun terdaftar di sistem.
+            Total {meta?.total || 0} akun {angkatan ? `angkatan ${angkatan}` : 'terdaftar di sistem'}.
           </p>
         </div>
 
@@ -645,7 +652,81 @@ export default function Students() {
             ))}
           </select>
         </label>
+
+        {angkatan !== null && (
+          <button
+            type="button"
+            onClick={() => ubahFilter(() => setAngkatan(null))}
+            title={`Hapus filter angkatan ${angkatan}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold transition rounded-lg text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 dark:border-amber-900 dark:hover:bg-amber-900/60"
+          >
+            Angkatan {angkatan}
+            <X className="w-3.5 h-3.5" />
+            <span className="sr-only">Hapus filter angkatan</span>
+          </button>
+        )}
       </div>
+
+      {/* Ringkasan jumlah mahasiswa per angkatan (ADMIN & SUPERADMIN).
+          Dihitung server dari seluruh baris yang cocok dengan filter, bukan
+          hanya halaman yang tampil, supaya angka totalnya tetap tepat. */}
+      {isAdmin && meta?.perAngkatan && meta.perAngkatan.length > 0 && (
+        <section
+          aria-labelledby="ringkasan-angkatan"
+          className="bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800 rounded-xl"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-2 px-5 pt-5">
+            <div>
+              <h2
+                id="ringkasan-angkatan"
+                className="flex items-center gap-2 text-base font-bold text-gray-900 dark:text-gray-100"
+              >
+                <GraduationCap className="w-5 h-5 text-amber-400" /> Jumlah Mahasiswa per Angkatan
+              </h2>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Dibaca dari 2 digit pertama NIM dan mengikuti filter yang aktif.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 text-xs font-bold rounded-full text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/60">
+              {meta.perAngkatan.reduce((jumlah, item) => jumlah + item.jumlah, 0)} mahasiswa •{' '}
+              {meta.perAngkatan.length} angkatan
+            </span>
+          </div>
+
+          <ul className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-3 lg:grid-cols-4">
+            {meta.perAngkatan.map(({ angkatan: tahun, jumlah }) => {
+              const aktif = angkatan === tahun;
+              return (
+                <li key={tahun}>
+                  <button
+                    type="button"
+                    onClick={() => ubahFilter(() => setAngkatan(aktif ? null : tahun))}
+                    aria-pressed={aktif}
+                    title={aktif ? `Hapus filter angkatan ${tahun}` : `Tampilkan hanya angkatan ${tahun}`}
+                    className={`w-full h-full p-4 text-left transition border rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${aktif
+                      ? 'border-amber-400 bg-amber-50 ring-1 ring-amber-400 dark:border-amber-500/70 dark:bg-amber-950/50'
+                      : 'border-gray-200 bg-gray-50/70 hover:border-amber-300 hover:bg-amber-50/60 dark:border-gray-800 dark:bg-gray-800/40 dark:hover:border-amber-500/60 dark:hover:bg-amber-950/30'
+                      }`}
+                  >
+                    <span className="flex items-center justify-between gap-2 text-[11px] font-bold tracking-wide uppercase text-gray-500 dark:text-gray-400">
+                      Angkatan
+                      {aktif && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold normal-case rounded-full text-amber-700 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/60">
+                          aktif
+                        </span>
+                      )}
+                    </span>
+                    <span className="block text-xl font-black text-gray-900 dark:text-gray-100">{tahun}</span>
+                    <span className="block mt-1 text-sm text-gray-600 dark:text-gray-300">
+                      <span className="font-bold text-amber-600 dark:text-amber-300">{jumlah}</span> mahasiswa
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* Pesan Error / Notifikasi */}
       {error && (
