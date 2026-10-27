@@ -53,6 +53,17 @@ api.interceptors.request.use((config) => {
 /** Akar server (tanpa /api), dipakai untuk membentuk URL berkas unggahan. */
 export const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, '');
 
-/** Mengubah path berkas dari backend (mis. /uploads/foto.jpg) menjadi URL lengkap. */
-export const assetUrl = (path?: string | null): string =>
-  path ? `${API_ORIGIN}${path}` : '';
+/**
+ * Mengubah path berkas dari backend (mis. /uploads/foto.jpg) menjadi URL lengkap.
+ *
+ * Foto profil dan galeri terbaru disimpan di Cloudinary sehingga kolomnya sudah
+ * berisi URL absolut. URL seperti itu dikembalikan apa adanya — menambahkan
+ * awalan origin akan merusaknya menjadi path yang tidak ada.
+ */
+export const assetUrl = (path?: string | null): string => {
+  if (!path) return '';
+  if (/^(https?:)?\/\//i.test(path) || path.startsWith('data:') || path.startsWith('blob:')) {
+    return path;
+  }
+  return `${API_ORIGIN}${path}`;
+};

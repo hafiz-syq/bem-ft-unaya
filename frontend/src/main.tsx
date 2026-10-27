@@ -4,6 +4,7 @@ import { HashRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProfileDialogProvider } from './contexts/ProfileDialogContext';
+import { PresenceProvider } from './contexts/PresenceContext';
 import { SeasonalThemeProvider } from './contexts/SeasonalThemeContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import VercelAnalytics from './components/VercelAnalytics';
@@ -23,9 +24,12 @@ const aplikasi = (
       <ThemeProvider>
         <SeasonalThemeProvider>
           <AuthProvider>
-            <ProfileDialogProvider>
-              <App />
-            </ProfileDialogProvider>
+            {/* Status online: hijau di avatar pengguna yang sedang membuka situs. */}
+            <PresenceProvider>
+              <ProfileDialogProvider>
+                <App />
+              </ProfileDialogProvider>
+            </PresenceProvider>
           </AuthProvider>
         </SeasonalThemeProvider>
       </ThemeProvider>

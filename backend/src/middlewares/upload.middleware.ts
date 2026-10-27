@@ -89,6 +89,15 @@ export const uploadFotoMemori = multer({
   limits: { fileSize: UPLOAD_LIMITS.foto } // Maksimal 2 MB
 });
 
+// Gambar media (galeri & cover konten) ditahan di memori lalu diunggah ke
+// Cloudinary oleh controller. Tidak ada berkas yang ditulis ke disk karena di
+// Vercel folder sementara hilang dan foto menjadi rusak di halaman publik.
+export const uploadGambarMemori = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: photoFileFilter,
+  limits: { fileSize: UPLOAD_LIMITS.file, files: 10 },
+});
+
 // ================= KONVERSI GAMBAR KE WEBP =================
 // Semua unggahan gambar selain WebP diproses ulang menjadi WebP supaya ukuran
 // transfer lebih kecil. Foto yang sudah WebP dibiarkan apa adanya (tidak

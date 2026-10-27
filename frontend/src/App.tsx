@@ -28,6 +28,7 @@ const Gallery = lazy(() => import('./pages/Gallery'));
 const About = lazy(() => import('./pages/About'));
 const PublicContentDetail = lazy(() => import('./pages/PublicContentDetail'));
 const PublicComments = lazy(() => import('./pages/PublicComments'));
+const Forum = lazy(() => import('./pages/Forum'));
 const Announcements = lazy(() => import('./pages/Announcements'));
 const Documents = lazy(() => import('./pages/Documents'));
 const ErrorLogs = lazy(() => import('./pages/ErrorLogs'));
@@ -159,6 +160,16 @@ function App() {
         <ProtectedRoute>
           <DashboardLayout>
             <SeasonalTheme />
+          </DashboardLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* Forum diskusi: semua akun login boleh membaca & menulis; pembuatan
+          ruang dibatasi BEM/DPM/admin di sisi server. */}
+      <Route path="/forum" element={
+        <ProtectedRoute>
+          <DashboardLayout>
+            <Forum />
           </DashboardLayout>
         </ProtectedRoute>
       } />

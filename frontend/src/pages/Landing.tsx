@@ -9,6 +9,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import GalleryComments from '../components/GalleryComments';
 import UserAvatar from '../components/UserAvatar';
 import LazyImage from '../components/LazyImage';
+import MediaImage from '../components/MediaImage';
 import { formatRentangTanggal, jumlahHariAgenda } from '../lib/tanggal';
 import { Send, LogIn, Code2, Users, Building, ShieldCheck, Loader2, Calendar, Newspaper, ArrowRight, MapPin, Clock, Image as ImageIcon, Landmark, X, ExternalLink, Menu, LayoutDashboard, MessageSquare, Award, ChevronLeft, ChevronRight, Megaphone, AlertCircle, Layers, CornerDownRight, Share2, Lock, MoonStar, PartyPopper, Flag } from 'lucide-react';
 import axios from 'axios';
@@ -715,7 +716,12 @@ export default function Landing() {
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedGallery(item); setGallerySlide(0); } }}
                       className="relative overflow-hidden bg-gray-800 border border-gray-700 shadow-lg cursor-pointer group rounded-2xl aspect-square hover:shadow-amber-500/20 focus-visible:ring-2 focus-visible:ring-amber-400"
                     >
-                      <LazyImage src={assetUrl(item.url)} alt={item.title} className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
+                      <MediaImage
+                        src={item.url}
+                        alt={item.title}
+                        className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
+                        fallbackClassName="w-full h-full"
+                      />
                       {fotoGaleri(item).length > 1 && (
                         <span className="absolute flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-white rounded-lg top-2 right-2 bg-black/60 backdrop-blur-sm">
                           <Layers className="w-3 h-3" /> {fotoGaleri(item).length}
@@ -1019,7 +1025,14 @@ export default function Landing() {
                 const geser = (arah: number) => setGallerySlide((prev) => (prev + arah + foto.length) % foto.length);
                 return (
                   <>
-                    <img src={assetUrl(foto[gallerySlide] ?? foto[0])} alt={selectedGallery.title} className="object-contain max-w-full max-h-full" />
+                    <MediaImage
+                      src={foto[gallerySlide] ?? foto[0]}
+                      alt={selectedGallery.title}
+                      className="object-contain max-w-full max-h-full"
+                      fallbackClassName="h-full w-full max-w-md"
+                      loading="eager"
+                      draggable={false}
+                    />
                     {foto.length > 1 && (
                       <>
                         <button onClick={(e) => { e.stopPropagation(); geser(-1); }} aria-label="Foto sebelumnya" className="absolute p-2 text-white transition rounded-full left-3 bg-white/10 hover:bg-amber-400 hover:text-gray-900 dark:hover:text-gray-100">
@@ -1050,7 +1063,7 @@ export default function Landing() {
                       onClick={(e) => { e.stopPropagation(); setGallerySlide(i); }}
                       className={`w-16 h-16 overflow-hidden rounded-lg shrink-0 border-2 transition ${i === gallerySlide ? 'border-amber-400' : 'border-transparent opacity-60 hover:opacity-100'}`}
                     >
-                      <img src={assetUrl(url)} alt={`Thumbnail ${i + 1}`} className="object-cover w-full h-full" />
+                      <MediaImage src={url} alt={`Thumbnail ${i + 1}`} className="object-cover w-full h-full" fallbackClassName="w-full h-full" />
                     </button>
                   ))}
                 </div>

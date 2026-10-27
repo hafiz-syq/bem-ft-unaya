@@ -48,6 +48,31 @@ const akunSelect = {
   },
 } as const;
 
+/**
+ * Data akun yang boleh dilihat akun MAHASISWA.
+ *
+ * Halaman Data Mahasiswa kini juga dibuka untuk mahasiswa, tetapi hanya sebagai
+ * direktori: nama, NIM, program studi, angkatan, foto, dan jabatan aktif.
+ * Email, nomor HP, status akun, serta tanggal penghapusan TIDAK ikut dikirim
+ * karena itu urusan pengelola akun.
+ */
+const akunPublikSelect = {
+  id: true,
+  nim: true,
+  role: true,
+  foto: true,
+  profile: {
+    select: { nama: true, program_studi: true, foto: true },
+  },
+  positions: {
+    where: { isActive: true },
+    select: {
+      id: true,
+      positionSlot: { select: { title: true, organization: { select: { name: true } } } },
+    },
+  },
+} as const;
+
 // 1. Daftar akun (Mahasiswa & Pengurus) dengan pencarian, filter status, dan role
 export const getStudents = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -69,10 +94,13 @@ export const getStudents = async (req: any, res: Response, next: NextFunction): 
     // memang bertugas mengelola akun ADMIN. SUPERADMIN sendiri tidak pernah
     // ditampilkan dan tidak bisa diubah dari halaman ini.
     const bisaLihatAdmin = req.user?.role === 'SUPERADMIN';
+    // Akun mahasiswa hanya melihat direktori rekan mahasiswa/pengurus yang aktif.
+    const hanyaDirektori = req.user?.role === 'MAHASISWA';
     const where: any = {
       role: { notIn: bisaLihatAdmin ? ['SUPERADMIN'] : ['ADMIN', 'SUPERADMIN'] },
       // Akun di tempat sampah tidak pernah muncul di daftar utama.
       deletedAt: null,
+      ...(hanyaDirektori ? { isActive: true } : {}),
     };
 
     if (role !== 'ALL' && ASSIGNABLE_ROLES.includes(role)) {
@@ -81,8 +109,12 @@ export const getStudents = async (req: any, res: Response, next: NextFunction): 
       }
     }
 
-    if (status === 'AKTIF') where.isActive = true;
-    else if (status === 'NONAKTIF') where.isActive = false;
+    // Direktori mahasiswa selalu berisi akun aktif; filter status dari UI
+    // tidak boleh membuka daftar akun nonaktif untuk peran ini.
+    if (!hanyaDirektori) {
+      if (status === 'AKTIF') where.isActive = true;
+      else if (status === 'NONAKTIF') where.isActive = false;
+    }
 
     if (search) {
       where.OR = [
@@ -108,7 +140,7 @@ export const getStudents = async (req: any, res: Response, next: NextFunction): 
         where: whereDaftar,
         skip,
         take: limit,
-        select: akunSelect,
+        select: hanyaDirektori ? akunPublikSelect : akunSelect,
         orderBy: { nim: 'asc' },
       }),
       prisma.user.count({ where: whereDaftar }),
@@ -135,18 +167,31 @@ export const getStudents = async (req: any, res: Response, next: NextFunction): 
 
     const sekarang = new Date();
 
-    const data = akun.map((a) => ({
-      ...a,
-      angkatan: hitungAngkatan(a.nim),
-      email_verified: Boolean(a.profile?.email_verified_at),
-      jabatan: a.positions[0]?.positionSlot.title ?? null,
-      organisasi: a.positions[0]?.positionSlot.organization.name ?? null,
-      // Tanggal terhapus dihitung server supaya aturan bawaan (nonaktif + 1 tahun)
-      // dan hasil geseran admin terbaca sama di semua tampilan.
-      tenggatHapusEfektif: tenggatHapusEfektif(a),
-      diperpanjangSampai:
-        a.perpanjanganHingga && a.perpanjanganHingga > sekarang ? a.perpanjanganHingga : null,
-    }));
+    // Direktori untuk mahasiswa: hanya data yang memang tampil di komunitas.
+    const data = hanyaDirektori
+      ? akun.map((a: any) => ({
+          id: a.id,
+          nim: a.nim,
+          role: a.role,
+          isActive: true,
+          foto: a.foto,
+          angkatan: hitungAngkatan(a.nim),
+          jabatan: a.positions[0]?.positionSlot.title ?? null,
+          organisasi: a.positions[0]?.positionSlot.organization.name ?? null,
+          profile: a.profile,
+        }))
+      : akun.map((a: any) => ({
+          ...a,
+          angkatan: hitungAngkatan(a.nim),
+          email_verified: Boolean(a.profile?.email_verified_at),
+          jabatan: a.positions[0]?.positionSlot.title ?? null,
+          organisasi: a.positions[0]?.positionSlot.organization.name ?? null,
+          // Tanggal terhapus dihitung server supaya aturan bawaan (nonaktif + 1 tahun)
+          // dan hasil geseran admin terbaca sama di semua tampilan.
+          tenggatHapusEfektif: tenggatHapusEfektif(a),
+          diperpanjangSampai:
+            a.perpanjanganHingga && a.perpanjanganHingga > sekarang ? a.perpanjanganHingga : null,
+        }));
 
     res.status(200).json({
       data,
@@ -157,6 +202,8 @@ export const getStudents = async (req: any, res: Response, next: NextFunction): 
         totalPages: Math.ceil(total / limit),
         perAngkatan,
         angkatan: filterAngkatan,
+        // Dipakai UI untuk menyembunyikan tombol pengelolaan bagi mahasiswa.
+        hanyaBaca: hanyaDirektori,
       },
     });
   } catch (error) {

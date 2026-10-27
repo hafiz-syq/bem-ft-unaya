@@ -8,7 +8,8 @@ import ThemeToggle from '../components/ThemeToggle';
 import SeasonalBadge from '../components/SeasonalBadge';
 import GlobalSearch from '../components/GlobalSearch';
 import PushToggle from '../components/PushToggle';
-import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2, Images, Smartphone, Palette, PanelLeftClose, PanelLeftOpen, Megaphone, FolderArchive, ShieldAlert } from 'lucide-react';
+import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, MessagesSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2, Images, Smartphone, Palette, PanelLeftClose, PanelLeftOpen, Megaphone, FolderArchive, ShieldAlert } from 'lucide-react';
+import StatusOnline from '../components/StatusOnline';
 
 const KUNCI_SIDEBAR = 'bem-ft-sidebar-tutup';
 
@@ -90,9 +91,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // Buku tamu terbuka untuk semua role; mahasiswa hanya bisa membaca,
     // tombol moderasi & balasan hanya muncul untuk pengurus dan admin.
     { name: 'Buku Tamu', path: '/buku-tamu', icon: MessageSquare, show: true },
+    // Forum: semua akun boleh membaca & menulis; pembuatan ruang dibatasi
+    // BEM/DPM/admin (dijaga server, tombolnya menyesuaikan peran).
+    { name: 'Forum Diskusi', path: '/forum', icon: MessagesSquare, show: true },
     { name: 'Pengumuman', path: '/pengumuman', icon: Megaphone, show: true },
     { name: 'Arsip Surat', path: '/dokumen', icon: FolderArchive, show: isStaff(role) },
-    { name: 'Data Mahasiswa', path: '/students', icon: Users, show: isStaff(role) },
+    // Direktori mahasiswa terbuka untuk semua akun yang login; mahasiswa
+    // menerima data terbatas dari server (tanpa email/telepon/status akun).
+    { name: 'Data Mahasiswa', path: '/students', icon: Users, show: true },
     { name: 'Perangkat & Sesi', path: '/devices', icon: Smartphone, show: isAdminRole(role) },
     { name: 'Master Organisasi', path: '/organizations', icon: Building2, show: isAdminRole(role) },
     { name: 'Kepengurusan', path: '/positions', icon: UserPlus, show: isAdminRole(role) },
@@ -266,25 +272,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
               {/* Avatar: foto profil pengguna, fallback ke inisial. Klik membuka
                   dialog profil sendiri, sama seperti avatar di halaman lain. */}
-              <button
-                type="button"
-                onClick={() => user?.id && bukaProfil(user.id)}
-                title="Lihat profil saya"
-                aria-label="Lihat profil saya"
-                className="rounded-full transition shrink-0 hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
-              >
-                {user?.foto ? (
-                  <img
-                    src={assetUrl(user.foto)}
-                    alt={displayName}
-                    className="object-cover w-8 h-8 rounded-full shadow-md ring-2 ring-amber-100 dark:ring-amber-900/70 sm:w-9 sm:h-9"
-                  />
-                ) : (
-                  <span className="flex items-center justify-center w-8 h-8 text-xs font-bold text-white rounded-full shadow-md bg-amber-400 sm:w-9 sm:h-9 sm:text-base">
-                    {initial}
-                  </span>
-                )}
-              </button>
+              <span className="relative inline-flex shrink-0">
+                <button
+                  type="button"
+                  onClick={() => user?.id && bukaProfil(user.id)}
+                  title="Lihat profil saya"
+                  aria-label="Lihat profil saya"
+                  className="rounded-full transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                >
+                  {user?.foto ? (
+                    <img
+                      src={assetUrl(user.foto)}
+                      alt={displayName}
+                      className="object-cover w-8 h-8 rounded-full shadow-md ring-2 ring-amber-100 dark:ring-amber-900/70 sm:w-9 sm:h-9"
+                    />
+                  ) : (
+                    <span className="flex items-center justify-center w-8 h-8 text-xs font-bold text-white rounded-full shadow-md bg-amber-400 sm:w-9 sm:h-9 sm:text-base">
+                      {initial}
+                    </span>
+                  )}
+                </button>
+                {/* Titik hijau: pengguna ini sedang membuka situs. */}
+                <StatusOnline userId={user?.id} size="sm" />
+              </span>
             </div>
           </div>
         </header>

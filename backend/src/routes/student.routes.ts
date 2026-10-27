@@ -24,32 +24,35 @@ import {
 
 const router = Router();
 
-// Semua rute di sini hanya untuk pengurus & admin.
-router.use(requireAuth, requireOfficer);
+// Semua rute di sini wajib login. Daftar mahasiswa boleh dibaca akun
+// MAHASISWA (dengan data terbatas, lihat getStudents), sedangkan seluruh
+// tindakan pengelolaan tetap hanya untuk pengurus & admin.
+router.use(requireAuth);
 
 // Pemeriksaan siklus hidup akun secara manual (admin saja).
-router.post('/maintenance/run-lifecycle', requireAdmin, runLifecycle);
+router.post('/maintenance/run-lifecycle', requireOfficer, requireAdmin, runLifecycle);
 
 // Impor massal dari PDF (admin saja). Dua langkah: pratinjau dulu, baru simpan.
-router.post('/import/pratinjau', requireAdmin, uploadPdfImpor.single('file'), pratinjauImpor);
-router.post('/import/simpan', requireAdmin, uploadPdfImpor.single('file'), simpanImpor);
+router.post('/import/pratinjau', requireOfficer, requireAdmin, uploadPdfImpor.single('file'), pratinjauImpor);
+router.post('/import/simpan', requireOfficer, requireAdmin, uploadPdfImpor.single('file'), simpanImpor);
 
 // Rute statis harus didaftarkan sebelum rute berparameter /:id.
-router.get('/trash', requireAdmin, getTrashStudents);
-router.patch('/bulk', requireAdmin, bulkStudents);
+router.get('/trash', requireOfficer, requireAdmin, getTrashStudents);
+router.patch('/bulk', requireOfficer, requireAdmin, bulkStudents);
 
+// Daftar mahasiswa: pengurus, admin, dan akun mahasiswa (data terbatas).
 router.get('/', getStudents);
 // Tambah satu akun mahasiswa secara manual (tanpa PDF), khusus ADMIN/SUPERADMIN.
-router.post('/', requireAdmin, createStudent);
+router.post('/', requireOfficer, requireAdmin, createStudent);
 // Tambah akun administrator baru, khusus SUPERADMIN.
 router.post('/admin', requireRole(['SUPERADMIN']), createAdminAccount);
-router.patch('/:id/status', updateStudentStatus);
+router.patch('/:id/status', requireOfficer, updateStudentStatus);
 // Perpanjangan masa studi & geser tenggat hapus: hanya admin, karena menyangkut
 // keberadaan akun.
-router.patch('/:id/perpanjangan', requireAdmin, perpanjangAkun);
-router.patch('/:id/role', requireAdmin, updateStudentRole);
+router.patch('/:id/perpanjangan', requireOfficer, requireAdmin, perpanjangAkun);
+router.patch('/:id/role', requireOfficer, requireAdmin, updateStudentRole);
 // Sunting data profil mahasiswa: ADMIN & SUPERADMIN.
-router.put('/:id', requireAdmin, updateStudent);
+router.put('/:id', requireOfficer, requireAdmin, updateStudent);
 // Hapus dari daftar: superadmin, dipindahkan ke tempat sampah 30 hari.
 router.delete('/:id', requireRole(['SUPERADMIN']), deleteStudent);
 // Pemulihan & penghapusan permanen dari tempat sampah (khusus SUPERADMIN).

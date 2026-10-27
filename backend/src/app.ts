@@ -31,6 +31,8 @@ import searchRoutes from './routes/search.routes';
 import errorLogRoutes from './routes/error-log.routes';
 import documentRoutes from './routes/document.routes';
 import pushRoutes from './routes/push.routes';
+import presenceRoutes from './routes/presence.routes';
+import chatRoutes from './routes/chat.routes';
 import { UPLOAD_LIMITS } from './middlewares/upload.middleware';
 import { bolehkanOrigin } from './lib/cors-origin';
 import { folderUploads } from './lib/uploads';
@@ -125,6 +127,9 @@ app.use('/api/search', searchRoutes);
 app.use('/api/error-logs', errorLogRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/push', pushRoutes);
+// Status online pengunjung yang sudah login & forum ruang diskusi.
+app.use('/api/presence', presenceRoutes);
+app.use('/api/chat', chatRoutes);
 // Endpoint untuk cron hPanel (siklus akun & notifikasi) — lihat routes/internal.routes.ts.
 app.use('/api/internal', internalRoutes);
 

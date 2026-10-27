@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
 import { hitungAngkatan } from '../services/account-lifecycle.service';
+import { hapusGambarMedia, simpanGambarMedia } from '../lib/gambar-media';
 
 /** Kunci pengaturan situs yang boleh diubah admin. */
 const ALLOWED_SETTINGS = ['visi', 'misi'] as const;
@@ -370,7 +371,12 @@ export const createGallery = async (req: any, res: Response, next: NextFunction)
       res.status(400).json({ message: 'Minimal satu foto wajib diunggah.' }); return;
     }
 
-    const urls = files.map((f) => `/uploads/${f.filename}`);
+    // Foto disimpan ke Cloudinary (bukan folder sementara server) supaya tetap
+    // tampil di halaman publik setelah deploy ulang.
+    const urls: string[] = [];
+    for (const file of files) {
+      urls.push(await simpanGambarMedia(file));
+    }
 
     const newGallery = await prisma.gallery.create({
       data: {
@@ -424,7 +430,12 @@ export const updateGallery = async (req: any, res: Response, next: NextFunction)
       }
     }
 
-    const urlsBaru = files.map((f) => `/uploads/${f.filename}`);
+    const urlsBaru: string[] = [];
+    for (const file of files) {
+      urlsBaru.push(await simpanGambarMedia(file));
+    }
+
+    const fotoTerbuang = lama.images.filter((img) => hapusIds.includes(img.id));
     const urlsTersisa = lama.images
       .filter((img) => !hapusIds.includes(img.id))
       .map((img) => img.url);
@@ -461,6 +472,12 @@ export const updateGallery = async (req: any, res: Response, next: NextFunction)
       });
     });
 
+    // Baru setelah database tersimpan: berkas foto yang dibuang dibersihkan dari
+    // penyimpanan agar tidak menumpuk (kegagalan hapus diabaikan).
+    for (const foto of fotoTerbuang) {
+      if (!semuaUrl.includes(foto.url)) void hapusGambarMedia(foto.url);
+    }
+
     await logActivity(req.user.id, 'UPDATE_GALLERY', 'Gallery', `Memperbarui galeri "${updated.title}"`, id);
 
     res.status(200).json({ message: 'Galeri berhasil diperbarui.', data: updated });
@@ -469,9 +486,15 @@ export const updateGallery = async (req: any, res: Response, next: NextFunction)
 
 export const deleteGallery = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const lama = await prisma.gallery.findUnique({ where: { id: req.params.id } });
+    const lama = await prisma.gallery.findUnique({
+      where: { id: req.params.id },
+      include: { images: { select: { url: true } } },
+    });
     // GalleryImage terhapus otomatis lewat onDelete: Cascade.
     await prisma.gallery.delete({ where: { id: req.params.id } });
+
+    // Berkas fotonya ikut dibersihkan dari penyimpanan (Cloudinary/disk).
+    for (const foto of lama?.images ?? []) void hapusGambarMedia(foto.url);
     await logActivity(
       req.user.id,
       'DELETE_GALLERY',

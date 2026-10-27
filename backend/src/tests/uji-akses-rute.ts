@@ -399,7 +399,9 @@ const BARIS: Baris[] = [
     cek: tanpaIsiCsv,
     catatan: 'pemeriksaan tambahan: balasan penolakan tidak boleh memuat isi CSV',
   },
-  { metode: 'GET', jalur: '/students', harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
+  // Direktori mahasiswa terbuka untuk akun mahasiswa (data terbatas: tanpa
+  // email/telepon/status akun), sedangkan tindakan pengelolaan tetap staf.
+  { metode: 'GET', jalur: '/students', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
   { metode: 'POST', jalur: '/students', harapan: { tamu: 401, mahasiswa: 403 } },
   { metode: 'PATCH', jalur: '/students/:id/status', harapan: { tamu: 401, mahasiswa: 403 } },
   { metode: 'PATCH', jalur: '/students/:id/perpanjangan', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
@@ -430,6 +432,53 @@ const BARIS: Baris[] = [
     catatan: 'pembuatan akun ADMIN hanya untuk SUPERADMIN, jadi ADMIN pun ditolak.',
   },
   { metode: 'POST', jalur: '/students/import/simpan', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
+
+  // ── presence.routes.ts & chat.routes.ts (status online & forum) ─────────
+  {
+    metode: 'POST',
+    jalur: '/presence/heartbeat',
+    harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'heartbeat hanya memperbarui waktu aktif akun uji sendiri',
+  },
+  { metode: 'GET', jalur: '/presence/online', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
+  { metode: 'GET', jalur: '/chat/rooms', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
+  {
+    metode: 'POST',
+    jalur: '/chat/rooms',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'akun uji pengurus adalah PENGURUS_BEM yang memang berhak membuat ruang; body kosong ditolak validasi sehingga tidak ada ruang yang dibuat',
+  },
+  {
+    metode: 'PATCH',
+    jalur: '/chat/rooms/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada sehingga pengelola menerima 404, bukan perubahan status',
+  },
+  {
+    metode: 'DELETE',
+    jalur: '/chat/rooms/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada sehingga tidak ada ruang yang terhapus',
+  },
+  { metode: 'GET', jalur: '/chat/rooms/:id/messages', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' }, catatan: 'ruang uji tidak ada, jadi 404 tetap berarti diizinkan' },
+  {
+    metode: 'POST',
+    jalur: '/chat/rooms/:id/messages',
+    harapan: { tamu: 401, mahasiswa: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'ruang uji tidak ada (404) dan pesan kosong ditolak validasi',
+  },
+  {
+    metode: 'DELETE',
+    jalur: '/chat/messages/:id',
+    harapan: { tamu: 401, mahasiswa: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada sehingga tidak ada pesan yang terhapus',
+  },
 
   // ── site-theme.routes.ts ────────────────────────────────────────────────
   {

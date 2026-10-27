@@ -1,6 +1,7 @@
 import { assetUrl } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfileDialog } from '../contexts/ProfileDialogContext';
+import StatusOnline from './StatusOnline';
 
 interface Props {
   userId?: string | null;
@@ -30,6 +31,10 @@ const NADA: Record<NonNullable<Props['tone']>, string> = {
  * Avatar pengguna. Bila `userId` tersedia dan pengunjung sudah login, avatar
  * menjadi tombol yang membuka dialog profil; selain itu hanya tampilan biasa
  * (tamu tidak boleh melihat profil pengguna lain).
+ *
+ * Titik hijau di sudut avatar menandakan pengguna sedang membuka situs. Status
+ * ini terlihat oleh semua pengguna yang login, sesuai kebutuhan pemantauan
+ * keaktifan anggota.
  */
 export default function UserAvatar({ userId, nama, foto, size = 'md', className = '', tone = 'amber' }: Props) {
   const { user } = useAuth();
@@ -50,11 +55,7 @@ export default function UserAvatar({ userId, nama, foto, size = 'md', className 
 
   const kelas = `inline-flex items-center justify-center overflow-hidden font-bold rounded-full shrink-0 ${UKURAN[size]} ${NADA[tone]} ${className}`;
 
-  if (!bisaDibuka) {
-    return <span className={kelas} aria-hidden={!nama}>{isi}</span>;
-  }
-
-  return (
+  const wajah = bisaDibuka ? (
     <button
       type="button"
       onClick={(e) => {
@@ -68,5 +69,14 @@ export default function UserAvatar({ userId, nama, foto, size = 'md', className 
     >
       {isi}
     </button>
+  ) : (
+    <span className={kelas} aria-hidden={!nama}>{isi}</span>
+  );
+
+  return (
+    <span className="relative inline-flex shrink-0">
+      {wajah}
+      <StatusOnline userId={userId} size={size === 'lg' || size === 'md' ? 'md' : 'sm'} />
+    </span>
   );
 }

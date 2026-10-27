@@ -172,6 +172,8 @@ model User {
 
   // Satu permintaan reset password aktif per akun.
   passwordReset        PasswordReset?
+  presence             UserPresence?
+  chatMessages         ChatMessage[]
   
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -560,6 +562,40 @@ model PasswordReset {
   used_at          DateTime?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+}
+
+/// Heartbeat sesi agar pengguna yang sedang membuka situs tampak aktif.
+model UserPresence {
+  userId     String   @id
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastSeenAt DateTime @default(now())
+
+  @@index([lastSeenAt])
+}
+
+/// Ruang forum percakapan yang dapat dibuat pengurus BEM/DPM dan admin.
+model ChatRoom {
+  id          String        @id @default(uuid())
+  name        String        @db.VarChar(100)
+  description String?       @db.VarChar(500)
+  createdById String
+  createdAt   DateTime      @default(now())
+  isOpen      Boolean       @default(true)
+  messages    ChatMessage[]
+
+  @@index([isOpen, createdAt])
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  roomId    String
+  room      ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([roomId, createdAt])
 }
 
 /// Pertanyaan yang sering diajukan (halaman FAQ dashboard).

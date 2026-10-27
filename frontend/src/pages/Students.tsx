@@ -48,6 +48,8 @@ interface Meta {
   perAngkatan?: { angkatan: number; jumlah: number }[];
   /** Filter angkatan yang sedang dipakai server (null bila tidak ada). */
   angkatan?: number | null;
+  /** true bila pemilik sesi hanya boleh membaca direktori (role mahasiswa). */
+  hanyaBaca?: boolean;
 }
 
 interface HasilPratinjau {
@@ -806,7 +808,9 @@ export default function Students() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Data Mahasiswa</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Total {meta?.total || 0} akun {angkatan ? `angkatan ${angkatan}` : 'terdaftar di sistem'}.
+            {meta?.hanyaBaca
+              ? `Direktori ${meta?.total || 0} mahasiswa aktif${angkatan ? ` angkatan ${angkatan}` : ''}. Data kontak akun hanya terlihat oleh pengelola.`
+              : `Total ${meta?.total || 0} akun ${angkatan ? `angkatan ${angkatan}` : 'terdaftar di sistem'}.`}
           </p>
         </div>
 
@@ -875,18 +879,22 @@ export default function Students() {
 
       {/* Filter Status & Role */}
       <div className="flex flex-wrap gap-3 p-4 bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800 rounded-xl">
-        <label className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400">
-          Status
-          <select
-            value={status}
-            onChange={(e) => ubahFilter(() => setStatus(e.target.value))}
-            className="px-3 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-          >
-            {STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </label>
+        {/* Filter status hanya untuk pengelola: direktori mahasiswa selalu
+            berisi akun aktif dan server mengabaikan filter ini bagi mereka. */}
+        {isAdmin && (
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400">
+            Status
+            <select
+              value={status}
+              onChange={(e) => ubahFilter(() => setStatus(e.target.value))}
+              className="px-3 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
+            >
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <label className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400">
           Role
@@ -1167,18 +1175,26 @@ export default function Students() {
                       )}
                     </td>
                     <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => ubahStatus(student)}
-                        disabled={sedangProses === student.id || student.id === user?.id}
-                        title={student.id === user?.id ? 'Status akun sendiri tidak dapat diubah dari sini' : 'Klik untuk mengubah status'}
-                        className={`inline-flex items-center px-2.5 py-0.5 text-xs font-bold rounded-full transition disabled:cursor-not-allowed ${student.isActive
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60'
-                            : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60'
-                          }`}
-                      >
-                        {student.isActive ? 'Aktif' : 'Nonaktif'}
-                      </button>
+                      {/* Pengunjung direktori (mahasiswa) hanya melihat status,
+                          tidak bisa mengubahnya — tombol aktif hanya untuk pengelola. */}
+                      {isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => ubahStatus(student)}
+                          disabled={sedangProses === student.id || student.id === user?.id}
+                          title={student.id === user?.id ? 'Status akun sendiri tidak dapat diubah dari sini' : 'Klik untuk mengubah status'}
+                          className={`inline-flex items-center px-2.5 py-0.5 text-xs font-bold rounded-full transition disabled:cursor-not-allowed ${student.isActive
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60'
+                              : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60'
+                            }`}
+                        >
+                          {student.isActive ? 'Aktif' : 'Nonaktif'}
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-bold text-green-800 bg-green-100 rounded-full dark:bg-green-900/40 dark:text-green-300">
+                          {student.isActive ? 'Aktif' : 'Nonaktif'}
+                        </span>
+                      )}
                     </td>
                     {isAdmin && (
                       <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>

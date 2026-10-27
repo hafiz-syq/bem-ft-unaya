@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, assetUrl } from '../lib/axios';
+import { api } from '../lib/axios';
+import MediaImage from '../components/MediaImage';
 import {
   Loader2, Code2, ArrowLeft, ChevronLeft, ChevronRight, Images, X, Layers,
 } from 'lucide-react';
@@ -131,7 +132,12 @@ export default function Gallery() {
                     className="overflow-hidden text-left transition-all bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-2xl group hover:shadow-xl hover:-translate-y-1"
                   >
                     <div className="relative h-56 overflow-hidden bg-gray-200 dark:bg-gray-700">
-                      <img src={assetUrl(item.url)} alt={item.title} loading="lazy" decoding="async" className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110" />
+                      <MediaImage
+                        src={item.url}
+                        alt={item.title}
+                        className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
+                        fallbackClassName="w-full h-full"
+                      />
                       <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold rounded-lg uppercase tracking-wider">{item.category}</div>
                       {jumlah > 1 && (
                         <div className="absolute bottom-3 right-3 flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-white rounded-lg bg-black/60 backdrop-blur-sm">
@@ -168,10 +174,12 @@ export default function Gallery() {
               >
                 {fotoTerpilih.map((url, i) => (
                   <div key={`${url}-${i}`} className="flex items-center justify-center w-full h-full shrink-0 snap-center">
-                    <img
-                      src={assetUrl(url)}
+                    <MediaImage
+                      src={url}
                       alt={`${selected.title} ${i + 1}`}
                       className="object-contain max-w-full max-h-full"
+                      fallbackClassName="h-full w-full max-w-md"
+                      loading="eager"
                       draggable={false}
                     />
                   </div>
@@ -204,7 +212,7 @@ export default function Gallery() {
                     aria-label={`Lihat foto ${i + 1}`}
                     className={`w-16 h-16 overflow-hidden rounded-lg shrink-0 border-2 transition ${i === slide ? 'border-amber-400' : 'border-transparent opacity-60 hover:opacity-100'}`}
                   >
-                    <img src={assetUrl(url)} alt={`Thumbnail ${i + 1}`} className="object-cover w-full h-full" />
+                    <MediaImage src={url} alt={`Thumbnail ${i + 1}`} className="object-cover w-full h-full" fallbackClassName="w-full h-full" />
                   </button>
                 ))}
               </div>

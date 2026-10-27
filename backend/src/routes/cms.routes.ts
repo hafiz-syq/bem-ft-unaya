@@ -14,7 +14,7 @@ import {
   hapusKomentarGaleri,
 } from '../controllers/gallery-comment.controller';
 import { optionalAuth, requireAuth, requireRole } from '../middlewares/auth.middleware';
-import { denganWebp, uploadAttachment } from '../middlewares/upload.middleware';
+import { denganWebp, uploadAttachment, uploadGambarMemori } from '../middlewares/upload.middleware';
 import { OFFICER_ROLES } from '../lib/ticket-access';
 
 const router = Router();
@@ -22,8 +22,10 @@ const router = Router();
 // Pengelola konten publik = admin + seluruh jenis pengurus.
 const pengelola = [requireAuth, requireRole(['ADMIN', 'SUPERADMIN', ...OFFICER_ROLES])];
 
-// Unggahan galeri boleh memuat banyak foto sekaligus (maksimal 10) dalam satu postingan.
-const unggahGaleri = denganWebp(uploadAttachment).fields([
+// Unggahan galeri boleh memuat banyak foto sekaligus (maksimal 10) dalam satu
+// postingan. Berkas ditahan di memori lalu disimpan ke Cloudinary oleh
+// controller, sehingga tidak bergantung pada filesystem server yang sementara.
+const unggahGaleri = uploadGambarMemori.fields([
   { name: 'images', maxCount: 10 },
   { name: 'file', maxCount: 1 },
 ]);

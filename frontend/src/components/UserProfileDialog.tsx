@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { api, assetUrl } from '../lib/axios';
 import { ROLE_LABEL, isAdminRole, isOfficer } from '../lib/roles';
+import { usePresence } from '../contexts/PresenceContext';
 
 interface ProfilPublik {
   id: string;
@@ -35,6 +36,7 @@ const tanggal = (nilai: string | null): string => {
  * otomatis dipangkas bila pengguna memilih "kurangi animasi".
  */
 export default function UserProfileDialog({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const { online } = usePresence();
   const [profil, setProfil] = useState<ProfilPublik | null>(null);
   const [memuat, setMemuat] = useState(true);
   const [galat, setGalat] = useState('');
@@ -153,6 +155,11 @@ export default function UserProfileDialog({ userId, onClose }: { userId: string;
                   {profil.isActive ? <ShieldCheck className="w-3 h-3" /> : <ShieldAlert className="w-3 h-3" />}
                   {profil.isActive ? 'Akun aktif' : 'Akun nonaktif'}
                 </span>
+                {online.has(profil.id) && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-full bg-green-100 text-green-700 dark:bg-green-950/60 dark:text-green-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Sedang online
+                  </span>
+                )}
               </div>
 
               <dl className="mt-4 space-y-2 text-sm text-left">
