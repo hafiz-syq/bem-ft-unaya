@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   createDocument,
   deleteDocument,
+  getAksesArsip,
   getDocuments,
   reviewDocument,
   submitDocument,
@@ -13,6 +14,10 @@ import { uploadDokumen } from '../middlewares/upload.middleware';
 const router = Router();
 
 router.use(requireAuth);
+
+// Pemeriksaan ringan untuk sidebar & halaman arsip. Ditaruh sebelum rute lain
+// agar tidak bergantung pada pola ':id' yang mungkin ditambahkan kemudian.
+router.get('/akses', getAksesArsip);
 
 router.get('/', getDocuments);
 router.post('/', uploadDokumen.single('file'), createDocument);

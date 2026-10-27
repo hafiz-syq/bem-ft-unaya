@@ -495,6 +495,71 @@ const BARIS: Baris[] = [
     amanDiuji: true,
   },
 
+  // ── document.routes.ts (arsip surat) ────────────────────────────────────
+  // Arsip hanya untuk pimpinan inti (Ketua/Wakil Ketua/Sekretaris BEM, Ketua
+  // DPM, Ketua/Wakil/Sekretaris himpunan) dan admin. Akun "pengurus biasa" di
+  // pengujian ini tidak memegang jabatan pimpinan, jadi memang harus ditolak.
+  {
+    metode: 'GET',
+    jalur: '/documents/akses',
+    harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+    cek: (peran, hasil) => {
+      try {
+        const isi = JSON.parse(hasil.body);
+        if (peran === 'admin') {
+          return isi.bolehAkses === true && isi.bolehArah === true
+            ? null
+            : 'admin seharusnya boleh membuka arsip dan memilah arah surat.';
+        }
+        if (isi.bolehAkses !== false) return 'hanya pimpinan inti dan admin yang boleh membuka arsip.';
+        if (isi.bolehArah !== false) return 'hanya admin yang boleh memilah arah surat.';
+        return null;
+      } catch {
+        return 'Balasan /documents/akses bukan JSON yang valid.';
+      }
+    },
+  },
+  {
+    metode: 'GET',
+    jalur: '/documents',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+  },
+  {
+    metode: 'POST',
+    jalur: '/documents',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'body kosong ditolak validasi (400) sebelum menyentuh database',
+  },
+  {
+    metode: 'PUT',
+    jalur: '/documents/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada sehingga admin menerima 404',
+  },
+  {
+    metode: 'POST',
+    jalur: '/documents/:id/submit',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada sehingga admin menerima 404',
+  },
+  {
+    metode: 'PATCH',
+    jalur: '/documents/:id/review',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'status kosong ditolak validasi (400) sebelum menyentuh database',
+  },
+  {
+    metode: 'DELETE',
+    jalur: '/documents/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada sehingga admin menerima 404',
+  },
+
   // ── rute yang didaftarkan langsung di app.ts ────────────────────────────
   {
     metode: 'POST',

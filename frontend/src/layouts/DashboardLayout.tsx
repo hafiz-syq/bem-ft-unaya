@@ -10,6 +10,7 @@ import GlobalSearch from '../components/GlobalSearch';
 import PushToggle from '../components/PushToggle';
 import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, MessagesSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2, Images, Smartphone, Palette, PanelLeftClose, PanelLeftOpen, Megaphone, FolderArchive, ShieldAlert } from 'lucide-react';
 import StatusOnline from '../components/StatusOnline';
+import { useAksesArsip } from '../lib/arsip-surat';
 
 const KUNCI_SIDEBAR = 'bem-ft-sidebar-tutup';
 
@@ -78,6 +79,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const role = user?.role || '';
 
+  // Arsip surat hanya untuk pimpinan inti + admin. Menu disembunyikan bagi
+  // pengurus lain; aturan sebenarnya tetap dijaga server.
+  const aksesArsip = useAksesArsip(isStaff(role) ? user?.id : null);
+  const bolehArsip = isAdminRole(role) || Boolean(aksesArsip?.bolehAkses);
+
   /**
    * Daftar menu. `staff: true` berarti boleh dibuka pengurus (semua organisasi)
    * maupun admin, sehingga role pengurus baru otomatis ikut terdaftar.
@@ -95,7 +101,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // BEM/DPM/admin (dijaga server, tombolnya menyesuaikan peran).
     { name: 'Forum Diskusi', path: '/forum', icon: MessagesSquare, show: true },
     { name: 'Pengumuman', path: '/pengumuman', icon: Megaphone, show: true },
-    { name: 'Arsip Surat', path: '/dokumen', icon: FolderArchive, show: isStaff(role) },
+    { name: 'Arsip Surat', path: '/dokumen', icon: FolderArchive, show: bolehArsip },
     // Direktori mahasiswa terbuka untuk semua akun yang login; mahasiswa
     // menerima data terbatas dari server (tanpa email/telepon/status akun).
     { name: 'Data Mahasiswa', path: '/students', icon: Users, show: true },

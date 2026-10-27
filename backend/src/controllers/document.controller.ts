@@ -1,29 +1,82 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
-import { isAdminRole, OFFICER_ROLES } from '../lib/ticket-access';
+import { isAdminRole } from '../lib/ticket-access';
 import { kirimPushKePengguna } from '../services/push.service';
+import {
+  bolehAksesArsip,
+  bolehPilihArahSurat,
+  isArahSurat,
+  type ArahSurat,
+} from '../lib/arsip-surat';
 
 const TIPE_VALID = ['SURAT', 'PROPOSAL'];
 const STATUS_VALID = ['DRAFT', 'DIAJUKAN', 'DISETUJUI', 'DITOLAK', 'DIARSIPKAN'];
 
-const staf = (role: string): boolean => isAdminRole(role) || OFFICER_ROLES.includes(role);
+/**
+ * Batas akses arsip surat: pimpinan inti (Ketua/Wakil Ketua/Sekretaris
+ * BEM & himpunan, Ketua DPM) serta admin/superadmin. Bukan seluruh pengurus.
+ *
+ * Mengembalikan true bila permintaan sudah ditolak, sehingga pemanggil cukup
+ * menulis `if (await tolakBukanPimpinan(req, res)) return;`.
+ */
+const tolakBukanPimpinan = async (req: any, res: Response): Promise<boolean> => {
+  if (await bolehAksesArsip(req.user)) return false;
 
-/** Arsip surat & proposal: daftar untuk pengurus dan admin. */
+  res.status(403).json({
+    message:
+      'Arsip surat hanya dapat dibuka oleh Ketua, Wakil Ketua, dan Sekretaris BEM/himpunan, Ketua DPM, serta admin.',
+  });
+  return true;
+};
+
+/** Menentukan arah surat dari input; hanya admin yang boleh memilih. */
+const arahDariInput = (role: string, nilai: unknown, bawaan: ArahSurat): ArahSurat => {
+  if (!bolehPilihArahSurat(role)) return 'KELUAR';
+  return isArahSurat(nilai) ? nilai : bawaan;
+};
+
+/**
+ * GET /api/documents/akses
+ *
+ * Dipakai sidebar dan halaman arsip untuk tahu apakah menu perlu ditampilkan.
+ * Penjagaan sebenarnya tetap di setiap endpoint arsip, bukan di sini.
+ */
+export const getAksesArsip = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const bolehAkses = await bolehAksesArsip(req.user);
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).json({
+      bolehAkses,
+      bolehArah: bolehAkses && bolehPilihArahSurat(req.user.role),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** Arsip surat & proposal: daftar untuk pimpinan inti dan admin. */
 export const getDocuments = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (!staf(req.user.role)) {
-      res.status(403).json({ message: 'Hanya pengurus dan admin yang dapat membuka arsip surat.' });
-      return;
-    }
+    if (await tolakBukanPimpinan(req, res)) return;
 
     const tipe = String(req.query.type || 'ALL').toUpperCase();
     const status = String(req.query.status || 'ALL').toUpperCase();
     const search = String(req.query.search || '').trim();
+    const organizationId = String(req.query.organizationId || '').trim();
+    const arah = String(req.query.direction || '').toUpperCase();
 
+    // Penyaring dasar dipakai juga untuk hitungan per arah, supaya angka di
+    // kedua tab tetap konsisten dengan penyaring organisasi/jenis/pencarian.
     const where: any = {};
     if (TIPE_VALID.includes(tipe)) where.type = tipe;
     if (STATUS_VALID.includes(status)) where.status = status;
+    if (organizationId === 'TANPA') {
+      // Surat lama yang belum diberi organisasi.
+      where.organizationId = null;
+    } else if (organizationId && organizationId !== 'ALL') {
+      where.organizationId = organizationId;
+    }
     if (search) {
       where.OR = [
         { title: { contains: search } },
@@ -32,22 +85,45 @@ export const getDocuments = async (req: any, res: Response, next: NextFunction):
       ];
     }
 
-    const [data, total, diajukan, disetujui] = await Promise.all([
+    // Pemilah surat masuk/keluar hanya berlaku untuk admin & superadmin.
+    const bolehArah = bolehPilihArahSurat(req.user.role);
+    const whereArah = bolehArah && isArahSurat(arah) ? { ...where, direction: arah } : where;
+
+    const [data, total, diajukan, disetujui, masuk, keluar, organisasi] = await Promise.all([
       prisma.document.findMany({
-        where,
+        where: whereArah,
         orderBy: { createdAt: 'desc' },
         take: 150,
         include: {
+          organization: { select: { id: true, name: true } },
           createdBy: { select: { nim: true, profile: { select: { nama: true } } } },
           approvedBy: { select: { nim: true, profile: { select: { nama: true } } } },
         },
       }),
-      prisma.document.count({ where }),
-      prisma.document.count({ where: { status: 'DIAJUKAN' } }),
-      prisma.document.count({ where: { status: 'DISETUJUI' } }),
+      prisma.document.count({ where: whereArah }),
+      prisma.document.count({ where: { ...whereArah, status: 'DIAJUKAN' } }),
+      prisma.document.count({ where: { ...whereArah, status: 'DISETUJUI' } }),
+      prisma.document.count({ where: { ...where, direction: 'MASUK' } }),
+      prisma.document.count({ where: { ...where, direction: 'KELUAR' } }),
+      prisma.organization.findMany({
+        where: { isActive: true },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true },
+      }),
     ]);
 
-    res.status(200).json({ data, meta: { total, diajukan, disetujui } });
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).json({
+      data,
+      meta: {
+        total,
+        diajukan,
+        disetujui,
+        bolehArah,
+        arah: bolehArah ? { masuk, keluar } : null,
+        organisasi,
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -55,15 +131,14 @@ export const getDocuments = async (req: any, res: Response, next: NextFunction):
 
 export const createDocument = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (!staf(req.user.role)) {
-      res.status(403).json({ message: 'Hanya pengurus dan admin yang dapat menambah arsip.' });
-      return;
-    }
+    if (await tolakBukanPimpinan(req, res)) return;
 
     const type = String(req.body?.type || '').toUpperCase();
     const number = String(req.body?.number || '').trim().slice(0, 80);
     const title = String(req.body?.title || '').trim().slice(0, 200);
     const description = String(req.body?.description || '').trim().slice(0, 5000) || null;
+    const organizationId = String(req.body?.organizationId || '').trim() || null;
+    const direction = arahDariInput(req.user.role, req.body?.direction, 'KELUAR');
 
     if (!TIPE_VALID.includes(type)) {
       res.status(400).json({ message: 'Jenis dokumen harus SURAT atau PROPOSAL.' });
@@ -74,6 +149,19 @@ export const createDocument = async (req: any, res: Response, next: NextFunction
       return;
     }
 
+    // Organisasi hanya boleh diisi bila benar-benar ada; nilai asing ditolak
+    // agar arsip tidak menyimpan relasi yatim.
+    if (organizationId) {
+      const organisasi = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { id: true },
+      });
+      if (!organisasi) {
+        res.status(400).json({ message: 'Organisasi yang dipilih tidak ditemukan.' });
+        return;
+      }
+    }
+
     try {
       const data = await prisma.document.create({
         data: {
@@ -81,6 +169,8 @@ export const createDocument = async (req: any, res: Response, next: NextFunction
           number,
           title,
           description,
+          organizationId,
+          direction,
           createdById: req.user.id,
           ...(req.file
             ? { fileUrl: `/uploads/${req.file.filename}`, fileName: req.file.originalname }
@@ -111,10 +201,7 @@ export const createDocument = async (req: any, res: Response, next: NextFunction
 
 export const updateDocument = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (!staf(req.user.role)) {
-      res.status(403).json({ message: 'Hanya pengurus dan admin yang dapat mengubah arsip.' });
-      return;
-    }
+    if (await tolakBukanPimpinan(req, res)) return;
 
     const lama = await prisma.document.findUnique({ where: { id: req.params.id } });
     if (!lama) {
@@ -141,6 +228,28 @@ export const updateDocument = async (req: any, res: Response, next: NextFunction
       return;
     }
 
+    // Arah hanya admin yang boleh diubah; pengurus lain tidak bisa memindahkan
+    // surat dari keluar ke masuk (atau sebaliknya).
+    const direction = bolehPilihArahSurat(req.user.role)
+      ? arahDariInput(req.user.role, req.body?.direction, 'KELUAR')
+      : undefined;
+
+    let organizationId = lama.organizationId;
+    if (req.body?.organizationId !== undefined) {
+      const nilai = String(req.body.organizationId || '').trim() || null;
+      if (nilai) {
+        const organisasi = await prisma.organization.findUnique({
+          where: { id: nilai },
+          select: { id: true },
+        });
+        if (!organisasi) {
+          res.status(400).json({ message: 'Organisasi yang dipilih tidak ditemukan.' });
+          return;
+        }
+      }
+      organizationId = nilai;
+    }
+
     const data = await prisma.document.update({
       where: { id: lama.id },
       data: {
@@ -148,6 +257,8 @@ export const updateDocument = async (req: any, res: Response, next: NextFunction
         number,
         title,
         description,
+        organizationId,
+        ...(direction ? { direction } : {}),
         ...(req.file
           ? { fileUrl: `/uploads/${req.file.filename}`, fileName: req.file.originalname }
           : {}),
@@ -168,6 +279,8 @@ export const updateDocument = async (req: any, res: Response, next: NextFunction
 /** Pembuat mengajukan dokumen untuk ditinjau admin. */
 export const submitDocument = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    if (await tolakBukanPimpinan(req, res)) return;
+
     const dokumen = await prisma.document.findUnique({ where: { id: req.params.id } });
     if (!dokumen) {
       res.status(404).json({ message: 'Dokumen tidak ditemukan.' });
@@ -269,6 +382,8 @@ export const reviewDocument = async (req: any, res: Response, next: NextFunction
 
 export const deleteDocument = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    if (await tolakBukanPimpinan(req, res)) return;
+
     const dokumen = await prisma.document.findUnique({ where: { id: req.params.id } });
     if (!dokumen) {
       res.status(404).json({ message: 'Dokumen tidak ditemukan.' });

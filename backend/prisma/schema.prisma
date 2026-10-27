@@ -254,6 +254,7 @@ model Organization {
   isActive      Boolean        @default(true)
   departments   Department[]
   positionSlots PositionSlot[]
+  documents     Document[]
 }
 
 model Department {
@@ -665,6 +666,7 @@ model AnnouncementRead {
 /// Arsip surat & proposal kepengurusan dengan alur status sederhana.
 /// type: SURAT | PROPOSAL
 /// status: DRAFT | DIAJUKAN | DISETUJUI | DITOLAK | DIARSIPKAN
+/// direction: MASUK (diterima) | KELUAR (diterbitkan)
 model Document {
   id           String    @id @default(uuid())
   type         String    @db.VarChar(20)
@@ -672,6 +674,17 @@ model Document {
   title        String    @db.VarChar(200)
   description  String?   @db.Text
   status       String    @default("DRAFT") @db.VarChar(20)
+
+  // Organisasi yang diberi/menerbitkan surat. Dipakai sebagai penyaring utama
+  // arsip: pimpinan tiap organisasi memilah surat berdasarkan organisasinya.
+  // Null berarti belum ditentukan (data lama sebelum kolom ini ada).
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  // Arah surat. Hanya admin/superadmin yang boleh memilah dan mengubahnya;
+  // pengurus lain melihat seluruh arsip tanpa pemilah arah.
+  direction    String    @default("KELUAR") @db.VarChar(10)
+
   fileUrl      String?
   fileName     String?
   note         String?   @db.Text
@@ -685,6 +698,7 @@ model Document {
 
   @@unique([type, number])
   @@index([status, createdAt])
+  @@index([organizationId, direction])
 }
 
 /// Langganan Web Push milik satu perangkat. Endpoint unik karena browser yang

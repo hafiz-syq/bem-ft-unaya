@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api, API_ORIGIN } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
-import { isAdminRole, isStaff } from '../lib/roles';
+import { useAksesArsip } from '../lib/arsip-surat';
+import { isAdminRole } from '../lib/roles';
 import {
   FolderArchive, Plus, Loader2, X, FileText, CheckCircle, XCircle, Send,
-  Trash2, Paperclip, Archive, Search,
+  Trash2, Paperclip, Archive, Search, ArrowDownLeft, ArrowUpRight, ShieldAlert,
 } from 'lucide-react';
+
+interface Organisasi {
+  id: string;
+  name: string;
+}
 
 interface Dokumen {
   id: string;
@@ -14,6 +20,8 @@ interface Dokumen {
   title: string;
   description: string | null;
   status: string;
+  direction: string;
+  organization: Organisasi | null;
   fileUrl: string | null;
   fileName: string | null;
   note: string | null;
@@ -21,6 +29,15 @@ interface Dokumen {
   createdBy: { nim: string; profile: { nama: string } | null };
   approvedBy: { nim: string; profile: { nama: string } | null } | null;
   approvedAt: string | null;
+}
+
+interface MetaArsip {
+  total: number;
+  diajukan: number;
+  disetujui: number;
+  bolehArah: boolean;
+  arah: { masuk: number; keluar: number } | null;
+  organisasi: Organisasi[];
 }
 
 const STATUS_GAYA: Record<string, string> = {
@@ -31,15 +48,27 @@ const STATUS_GAYA: Record<string, string> = {
   DIARSIPKAN: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
 };
 
+const ARAH = [
+  { nilai: 'KELUAR', label: 'Surat Keluar', ikon: ArrowUpRight },
+  { nilai: 'MASUK', label: 'Surat Masuk', ikon: ArrowDownLeft },
+] as const;
+
 const tanggal = (nilai: string | null) =>
   nilai ? new Date(nilai).toLocaleString('id-ID', { dateStyle: 'medium' }) : '—';
 
+/** Pesan galat dari server, tanpa memaksa tipe `any` pada blok catch. */
+const pesanGalat = (err: unknown, cadangan: string): string => {
+  const pesan = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+  return pesan || cadangan;
+};
+
 export default function Documents() {
   const { user } = useAuth();
+  const akses = useAksesArsip(user?.id ?? null);
   const admin = isAdminRole(user?.role);
-  const staf = isStaff(user?.role);
 
   const [daftar, setDaftar] = useState<Dokumen[]>([]);
+  const [meta, setMeta] = useState<MetaArsip | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -47,15 +76,21 @@ export default function Documents() {
   const [menyimpan, setMenyimpan] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [filterTipe, setFilterTipe] = useState('ALL');
-  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterOrganisasi, setFilterOrganisasi] = useState('ALL');
+  const [arah, setArah] = useState<'MASUK' | 'KELUAR'>('KELUAR');
   const [cari, setCari] = useState('');
   const [form, setForm] = useState({
     type: 'SURAT',
     number: '',
     title: '',
     description: '',
+    organizationId: '',
+    direction: 'KELUAR',
   });
   const [berkas, setBerkas] = useState<File | null>(null);
+
+  const bolehBuka = Boolean(akses?.bolehAkses);
+  const bolehArah = Boolean(akses?.bolehArah);
 
   const muat = useCallback(async () => {
     setLoading(true);
@@ -64,31 +99,25 @@ export default function Documents() {
       const res = await api.get('/documents', {
         params: {
           type: filterTipe === 'ALL' ? undefined : filterTipe,
-          status: filterStatus === 'ALL' ? undefined : filterStatus,
+          organizationId: filterOrganisasi === 'ALL' ? undefined : filterOrganisasi,
+          // Pemilah arah hanya dikirim admin; server juga mengabaikannya untuk peran lain.
+          direction: bolehArah ? arah : undefined,
           search: cari.trim() || undefined,
         },
       });
       setDaftar(res.data.data);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Gagal memuat arsip surat.');
+      setMeta(res.data.meta);
+    } catch (err: unknown) {
+      setError(pesanGalat(err, 'Gagal memuat arsip surat.'));
     } finally {
       setLoading(false);
     }
-  }, [filterTipe, filterStatus, cari]);
+  }, [filterTipe, filterOrganisasi, arah, bolehArah, cari]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (staf) muat();
-  }, [muat, staf]);
-
-  const ringkasan = useMemo(
-    () => ({
-      total: daftar.length,
-      diajukan: daftar.filter((d) => d.status === 'DIAJUKAN').length,
-      disetujui: daftar.filter((d) => d.status === 'DISETUJUI').length,
-    }),
-    [daftar]
-  );
+    if (bolehBuka) muat();
+  }, [muat, bolehBuka]);
 
   const simpan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,6 +129,8 @@ export default function Documents() {
       formData.append('number', form.number.trim());
       formData.append('title', form.title.trim());
       if (form.description.trim()) formData.append('description', form.description.trim());
+      if (form.organizationId) formData.append('organizationId', form.organizationId);
+      if (bolehArah) formData.append('direction', form.direction);
       if (berkas) formData.append('file', berkas);
 
       const res = await api.post('/documents', formData, {
@@ -107,11 +138,11 @@ export default function Documents() {
       });
       setNotice(res.data.message);
       setModal(false);
-      setForm({ type: 'SURAT', number: '', title: '', description: '' });
+      setForm({ type: 'SURAT', number: '', title: '', description: '', organizationId: '', direction: 'KELUAR' });
       setBerkas(null);
       await muat();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Gagal menyimpan dokumen.');
+    } catch (err: unknown) {
+      setError(pesanGalat(err, 'Gagal menyimpan dokumen.'));
     } finally {
       setMenyimpan(false);
     }
@@ -131,18 +162,33 @@ export default function Documents() {
       else res = await api.delete(`/documents/${d.id}`);
       setNotice(res.data.message);
       await muat();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Aksi gagal.');
+    } catch (err: unknown) {
+      setError(pesanGalat(err, 'Aksi gagal.'));
     } finally {
       setBusyId(null);
     }
   };
 
-  if (!staf) {
+  if (!akses) {
+    return (
+      <div className="max-w-6xl p-12 mx-auto text-center">
+        <Loader2 className="w-8 h-8 mx-auto text-amber-400 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!akses.bolehAkses) {
     return (
       <div className="max-w-4xl p-6 mx-auto md:p-8">
-        <div className="p-6 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-900">
-          Halaman arsip surat hanya tersedia untuk pengurus dan admin.
+        <div className="flex items-start gap-3 p-6 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-900">
+          <ShieldAlert className="w-5 h-5 shrink-0" />
+          <div>
+            <p className="font-bold">Arsip surat bersifat terbatas.</p>
+            <p className="mt-1">
+              Halaman ini hanya dapat dibuka oleh Ketua, Wakil Ketua, dan Sekretaris BEM/himpunan,
+              Ketua DPM, serta admin. Hubungi pimpinan organisasi Anda bila memerlukan dokumen di sini.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -156,7 +202,7 @@ export default function Documents() {
             <FolderArchive className="w-6 h-6 text-amber-400" /> Arsip Surat & Proposal
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Simpan nomor, berkas final, dan status persetujuan dalam satu tempat.
+            Khusus pimpinan inti BEM, DPM, dan himpunan. Pilih organisasi untuk menyaring arsipnya.
           </p>
         </div>
         <button
@@ -168,11 +214,42 @@ export default function Documents() {
         </button>
       </div>
 
+      {bolehArah && (
+        <div role="tablist" aria-label="Arah surat" className="inline-flex p-1 border border-gray-200 rounded-xl bg-gray-100 dark:bg-gray-800 dark:border-gray-700">
+          {ARAH.map(({ nilai, label, ikon: Ikon }) => {
+            const aktif = arah === nilai;
+            const jumlah = nilai === 'MASUK' ? meta?.arah?.masuk : meta?.arah?.keluar;
+            return (
+              <button
+                key={nilai}
+                role="tab"
+                aria-selected={aktif}
+                type="button"
+                onClick={() => setArah(nilai)}
+                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${
+                  aktif
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-gray-100'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
+              >
+                <Ikon className="w-4 h-4" />
+                {label}
+                {typeof jumlah === 'number' && (
+                  <span className="px-1.5 py-0.5 text-[10px] font-black rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                    {jumlah}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Total', nilai: ringkasan.total, warna: 'text-gray-900 dark:text-gray-100' },
-          { label: 'Menunggu tinjauan', nilai: ringkasan.diajukan, warna: 'text-amber-600 dark:text-amber-300' },
-          { label: 'Disetujui', nilai: ringkasan.disetujui, warna: 'text-green-600 dark:text-green-400' },
+          { label: 'Total', nilai: meta?.total ?? 0, warna: 'text-gray-900 dark:text-gray-100' },
+          { label: 'Menunggu tinjauan', nilai: meta?.diajukan ?? 0, warna: 'text-amber-600 dark:text-amber-300' },
+          { label: 'Disetujui', nilai: meta?.disetujui ?? 0, warna: 'text-green-600 dark:text-green-400' },
         ].map((k) => (
           <div key={k.label} className="p-4 bg-white border border-gray-100 shadow-sm rounded-xl dark:bg-gray-900 dark:border-gray-800">
             <p className="text-xs font-bold text-gray-500 uppercase dark:text-gray-400">{k.label}</p>
@@ -200,13 +277,17 @@ export default function Documents() {
           <option value="SURAT">Surat</option>
           <option value="PROPOSAL">Proposal</option>
         </select>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-900 dark:border-gray-700">
-          <option value="ALL">Semua status</option>
-          <option value="DRAFT">Draf</option>
-          <option value="DIAJUKAN">Diajukan</option>
-          <option value="DISETUJUI">Disetujui</option>
-          <option value="DITOLAK">Ditolak</option>
-          <option value="DIARSIPKAN">Diarsipkan</option>
+        <select
+          value={filterOrganisasi}
+          onChange={(e) => setFilterOrganisasi(e.target.value)}
+          aria-label="Saring menurut organisasi"
+          className="px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-900 dark:border-gray-700"
+        >
+          <option value="ALL">Semua organisasi</option>
+          {(meta?.organisasi ?? []).map((o) => (
+            <option key={o.id} value={o.id}>{o.name}</option>
+          ))}
+          <option value="TANPA">Belum ditentukan</option>
         </select>
       </div>
 
@@ -227,6 +308,16 @@ export default function Documents() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">{d.type}</span>
                     <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${STATUS_GAYA[d.status] || STATUS_GAYA.DRAFT}`}>{d.status}</span>
+                    {bolehArah && (
+                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                        {d.direction === 'MASUK' ? 'Masuk' : 'Keluar'}
+                      </span>
+                    )}
+                    {d.organization && (
+                      <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                        {d.organization.name}
+                      </span>
+                    )}
                     <span className="text-xs font-mono text-gray-500 dark:text-gray-400">{d.number}</span>
                   </div>
                   <h2 className="mt-2 text-lg font-bold text-gray-900 dark:text-gray-100">{d.title}</h2>
@@ -304,6 +395,28 @@ export default function Documents() {
                   <input id="dok-nomor" required maxLength={80} value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} placeholder="001/BEM-FT/2026" className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700" />
                 </div>
               </div>
+
+              <div>
+                <label htmlFor="dok-organisasi" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Organisasi yang diberi surat</label>
+                <select id="dok-organisasi" value={form.organizationId} onChange={(e) => setForm({ ...form, organizationId: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
+                  <option value="">Belum ditentukan</option>
+                  {(meta?.organisasi ?? []).map((o) => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Dipakai sebagai penyaring utama arsip.</p>
+              </div>
+
+              {bolehArah && (
+                <div>
+                  <label htmlFor="dok-arah" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Arah surat</label>
+                  <select id="dok-arah" value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
+                    <option value="KELUAR">Surat keluar (diterbitkan)</option>
+                    <option value="MASUK">Surat masuk (diterima)</option>
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label htmlFor="dok-judul" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Judul</label>
                 <input id="dok-judul" required maxLength={200} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700" />
