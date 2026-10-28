@@ -13,9 +13,17 @@ interface Department {
 interface Organization {
   id: string;
   name: string;
+  /** Tipe organisasi: HIMPUNAN | BEM | DPM — menentukan tingkat akses arsip surat. */
+  kind: string;
   isActive: boolean;
   departments: Department[];
 }
+
+/** Label tipe organisasi untuk kartu & formulir. */
+const LABEL_JENIS: Record<string, string> = { HIMPUNAN: 'Himpunan', BEM: 'BEM', DPM: 'DPM' };
+
+/** Pilihan tipe saat menambah/mengubah organisasi. */
+const OPSI_JENIS = ['HIMPUNAN', 'BEM', 'DPM'] as const;
 
 /** Slot jabatan beserta pemegang aktifnya, dipakai daftar pengurus per organisasi. */
 interface PemegangJabatan {
@@ -40,6 +48,7 @@ export default function Organizations() {
   
   // State Form
   const [orgName, setOrgName] = useState('');
+  const [orgKind, setOrgKind] = useState<string>('HIMPUNAN');
   const [deptName, setDeptName] = useState('');
   const [selectedOrgId, setSelectedOrgId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,9 +56,10 @@ export default function Organizations() {
   const [deletingOrgId, setDeletingOrgId] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
 
-  // Ganti nama organisasi / divisi (satu modal untuk keduanya).
+  // Ganti nama / tipe organisasi dan nama divisi (satu modal untuk keduanya).
   const [editTarget, setEditTarget] = useState<{ tipe: 'org' | 'dept'; id: string; nama: string } | null>(null);
   const [editNama, setEditNama] = useState('');
+  const [editKind, setEditKind] = useState<string>('HIMPUNAN');
   const [menyimpanEdit, setMenyimpanEdit] = useState(false);
 
   const fetchOrganizations = async () => {
@@ -80,8 +90,9 @@ export default function Organizations() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await api.post('/organizations', { name: orgName });
+      await api.post('/organizations', { name: orgName, kind: orgKind });
       setOrgName('');
+      setOrgKind('HIMPUNAN');
       setIsOrgModalOpen(false);
       fetchOrganizations();
     } catch (err) {
@@ -107,9 +118,10 @@ export default function Organizations() {
     }
   };
 
-  const bukaEdit = (tipe: 'org' | 'dept', id: string, nama: string) => {
+  const bukaEdit = (tipe: 'org' | 'dept', id: string, nama: string, kind?: string) => {
     setEditTarget({ tipe, id, nama });
     setEditNama(nama);
+    setEditKind(kind ?? 'HIMPUNAN');
     setNotice('');
   };
 
@@ -121,7 +133,11 @@ export default function Organizations() {
       const jalur = editTarget.tipe === 'org'
         ? `/organizations/${editTarget.id}`
         : `/organizations/departments/${editTarget.id}`;
-      const res = await api.patch(jalur, { name: editNama.trim() });
+      // Tipe organisasi hanya dikirim untuk kartu organisasi, bukan divisi.
+      const res = await api.patch(jalur, {
+        name: editNama.trim(),
+        ...(editTarget.tipe === 'org' ? { kind: editKind } : {}),
+      });
       setNotice(res.data.message || 'Nama berhasil diubah.');
       setEditTarget(null);
       fetchOrganizations();
@@ -226,14 +242,22 @@ export default function Organizations() {
           {organizations.map((org) => (
             <div key={org.id} className="flex flex-col overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm rounded-xl">
               <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">{org.name}</h2>
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <h2 className="text-xl font-bold text-gray-800 truncate dark:text-gray-100">{org.name}</h2>
+                  <span
+                    className="px-2.5 py-1 text-xs font-semibold whitespace-nowrap rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                    title="Tipe organisasi; menentukan tingkat akses arsip surat"
+                  >
+                    {LABEL_JENIS[org.kind] ?? org.kind}
+                  </span>
+                </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${org.isActive ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300' : 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300'}`}>
                     {org.isActive ? 'Aktif' : 'Nonaktif'}
                   </span>
                   <button
                     type="button"
-                    onClick={() => bukaEdit('org', org.id, org.name)}
+                    onClick={() => bukaEdit('org', org.id, org.name, org.kind)}
                     title={`Ganti nama organisasi ${org.name}`}
                     className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-amber-600 dark:text-amber-400 transition rounded-md hover:bg-amber-100 dark:hover:bg-amber-900/40"
                   >
@@ -365,6 +389,26 @@ export default function Organizations() {
                   Sebelumnya: {editTarget.nama}
                 </p>
               </div>
+              {editTarget.tipe === 'org' && (
+                <div>
+                  <label htmlFor="edit-kind" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Tipe Organisasi
+                  </label>
+                  <select
+                    id="edit-kind"
+                    value={editKind}
+                    onChange={(e) => setEditKind(e.target.value)}
+                    className="w-full p-2.5 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg focus:ring-amber-300 focus:border-amber-300 dark:focus:border-amber-700"
+                  >
+                    {OPSI_JENIS.map((j) => (
+                      <option key={j} value={j}>{LABEL_JENIS[j]}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Menentukan tingkat akses arsip surat: surat hanya terlihat oleh tingkat yang sama dan di atasnya.
+                  </p>
+                </div>
+              )}
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setEditTarget(null)} className="px-4 py-2 font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
                 <button type="submit" disabled={menyimpanEdit || !editNama.trim()} className="flex items-center gap-2 px-4 py-2 font-medium text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
@@ -388,6 +432,22 @@ export default function Organizations() {
               <div>
                 <label className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Nama Organisasi</label>
                 <input type="text" required placeholder="Contoh: BEM Fakultas Teknik" className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-300 focus:border-amber-300 dark:focus:border-amber-700" value={orgName} onChange={(e) => setOrgName(e.target.value)} />
+              </div>
+              <div>
+                <label htmlFor="org-kind" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Tipe Organisasi</label>
+                <select
+                  id="org-kind"
+                  value={orgKind}
+                  onChange={(e) => setOrgKind(e.target.value)}
+                  className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-amber-300 focus:border-amber-300 dark:focus:border-amber-700"
+                >
+                  {OPSI_JENIS.map((j) => (
+                    <option key={j} value={j}>{LABEL_JENIS[j]}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Himpunan berada di tingkat terendah, lalu BEM, lalu DPM.
+                </p>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setIsOrgModalOpen(false)} className="px-4 py-2 font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>

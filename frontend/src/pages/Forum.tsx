@@ -33,8 +33,14 @@ interface DetailRuang {
   bolehKelola: boolean;
 }
 
-const JEDA_PESAN = 5_000;
-const JEDA_RUANG = 20_000;
+// Polling cepat: pesan tiap 2,5 detik agar obrolan terasa live tanpa refresh,
+// daftar ruang tiap 8 detik (lebih ringan karena hanya beberapa baris).
+const JEDA_PESAN = 2_500;
+const JEDA_RUANG = 8_000;
+
+// Tiap puluhan ketukan, ambil pesan secara penuh untuk menyelaraskan kembali
+// bila ada pesan yang dihapus pengguna lain (polling delta tidak tahu soal hapus).
+const JEDA_SINKRONISASI = 10;
 
 const jam = (nilai: string): string => {
   const d = new Date(nilai);
@@ -48,12 +54,19 @@ const tanggalPendek = (nilai: string): string => {
   return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
 };
 
+/** Pesan galat dari server, tanpa memakai tipe `any` pada blok catch. */
+const pesanGalat = (err: unknown, cadangan: string): string => {
+  const pesan = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+  return pesan || cadangan;
+};
+
 /**
  * Forum diskusi komunitas.
  *
  * Ruang dibuat oleh pengurus BEM/DPM atau admin; semua akun yang login dapat
- * membaca dan mengirim pesan. Pesan disegarkan berkala (bukan WebSocket) agar
- * tetap berjalan di hosting serverless tanpa server realtime tambahan.
+ * membaca dan mengirim pesan. Pesan disegarkan berkala lewat polling delta
+ * (bukan WebSocket) agar tetap berjalan di hosting serverless tanpa server
+ * realtime tambahan, tapi cukup cepat untuk terasa live tanpa refresh manual.
  */
 export default function Forum() {
   const { user } = useAuth();
@@ -78,6 +91,13 @@ export default function Forum() {
   const [menyimpanBuat, setMenyimpanBuat] = useState(false);
 
   const ujungPesan = useRef<HTMLDivElement>(null);
+  // Salinan daftar pesan agar polling delta selalu tahu id pesan terakhir
+  // tanpa membuat fungsi callback basi (usang) pada interval.
+  const pesanRef = useRef<Pesan[]>([]);
+  useEffect(() => {
+    pesanRef.current = pesan;
+  }, [pesan]);
+  const ketukanPolling = useRef(0);
 
   const ambilRuang = useCallback(async () => {
     try {
@@ -96,16 +116,32 @@ export default function Forum() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void ambilRuang();
-    const jadwal = window.setInterval(() => void ambilRuang(), JEDA_RUANG);
+    const jadwal = window.setInterval(() => {
+      if (!document.hidden) void ambilRuang();
+    }, JEDA_RUANG);
     return () => window.clearInterval(jadwal);
   }, [ambilRuang]);
 
-  const ambilPesan = useCallback(async (id: string, tampilkanMemuat: boolean) => {
+  const ambilPesan = useCallback(async (id: string, tampilkanMemuat: boolean, penuh = false) => {
+    // Mode delta: hanya minta pesan yang lebih baru dari yang terakhir terlihat.
+    const ujung = !tampilkanMemuat && !penuh ? pesanRef.current[pesanRef.current.length - 1]?.id : undefined;
+
     if (tampilkanMemuat) setMemuatPesan(true);
     try {
-      const res = await api.get(`/chat/rooms/${id}/messages`);
-      setPesan(res.data?.data ?? []);
+      const res = await api.get(`/chat/rooms/${id}/messages`, {
+        params: ujung ? { after: ujung } : undefined,
+      });
+      const hasil: Pesan[] = res.data?.data ?? [];
+
+      setPesan((sebelum) => {
+        if (!ujung) return hasil;
+        // Saring duplikat: batas delta memakai `>=`, jadi pesan terakhir yang
+        // sudah terlihat bisa ikut terkirim lagi.
+        const sudahAda = new Set(sebelum.map((p) => p.id));
+        return [...sebelum, ...hasil.filter((p) => !sudahAda.has(p.id))];
+      });
       setDetail(res.data?.ruang ?? null);
       setGalat('');
     } catch {
@@ -117,13 +153,28 @@ export default function Forum() {
 
   useEffect(() => {
     if (!aktifId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPesan([]);
       setDetail(null);
       return;
     }
     void ambilPesan(aktifId, true);
-    const jadwal = window.setInterval(() => void ambilPesan(aktifId, false), JEDA_PESAN);
-    return () => window.clearInterval(jadwal);
+    const jadwal = window.setInterval(() => {
+      // Tab sedang disembunyikan: jangan buang permintaan, nanti disusul saat
+      // tab aktif kembali lewat listener visibilitychange di bawah.
+      if (document.hidden) return;
+      ketukanPolling.current += 1;
+      const sinkronPenuh = ketukanPolling.current % JEDA_SINKRONISASI === 0;
+      void ambilPesan(aktifId, false, sinkronPenuh);
+    }, JEDA_PESAN);
+    const saatTampil = () => {
+      if (!document.hidden) void ambilPesan(aktifId, false, true);
+    };
+    document.addEventListener('visibilitychange', saatTampil);
+    return () => {
+      window.clearInterval(jadwal);
+      document.removeEventListener('visibilitychange', saatTampil);
+    };
   }, [aktifId, ambilPesan]);
 
   // Gulir ke pesan terbaru setiap daftar pesan berubah.
@@ -139,12 +190,21 @@ export default function Forum() {
     setMengirim(true);
     setGalat('');
     try {
-      await api.post(`/chat/rooms/${aktifId}/messages`, { isi: teks });
+      const res = await api.post(`/chat/rooms/${aktifId}/messages`, { isi: teks });
       setIsi('');
-      await ambilPesan(aktifId, false);
+      // Tambahkan pesan yang baru dikirim langsung ke daftar; tidak perlu menunggu
+      // putaran polling berikutnya supaya balasan kirim terasa seketika.
+      const baru: Pesan | undefined = res.data?.data;
+      if (baru) {
+        setPesan((sebelum) =>
+          sebelum.some((p) => p.id === baru.id) ? sebelum : [...sebelum, baru]
+        );
+      } else {
+        await ambilPesan(aktifId, false, true);
+      }
       await ambilRuang();
-    } catch (err: any) {
-      setGalat(err?.response?.data?.message || 'Pesan gagal dikirim.');
+    } catch (err: unknown) {
+      setGalat(pesanGalat(err, 'Pesan gagal dikirim.'));
     } finally {
       setMengirim(false);
     }
@@ -168,8 +228,8 @@ export default function Forum() {
       setFormBuat({ nama: '', deskripsi: '' });
       await ambilRuang();
       if (res.data?.data?.id) setAktifId(res.data.data.id);
-    } catch (err: any) {
-      setGalatBuat(err?.response?.data?.message || 'Ruang gagal dibuat.');
+    } catch (err: unknown) {
+      setGalatBuat(pesanGalat(err, 'Ruang gagal dibuat.'));
     } finally {
       setMenyimpanBuat(false);
     }
@@ -186,8 +246,8 @@ export default function Forum() {
       await api.patch(`/chat/rooms/${ruangAktif.id}`, { isOpen: buka });
       await ambilPesan(ruangAktif.id, false);
       await ambilRuang();
-    } catch (err: any) {
-      setGalat(err?.response?.data?.message || 'Status ruang gagal diubah.');
+    } catch (err: unknown) {
+      setGalat(pesanGalat(err, 'Status ruang gagal diubah.'));
     } finally {
       setSedangProses(null);
     }
@@ -203,8 +263,8 @@ export default function Forum() {
       setDetail(null);
       setPesan([]);
       await ambilRuang();
-    } catch (err: any) {
-      setGalat(err?.response?.data?.message || 'Ruang gagal dihapus.');
+    } catch (err: unknown) {
+      setGalat(pesanGalat(err, 'Ruang gagal dihapus.'));
     } finally {
       setSedangProses(null);
     }
@@ -216,8 +276,8 @@ export default function Forum() {
     try {
       await api.delete(`/chat/messages/${id}`);
       if (aktifId) await ambilPesan(aktifId, false);
-    } catch (err: any) {
-      setGalat(err?.response?.data?.message || 'Pesan gagal dihapus.');
+    } catch (err: unknown) {
+      setGalat(pesanGalat(err, 'Pesan gagal dihapus.'));
     } finally {
       setSedangProses(null);
     }

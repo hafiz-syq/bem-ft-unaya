@@ -173,10 +173,21 @@ export const deleteRoom = async (req: any, res: Response, next: NextFunction): P
   } catch (error) { next(error); }
 };
 
-/** GET /api/chat/rooms/:id/messages — pesan sebuah ruang (polling setiap beberapa detik). */
+/**
+ * GET /api/chat/rooms/:id/messages — pesan sebuah ruang.
+ *
+ * Mendukung dua mode:
+ * - Tanpa parameter: seluruh pesan (dipakai saat pertama membuka ruang).
+ * - `?after=<id pesan terakhir yang dilihat klien>`: hanya pesan dengan waktu
+ *   muat >= pesan itu. Dipakai polling cepat agar obrolan terasa live tanpa
+ *   mengunduh ulang seluruh riwayat tiap beberapa detik. Klien menyaring
+ *   duplikatnya sendiri, sehingga pesan dengan stempel waktu sama tetap
+ *   tertangkap dan tidak terlewat.
+ */
 export const getMessages = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = String(req.params.id);
+    const after = String(req.query.after || '').trim();
 
     const ruang = await prisma.chatRoom.findUnique({
       where: { id },
@@ -187,8 +198,19 @@ export const getMessages = async (req: any, res: Response, next: NextFunction): 
       return;
     }
 
+    // Ambil waktu pesan batas; bila id-nya sudah tidak ada (dihapus), abaikan
+    // saja penyaringnya dan kirimkan daftar penuh sebagai penyelamatan.
+    let filterWaktu: { createdAt?: { gte: Date } } = {};
+    if (after) {
+      const batas = await prisma.chatMessage.findUnique({
+        where: { id: after },
+        select: { createdAt: true },
+      });
+      if (batas) filterWaktu = { createdAt: { gte: batas.createdAt } };
+    }
+
     const pesan = await prisma.chatMessage.findMany({
-      where: { roomId: id },
+      where: { roomId: id, ...filterWaktu },
       orderBy: { createdAt: 'asc' },
       take: 200,
       include: { author: { select: penulisSelect } },

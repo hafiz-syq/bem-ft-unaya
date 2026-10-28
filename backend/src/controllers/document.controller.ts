@@ -6,7 +6,9 @@ import { kirimPushKePengguna } from '../services/push.service';
 import {
   bolehAksesArsip,
   bolehPilihArahSurat,
+  cakupanArsipPengguna,
   isArahSurat,
+  whereCakupanArsip,
   type ArahSurat,
 } from '../lib/arsip-surat';
 
@@ -55,10 +57,19 @@ export const getAksesArsip = async (req: any, res: Response, next: NextFunction)
   }
 };
 
-/** Arsip surat & proposal: daftar untuk pimpinan inti dan admin. */
+/**
+ * Arsip surat & proposal: daftar untuk pimpinan inti dan admin.
+ *
+ * Daftar dan seluruh hitungannya selalu dipagat cakupan pengguna (lihat
+ * lib/arsip-surat.ts): surat hanya terlihat oleh organisasi pengunggahnya
+ * dan tingkat di atasnya — surat DPM hanya untuk DPM & admin, surat BEM juga
+ * untuk DPM & admin, surat himpunan juga untuk himpunan itu, BEM, DPM, dan
+ * admin. Surat tanpa organisasi hanya untuk admin dan pembuatnya.
+ */
 export const getDocuments = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
     if (await tolakBukanPimpinan(req, res)) return;
+    const cakupan = await cakupanArsipPengguna(req.user);
 
     const tipe = String(req.query.type || 'ALL').toUpperCase();
     const status = String(req.query.status || 'ALL').toUpperCase();
@@ -68,21 +79,24 @@ export const getDocuments = async (req: any, res: Response, next: NextFunction):
 
     // Penyaring dasar dipakai juga untuk hitungan per arah, supaya angka di
     // kedua tab tetap konsisten dengan penyaring organisasi/jenis/pencarian.
-    const where: any = {};
+    // Cakupan ditaruh di dalam AND agar tidak menimpa penyaring lain.
+    const where: any = { AND: [whereCakupanArsip(cakupan, req.user.id)] };
     if (TIPE_VALID.includes(tipe)) where.type = tipe;
     if (STATUS_VALID.includes(status)) where.status = status;
     if (organizationId === 'TANPA') {
       // Surat lama yang belum diberi organisasi.
-      where.organizationId = null;
+      where.AND.push({ organizationId: null });
     } else if (organizationId && organizationId !== 'ALL') {
-      where.organizationId = organizationId;
+      where.AND.push({ organizationId });
     }
     if (search) {
-      where.OR = [
-        { title: { contains: search } },
-        { number: { contains: search } },
-        { description: { contains: search } },
-      ];
+      where.AND.push({
+        OR: [
+          { title: { contains: search } },
+          { number: { contains: search } },
+          { description: { contains: search } },
+        ],
+      });
     }
 
     // Pemilah surat masuk/keluar hanya berlaku untuk admin & superadmin.
@@ -121,7 +135,11 @@ export const getDocuments = async (req: any, res: Response, next: NextFunction):
         disetujui,
         bolehArah,
         arah: bolehArah ? { masuk, keluar } : null,
-        organisasi,
+        // Daftar organisasi hanya berisi yang boleh dilihat pengguna, supaya
+        // pemilah tidak menawarkan organisasi yang hasilnya pasti kosong.
+        organisasi: cakupan.admin
+          ? organisasi
+          : organisasi.filter((o) => cakupan.organisasiTerlihat.includes(o.id)),
       },
     });
   } catch (error) {
@@ -137,7 +155,7 @@ export const createDocument = async (req: any, res: Response, next: NextFunction
     const number = String(req.body?.number || '').trim().slice(0, 80);
     const title = String(req.body?.title || '').trim().slice(0, 200);
     const description = String(req.body?.description || '').trim().slice(0, 5000) || null;
-    const organizationId = String(req.body?.organizationId || '').trim() || null;
+    let organizationId = String(req.body?.organizationId || '').trim() || null;
     const direction = arahDariInput(req.user.role, req.body?.direction, 'KELUAR');
 
     if (!TIPE_VALID.includes(type)) {
@@ -159,6 +177,18 @@ export const createDocument = async (req: any, res: Response, next: NextFunction
       if (!organisasi) {
         res.status(400).json({ message: 'Organisasi yang dipilih tidak ditemukan.' });
         return;
+      }
+    }
+
+    // Pengurus yang lupa memilih organisasi otomatis memakai organisasi
+    // kepengurusannya (bila hanya satu), supaya suratnya langsung masuk ruang
+    // lingkup arsip organisasi tersebut, bukan tersembunyi sebagai surat tanpa
+    // organisasi. Admin yang tidak memilih tetap mendapat surat tanpa
+    // organisasi seperti sebelumnya.
+    if (!organizationId && !isAdminRole(req.user.role)) {
+      const cakupan = await cakupanArsipPengguna(req.user);
+      if (cakupan.organisasiSendiri.length === 1) {
+        organizationId = cakupan.organisasiSendiri[0];
       }
     }
 

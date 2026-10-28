@@ -1,6 +1,10 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
+import { isJenisOrganisasi, JENIS_ORGANISASI, LABEL_JENIS } from '../lib/organisasi';
+
+/** Label tipe organisasi untuk pesan & log; nilai tak dikenal ditampilkan apa adanya. */
+const labelJenis = (nilai: string): string => (isJenisOrganisasi(nilai) ? LABEL_JENIS[nilai] : nilai);
 
 // 1. Mengambil Semua Data Organisasi beserta Departemennya
 export const getOrganizations = async (req: any, res: Response, next: NextFunction): Promise<void> => {
@@ -22,14 +26,25 @@ export const getOrganizations = async (req: any, res: Response, next: NextFuncti
 export const createOrganization = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { name } = req.body;
+    // Tipe organisasi menentukan tingkat visibilitas arsip surat
+    // (HIMPUNAN < BEM < DPM). Kosong dianggap himpunan.
+    const kind = req.body?.kind === undefined || req.body?.kind === null || req.body?.kind === ''
+      ? 'HIMPUNAN'
+      : String(req.body.kind).toUpperCase();
 
     if (!name) {
       res.status(400).json({ message: 'Nama organisasi wajib diisi.' });
       return;
     }
+    if (!isJenisOrganisasi(kind)) {
+      res.status(400).json({
+        message: `Tipe organisasi harus salah satu dari: ${JENIS_ORGANISASI.map((j) => LABEL_JENIS[j]).join(', ')}.`,
+      });
+      return;
+    }
 
     const newOrg = await prisma.organization.create({
-      data: { name }
+      data: { name, kind }
     });
 
     res.status(201).json({ message: 'Organisasi berhasil ditambahkan.', data: newOrg });
@@ -51,10 +66,27 @@ export const renameOrganization = async (req: any, res: Response, next: NextFunc
       return;
     }
 
-    const org = await prisma.organization.findUnique({ where: { id }, select: { id: true, name: true } });
+    const org = await prisma.organization.findUnique({
+      where: { id },
+      select: { id: true, name: true, kind: true },
+    });
     if (!org) {
       res.status(404).json({ message: 'Organisasi tidak ditemukan.' });
       return;
+    }
+
+    // Tipe organisasi boleh ikut diubah (opsional) karena menentukan tingkat
+    // visibilitas arsip surat.
+    let kindBaru: string | undefined;
+    if (req.body?.kind !== undefined && req.body?.kind !== null && req.body?.kind !== '') {
+      const nilai = String(req.body.kind).toUpperCase();
+      if (!isJenisOrganisasi(nilai)) {
+        res.status(400).json({
+          message: `Tipe organisasi harus salah satu dari: ${JENIS_ORGANISASI.map((j) => LABEL_JENIS[j]).join(', ')}.`,
+        });
+        return;
+      }
+      kindBaru = nilai;
     }
 
     const bentrok = await prisma.organization.findFirst({
@@ -66,22 +98,31 @@ export const renameOrganization = async (req: any, res: Response, next: NextFunc
       return;
     }
 
-    if (org.name === name) {
+    if (org.name === name && (kindBaru === undefined || kindBaru === org.kind)) {
       res.status(200).json({ message: 'Nama organisasi tidak berubah.', data: org });
       return;
     }
 
-    const diperbarui = await prisma.organization.update({ where: { id }, data: { name } });
+    const perubahan: { name?: string; kind?: string } = {};
+    if (org.name !== name) perubahan.name = name;
+    if (kindBaru !== undefined && kindBaru !== org.kind) perubahan.kind = kindBaru;
+
+    const diperbarui = await prisma.organization.update({ where: { id }, data: perubahan });
+
+    const rincian = [
+      org.name !== name ? `nama dari "${org.name}" menjadi "${name}"` : '',
+      perubahan.kind ? `tipe dari ${labelJenis(org.kind)} menjadi ${labelJenis(perubahan.kind)}` : '',
+    ].filter(Boolean).join(', ');
 
     await logActivity(
       req.user.id,
       'UPDATE_ORGANIZATION',
       'Organization',
-      `Mengganti nama organisasi dari "${org.name}" menjadi "${name}"`,
+      `Mengubah ${rincian}`,
       id
     );
 
-    res.status(200).json({ message: `Nama organisasi diubah menjadi "${name}".`, data: diperbarui });
+    res.status(200).json({ message: `Organisasi "${diperbarui.name}" diperbarui.`, data: diperbarui });
   } catch (error) {
     next(error);
   }
@@ -281,7 +322,22 @@ export const deleteDepartment = async (req: any, res: Response, next: NextFuncti
       return;
     }
 
+    // Hitung seluruh riwayat jabatan di divisi ini, termasuk yang sudah tidak
+    // aktif: relasi `dept.positionSlots.positions` di atas sengaja hanya
+    // memuat pemegang aktif untuk penjagaan penghapusan.
+    const jumlahRiwayat = await prisma.position.count({
+      where: { positionSlot: { departmentId: id } },
+    });
+    const slotIds = dept.positionSlots.map((slot) => slot.id);
+
     await prisma.$transaction(async (tx) => {
+      // Urutan penting: riwayat jabatan -> slot -> divisi. Tabel Position masih
+      // menunjuk ke PositionSlot lewat foreign key RESTRICT, jadi menghapus slot
+      // lebih dulu melanggar batas relasi dan memunculkan error
+      // "Foreign key constraint violated" seperti yang pernah terjadi.
+      if (slotIds.length > 0) {
+        await tx.position.deleteMany({ where: { positionSlotId: { in: slotIds } } });
+      }
       await tx.positionSlot.deleteMany({ where: { departmentId: id } });
       await tx.department.delete({ where: { id } });
     });
@@ -290,7 +346,7 @@ export const deleteDepartment = async (req: any, res: Response, next: NextFuncti
       req.user.id,
       'DELETE_DEPARTMENT',
       'Department',
-      `Menghapus divisi ${dept.name} beserta ${dept.positionSlots.length} slot jabatannya`,
+      `Menghapus divisi ${dept.name} beserta ${dept.positionSlots.length} slot jabatannya dan ${jumlahRiwayat} riwayat jabatan`,
       id
     );
 
