@@ -509,7 +509,12 @@ export const deleteGallery = async (req: any, res: Response, next: NextFunction)
 // ================= PENGATURAN SITUS (VISI & MISI) =================
 export const getSiteSettings = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const rows = await prisma.siteSetting.findMany();
+    // Hanya pengaturan yang memang untuk publik. Tabel SiteSetting juga
+    // menyimpan nilai internal (mis. kunci VAPID untuk notifikasi perangkat)
+    // yang tidak boleh pernah ikut terkirim ke browser pengunjung.
+    const rows = await prisma.siteSetting.findMany({
+      where: { key: { in: [...ALLOWED_SETTINGS] } },
+    });
     const data: Record<string, string> = {};
     rows.forEach((r) => { data[r.key] = r.value; });
 

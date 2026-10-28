@@ -1,6 +1,7 @@
 import prisma from '../lib/prisma';
 import { logActivity } from './audit.service';
 import { kirimEmailNotifikasiPerangkatBaru, type AdminEmailData } from './notifikasi-perangkat-email.service';
+import { kirimPushKeBanyak } from './push.service';
 import type { Role } from '@prisma/client';
 
 /**
@@ -60,6 +61,11 @@ export const beriNotifikasiPercobaanPerangkat =
       })),
       skipDuplicates: true,
     });
+
+    await kirimPushKeBanyak(
+      admins.map((admin) => admin.id),
+      { title: judul, body: pesanMudah, url: '/devices' }
+    ).catch(() => undefined);
 
     const dataEmail = admins.map((a): AdminEmailData => ({ nim: a.nim, email: a.email }));
     kirimEmailNotifikasiPerangkatBaru(dataEmail, targetNim).catch((err) => {

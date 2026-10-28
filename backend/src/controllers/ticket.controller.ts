@@ -2,7 +2,7 @@ import { Response, NextFunction } from 'express';
 import ExcelJS from 'exceljs';
 import prisma from '../lib/prisma';
 import { sendEmailNotification, generateTicketNotificationEmail } from '../services/email.service';
-import { kirimPushKePengguna } from '../services/push.service';
+import { kirimPushKeBanyak, kirimPushKePengguna } from '../services/push.service';
 import { hitungTenggatSla } from './ticket-extra.controller';
 import {
   ADMIN_ROLES,
@@ -110,6 +110,15 @@ export const createTicket = async (req: any, res: Response, next: NextFunction):
           message: `Tiket ${type} baru #${ticket_no} menunggu untuk ditinjau.`,
         })),
       });
+
+      await kirimPushKeBanyak(
+        penerima.map((p) => p.id),
+        {
+          title: 'Tiket Masuk Baru',
+          body: `Tiket ${type} baru #${ticket_no} menunggu untuk ditinjau.`,
+          url: '/tickets',
+        }
+      ).catch(() => undefined);
     }
 
     // --- Notifikasi email: HANYA ke alamat yang sudah diverifikasi ---

@@ -62,6 +62,16 @@ npm run dev
 
 Frontend memanggil API backend; pastikan URL API di konfigurasi frontend (`.env` / `src/lib/axios`) menunjuk ke backend yang berjalan.
 
+## Notifikasi Perangkat & Mode Offline
+
+Aplikasi ini adalah PWA: halaman dapat dibuka kembali saat jaringan putus dan perubahan tulis yang dibuat saat offline dikirim otomatis ketika internet kembali.
+
+- **Notifikasi perangkat (Web Push).** Aktifkan lewat ikon lonceng di dashboard → *Aktifkan notifikasi browser*. Server membuat pasangan kunci VAPID sendiri saat pertama dipakai dan menyimpannya di tabel `SiteSetting` (kunci privat tidak pernah dikirim ke browser; endpoint publik `/api/cms/settings` hanya mengembalikan `visi` & `misi`). Isi `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` di environment hanya bila ingin memakai kunci sendiri. Di iPhone/iPad, Web Push baru berfungsi setelah aplikasi ditambahkan ke layar utama.
+- **Cache offline.** Service worker menyimpan kerangka aplikasi, aset ber-hash (daftar dibuat otomatis oleh plugin Vite saat build), data GET API terakhir, dan gambar galeri. Saat offline, dashboard/tiket/pengumuman tetap terbaca dari data terakhir.
+- **Antrean tulis.** Aksi POST/PUT/PATCH/DELETE (mis. tandai notifikasi dibaca, kirim tiket, komentar) disimpan di IndexedDB bila jaringan gagal, lalu diputar ulang otomatis saat online — termasuk lewat Background Sync bila tab sudah ditutup. Unggahan berkas, login, obrolan live, dan endpoint status online sengaja tidak diantrekan.
+- **Keamanan antrean.** Antrean terikat pada akun; logout atau berganti akun menghapus antrean dan cache data agar tidak terkirim memakai sesi pengguna lain.
+- **Menguji secara lokal.** Service worker hanya didaftarkan pada build produksi, jadi pakai `npm run build && npm run preview` (bukan `npm run dev`). `vite preview` sudah meneruskan `/api` ke backend lokal.
+
 ## Deploy
 
 Panduan lengkap ada di [DEPLOY.md](DEPLOY.md): satu aplikasi Node di **Hostinger** menyajikan SPA, API, dan `/uploads` dari domain yang sama, dengan MySQL Hostinger.

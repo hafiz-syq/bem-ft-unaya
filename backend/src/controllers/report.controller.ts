@@ -4,6 +4,7 @@ import prisma from '../lib/prisma';
 import { isAdminRole, OFFICER_ROLES } from '../lib/ticket-access';
 import { hitungAngkatan } from '../services/account-lifecycle.service';
 import { logActivity } from '../services/audit.service';
+import { kirimPushKeBanyak } from '../services/push.service';
 
 const NAMA_BULAN = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -250,6 +251,15 @@ export async function kirimPengingatLaporanBulanan(sekarang: Date = new Date()):
         message: `Laporan bulan ${NAMA_BULAN[bulanLalu.getMonth()]} ${bulanLalu.getFullYear()} dapat diunduh dari dashboard.`,
       })),
     });
+
+    await kirimPushKeBanyak(
+      admins.map((a) => a.id),
+      {
+        title: 'Laporan Bulanan Siap',
+        body: `Laporan ${NAMA_BULAN[bulanLalu.getMonth()]} ${bulanLalu.getFullYear()} dapat diunduh dari dashboard.`,
+        url: '/dashboard',
+      }
+    ).catch(() => undefined);
   }
 
   await prisma.siteSetting.upsert({

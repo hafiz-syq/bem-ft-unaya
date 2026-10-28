@@ -1,81 +1,263 @@
 /*
  * Service worker BEM-FT UNAYA.
  *
- * Dua tugas: (1) menyajikan kerangka aplikasi saat jaringan lambat/putus, dan
- * (2) menerima notifikasi Web Push lalu membuka halaman yang relevan saat
- * diklik. API, unggahan, dan permintaan non-GET tidak pernah di-cache.
+ * Tugas:
+ * 1. Menyajikan kerangka aplikasi + aset build saat jaringan lambat/putus.
+ * 2. Menyimpan data GET API terakhir agar halaman tetap terbaca offline.
+ * 3. Menerima Web Push dan membuka rute HashRouter yang benar saat diklik.
+ * 4. Memutar antrean perubahan (IndexedDB) lewat Background Sync.
+ *
+ * Permintaan tulis (POST/PUT/PATCH/DELETE) tidak pernah di-cache; antreannya
+ * ditangani aplikasi (lihat src/lib/offline.ts).
  */
-const CACHE = 'bem-ft-v1';
-const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
+const VERSI = 'v3';
+const CACHE_SHELL = `bem-ft-shell-${VERSI}`;
+const CACHE_DATA = `bem-ft-data-${VERSI}`;
+const CACHE_GAMBAR = `bem-ft-gambar-${VERSI}`;
+const CACHE_AKTIF = [CACHE_SHELL, CACHE_DATA, CACHE_GAMBAR];
+
+const SHELL_DASAR = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/favicon-64.png',
+];
+
+// Endpoint yang tidak boleh disimpan di perangkat: sesi, status online,
+// langganan push, dan endpoint internal/cron. /api/auth/me dikecualikan karena
+// dibutuhkan agar pengguna tetap dikenali saat membuka aplikasi offline.
+const API_TANPA_CACHE = ['/api/presence', '/api/push', '/api/internal', '/api/health'];
+
+const DB_OFFLINE = 'bem-ft-offline';
+const STORE_ANTREAN = 'antrean';
+const TAG_SINKRON = 'bem-ft-sinkron';
+
+// --- Pemasangan & pembersihan cache -------------------------------------
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting())
+    (async () => {
+      const cache = await caches.open(CACHE_SHELL);
+      await Promise.all(
+        SHELL_DASAR.map((url) => cache.add(url).catch(() => undefined))
+      );
+
+      // Daftar aset ber-hash dibuat plugin Vite saat build. Bila tidak ada
+      // (mis. build lama), aplikasi tetap berjalan dengan cache saat diakses.
+      try {
+        const respons = await fetch('/precache-manifest.json', { cache: 'reload' });
+        if (respons.ok) {
+          const daftar = await respons.json();
+          if (Array.isArray(daftar)) {
+            await Promise.all(
+              daftar.map((url) => cache.add(url).catch(() => undefined))
+            );
+          }
+        }
+      } catch {
+        // Pratinjau lokal tanpa manifest: abaikan.
+      }
+
+      await self.skipWaiting();
+    })()
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
+    (async () => {
+      const kunci = await caches.keys();
+      await Promise.all(
+        kunci
+          .filter((nama) => nama.startsWith('bem-ft-') && !CACHE_AKTIF.includes(nama))
+          .map((nama) => caches.delete(nama))
+      );
+      await self.clients.claim();
+    })()
   );
 });
+
+// --- Pembatasan jumlah entri cache --------------------------------------
+
+async function batasiCache(cache, batas) {
+  try {
+    const kunci = await cache.keys();
+    if (kunci.length <= batas) return;
+    await Promise.all(kunci.slice(0, kunci.length - batas).map((req) => cache.delete(req)));
+  } catch {
+    // Pembersihan bersifat pemeliharaan; kegagalannya tidak fatal.
+  }
+}
+
+// --- Strategi fetch -----------------------------------------------------
+
+const bukanApiSesi = (pathname) =>
+  pathname === '/api/auth/me' || !pathname.startsWith('/api/auth/');
+
+async function ambilDataApi(event) {
+  const { request } = event;
+
+  try {
+    const respons = await fetch(request);
+    const tipe = respons.headers.get('content-type') || '';
+    const tanpaSimpan = /no-store/i.test(respons.headers.get('cache-control') || '');
+
+    if (respons.ok && tipe.includes('application/json') && !tanpaSimpan) {
+      const salinan = respons.clone();
+      const cache = await caches.open(CACHE_DATA);
+      await cache.put(request, salinan);
+      void batasiCache(cache, 120);
+    }
+
+    return respons;
+  } catch {
+    const tersimpan = await caches.match(request, { cacheName: CACHE_DATA });
+    if (tersimpan) {
+      const headers = new Headers(tersimpan.headers);
+      headers.set('X-Dari-Cache', '1');
+      return new Response(await tersimpan.blob(), {
+        status: tersimpan.status,
+        statusText: tersimpan.statusText,
+        headers,
+      });
+    }
+
+    return new Response(
+      JSON.stringify({
+        message: 'Anda sedang offline dan data ini belum pernah dimuat di perangkat.',
+      }),
+      {
+        status: 503,
+        headers: { 'Content-Type': 'application/json', 'X-Offline': '1' },
+      }
+    );
+  }
+}
+
+async function ambilGambar(event) {
+  const { request } = event;
+  const cache = await caches.open(CACHE_GAMBAR);
+  const tersimpan = await cache.match(request);
+  if (tersimpan) return tersimpan;
+
+  try {
+    const respons = await fetch(request);
+    if (respons.ok || respons.type === 'opaque') {
+      await cache.put(request, respons.clone()).catch(() => undefined);
+      void batasiCache(cache, 80);
+    }
+    return respons;
+  } catch {
+    return tersimpan || Response.error();
+  }
+}
+
+async function ambilAset(event) {
+  const { request } = event;
+  const tersimpan = await caches.match(request);
+
+  const dariJaringan = fetch(request)
+    .then((respons) => {
+      if (respons.ok) {
+        const salinan = respons.clone();
+        void caches.open(CACHE_SHELL).then((cache) => cache.put(request, salinan)).catch(() => undefined);
+      }
+      return respons;
+    })
+    .catch(() => tersimpan);
+
+  return tersimpan || dariJaringan;
+}
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/uploads')) return;
 
+  // Data API: network-first, fallback ke data terakhir di perangkat.
+  if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) {
+    if (API_TANPA_CACHE.some((awalan) => url.pathname.startsWith(awalan))) return;
+    if (!bukanApiSesi(url.pathname)) return;
+    event.respondWith(ambilDataApi(event));
+    return;
+  }
+
+  // Gambar dari Cloudinary/domain lain ikut disimpan agar galeri terbaca offline.
+  if (url.origin !== self.location.origin) {
+    if (request.destination === 'image') event.respondWith(ambilGambar(event));
+    return;
+  }
+
+  if (url.pathname.startsWith('/uploads/')) {
+    if (request.destination === 'image') event.respondWith(ambilAset(event));
+    return;
+  }
+
+  // Navigasi: coba jaringan, lalu kerangka aplikasi tersimpan.
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
-        .then((response) => {
-          const salinan = response.clone();
-          caches.open(CACHE).then((cache) => cache.put('/index.html', salinan)).catch(() => {});
-          return response;
+        .then((respons) => {
+          const salinan = respons.clone();
+          void caches.open(CACHE_SHELL).then((cache) => cache.put('/index.html', salinan)).catch(() => undefined);
+          return respons;
         })
-        .catch(() => caches.match('/index.html').then((r) => r || caches.match('/')))
+        .catch(async () => {
+          const index = await caches.match('/index.html');
+          return index || caches.match('/');
+        })
     );
     return;
   }
 
-  // Aset ber-hash: ambil dari cache dulu, perbarui di latar belakang.
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      const jaringan = fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const salinan = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(request, salinan)).catch(() => {});
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || jaringan;
-    })
-  );
+  // Aset statis & gambar: cache dulu, perbarui di latar belakang.
+  const asetBoleh = ['script', 'style', 'font', 'image'].includes(request.destination) ||
+    url.pathname.startsWith('/assets/');
+  if (asetBoleh) event.respondWith(ambilAset(event));
 });
 
+// --- Notifikasi Web Push ------------------------------------------------
+
+/**
+ * Mengubah tujuan notifikasi menjadi rute HashRouter, mis. /dashboard menjadi
+ * /#/dashboard. Tanpa ini, klik notifikasi membuka /dashboard (tanpa hash) dan
+ * React Router tidak menemukan halamannya.
+ */
+function keRuteHash(nilai) {
+  try {
+    const url = new URL(nilai || '/dashboard', self.location.origin);
+    if (url.hash) return url.href;
+    return `${self.location.origin}/#${url.pathname}${url.search}`;
+  } catch {
+    return `${self.location.origin}/#/dashboard`;
+  }
+}
+
 self.addEventListener('push', (event) => {
-  let data = { title: 'BEM-FT UNAYA', body: 'Ada informasi baru untuk Anda.', url: '/dashboard' };
+  let data = {
+    title: 'BEM-FT UNAYA',
+    body: 'Ada informasi baru untuk Anda.',
+    url: '/dashboard',
+  };
+
   try {
     if (event.data) data = { ...data, ...event.data.json() };
-  } catch (error) {
-    // Payload bukan JSON: pakai teks mentah bila ada.
+  } catch {
     if (event.data) data.body = event.data.text();
   }
 
+  const tujuan = keRuteHash(data.url);
   event.waitUntil(
     self.registration.showNotification(data.title || 'BEM-FT UNAYA', {
       body: data.body || 'Ada informasi baru untuk Anda.',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      data: { url: data.url || '/dashboard' },
+      data: { url: tujuan },
+      tag: data.tag || undefined,
+      renotify: Boolean(data.tag),
       vibrate: [80, 40, 80],
     })
   );
@@ -83,15 +265,140 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const tujuan = new URL(event.notification.data?.url || '/dashboard', self.location.origin).href;
+  const tujuan = event.notification.data?.url || keRuteHash('/dashboard');
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      for (const client of clients) {
-        if (client.url === tujuan && 'focus' in client) return client.focus();
+    (async () => {
+      const daftar = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+
+      for (const klien of daftar) {
+        if (klien.url === tujuan && 'focus' in klien) return klien.focus();
       }
-      if (self.clients.openWindow) return self.clients.openWindow(tujuan);
-      return undefined;
-    })
+
+      const klien = daftar.find((c) => 'focus' in c);
+      if (klien) {
+        await klien.focus();
+        if ('navigate' in klien) {
+          const hasil = await klien.navigate(tujuan);
+          return hasil?.focus?.();
+        }
+        return undefined;
+      }
+
+      return self.clients.openWindow ? self.clients.openWindow(tujuan) : undefined;
+    })()
   );
+});
+
+// --- Pesan dari halaman -------------------------------------------------
+
+self.addEventListener('message', (event) => {
+  const tipe = event.data?.type;
+  if (tipe === 'BERSIHKAN_CACHE_DATA') {
+    event.waitUntil(
+      Promise.all([caches.delete(CACHE_DATA), caches.delete(CACHE_GAMBAR)]).then(() => undefined)
+    );
+  }
+  if (tipe === 'SINKRON_ANTREAN') {
+    event.waitUntil(sinkronkanAntrean());
+  }
+});
+
+// --- Sinkronisasi antrean offline --------------------------------------
+
+function bukaDb() {
+  return new Promise((resolve, reject) => {
+    const permintaan = indexedDB.open(DB_OFFLINE, 1);
+    permintaan.onupgradeneeded = () => {
+      const db = permintaan.result;
+      if (!db.objectStoreNames.contains(STORE_ANTREAN)) {
+        db.createObjectStore(STORE_ANTREAN, { keyPath: 'id' });
+      }
+    };
+    permintaan.onsuccess = () => resolve(permintaan.result);
+    permintaan.onerror = () => reject(permintaan.error);
+  });
+}
+
+function bacaSemuaAntrean() {
+  return bukaDb()
+    .then(
+      (db) =>
+        new Promise((resolve, reject) => {
+          const permintaan = db
+            .transaction(STORE_ANTREAN, 'readonly')
+            .objectStore(STORE_ANTREAN)
+            .getAll();
+          permintaan.onsuccess = () => resolve(permintaan.result || []);
+          permintaan.onerror = () => reject(permintaan.error);
+        })
+    )
+    .catch(() => []);
+}
+
+function hapusAntreanSw(id) {
+  return bukaDb()
+    .then(
+      (db) =>
+        new Promise((resolve) => {
+          const permintaan = db
+            .transaction(STORE_ANTREAN, 'readwrite')
+            .objectStore(STORE_ANTREAN)
+            .delete(id);
+          permintaan.onsuccess = () => resolve();
+          permintaan.onerror = () => resolve();
+        })
+    )
+    .catch(() => undefined);
+}
+
+async function sinkronkanAntrean() {
+  // Bila ada tab terbuka, biarkan halaman memutar antrean (sesi & UI-nya aktif).
+  const daftarKlien = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  if (daftarKlien.length > 0) {
+    for (const klien of daftarKlien) klien.postMessage({ type: 'SINKRON_ANTREAN' });
+    return;
+  }
+
+  const antrean = (await bacaSemuaAntrean()).sort((a, b) => a.createdAt - b.createdAt);
+  let selesai = 0;
+  let gagal = 0;
+
+  for (const item of antrean) {
+    try {
+      const respons = await fetch(item.url, {
+        method: item.method,
+        credentials: 'include',
+        headers: item.data !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+        body: item.data !== undefined ? JSON.stringify(item.data) : undefined,
+      });
+
+      if (respons.ok) {
+        await hapusAntreanSw(item.id);
+        selesai += 1;
+      } else if (respons.status >= 400 && respons.status < 500) {
+        // Ditolak permanen (mis. data sudah tidak valid): buang agar tidak macet.
+        await hapusAntreanSw(item.id);
+        gagal += 1;
+      } else {
+        break;
+      }
+    } catch {
+      break;
+    }
+  }
+
+  if (selesai > 0) {
+    await self.registration.showNotification('Data tersinkronisasi', {
+      body: `${selesai} perubahan yang dibuat saat offline berhasil dikirim.`,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: 'sinkron-offline',
+      data: { url: keRuteHash('/dashboard') },
+    });
+  }
+}
+
+self.addEventListener('sync', (event) => {
+  if (event.tag === TAG_SINKRON) event.waitUntil(sinkronkanAntrean());
 });

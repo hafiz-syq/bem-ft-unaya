@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
+import OfflineStatus from './components/OfflineStatus';
 import Landing from './pages/Landing';
 
 // Halaman selain landing dimuat sesuai kebutuhan. Ini memangkas JavaScript
@@ -85,8 +86,11 @@ function App() {
   }, []);
 
   return (
-    <Suspense fallback={<MemuatHalaman />}>
-      <Routes>
+    <>
+      {/* Indikator offline & sinkronisasi, global untuk semua halaman. */}
+      <OfflineStatus />
+      <Suspense fallback={<MemuatHalaman />}>
+        <Routes>
       <Route path="/" element={<Landing />} />
 
       <Route path="/login" element={<Login />} />
@@ -269,8 +273,9 @@ function App() {
       <Route path="/post/:id" element={<PublicContentDetail />} />
 
         <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </Suspense>
+        </Routes>
+      </Suspense>
+    </>
   );
 }
 

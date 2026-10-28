@@ -198,6 +198,35 @@ const prerenderLanding: Plugin = {
  * File ini berisi data statis yang dibutuhkan halaman landing.
  * Dihasilkan sekali saat build dan digunakan oleh prerenderLanding.
  */
+/**
+ * Menulis daftar aset hasil build agar service worker dapat mem-precache
+ * seluruh kerangka aplikasi. Tanpa daftar ini, halaman yang belum pernah
+ * dibuka tidak dapat dimuat saat offline karena potongan JS-nya belum tersimpan.
+ */
+const daftarPrecache: Plugin = {
+  name: 'daftar-precache',
+  apply: 'build',
+  enforce: 'post',
+  generateBundle(_options, bundle) {
+    const aset = Object.keys(bundle).filter((nama) => /\.(js|css|woff2?|ttf)$/i.test(nama));
+    const daftar = [
+      '/',
+      '/index.html',
+      '/manifest.webmanifest',
+      '/icon-192.png',
+      '/icon-512.png',
+      '/favicon-64.png',
+      ...aset.map((nama) => `/${nama}`),
+    ];
+
+    this.emitFile({
+      type: 'asset',
+      fileName: 'precache-manifest.json',
+      source: JSON.stringify([...new Set(daftar)]),
+    });
+  },
+};
+
 const dataLanding: Plugin = {
   name: 'data-landing',
   apply: 'build',
@@ -219,7 +248,22 @@ const dataLanding: Plugin = {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tanamCss, prerenderLanding, dataLanding],
+  plugins: [react(), tanamCss, prerenderLanding, dataLanding, daftarPrecache],
+  // `vite preview` ikut meneruskan /api & /uploads ke backend lokal supaya
+  // hasil build bisa diuji (termasuk service worker & mode offline) tanpa deploy.
+  preview: {
+    port: 4173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/uploads': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    },
+  },
   server: {
     // Dengarkan semua antarmuka jaringan (0.0.0.0), bukan hanya localhost,
     // supaya aplikasi bisa dibuka dari HP / komputer lain di jaringan kampus

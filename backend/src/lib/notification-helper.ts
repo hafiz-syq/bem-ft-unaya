@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import prisma from './prisma';
+import { kirimPushKePengguna } from '../services/push.service';
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -82,6 +83,12 @@ export async function checkAndNotifyExpiringExtensions() {
           isRead: false,
         },
       });
+
+      await kirimPushKePengguna(admin.id, {
+        title: 'Peringatan Perpanjangan Studi',
+        body: message,
+        url: '/students',
+      }).catch(() => undefined);
     }
   }
 

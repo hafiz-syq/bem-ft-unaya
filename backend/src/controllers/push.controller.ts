@@ -6,9 +6,13 @@ import {
 } from '../services/push.service';
 
 /** Kunci publik VAPID untuk didaftarkan browser. Null = fitur belum dikonfigurasi. */
-export const getPushPublicKey = async (_req: any, res: Response): Promise<void> => {
-  const publicKey = kunciPublikPush();
-  res.status(200).json({ enabled: Boolean(publicKey), publicKey });
+export const getPushPublicKey = async (_req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const publicKey = await kunciPublikPush();
+    res.status(200).json({ enabled: Boolean(publicKey), publicKey });
+  } catch (error) {
+    next(error);
+  }
 };
 
 export const subscribePush = async (req: any, res: Response, next: NextFunction): Promise<void> => {

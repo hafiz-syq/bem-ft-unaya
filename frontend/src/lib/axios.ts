@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type InternalAxiosRequestConfig } from 'axios';
 
 /**
  * Satu-satunya tempat alamat backend ditentukan.
@@ -49,6 +49,80 @@ api.interceptors.request.use((config) => {
   if (ID_PERANGKAT) config.headers.set('X-Device-Id', ID_PERANGKAT);
   return config;
 });
+
+/** Permintaan yang sedang diputar ulang dari antrean offline tidak boleh diantrekan lagi. */
+const dariAntrean = (config?: InternalAxiosRequestConfig): boolean => {
+  if (!config) return false;
+  const headers = config.headers as unknown as {
+    get?: (nama: string) => unknown;
+    [nama: string]: unknown;
+  };
+  return headers?.get?.('X-Dari-Antrean') === '1' || headers?.['X-Dari-Antrean'] === '1';
+};
+
+/** Body axios kadang sudah diserialisasi menjadi string JSON. */
+const dataUntukAntrean = (data: unknown): unknown => {
+  if (typeof data !== 'string') return data;
+  try {
+    return JSON.parse(data);
+  } catch {
+    return data;
+  }
+};
+
+/**
+ * Perubahan tulis yang gagal karena jaringan disimpan ke antrean offline dan
+ * dianggap berhasil sementara (202). Pengguna melihat pesan bahwa perubahannya
+ * akan dikirim otomatis; antrean diputar saat koneksi kembali.
+ */
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const config = error?.config as InternalAxiosRequestConfig | undefined;
+    const tanpaRespons = !error?.response;
+    const offline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+    if (config && !dariAntrean(config) && (tanpaRespons || offline)) {
+      const { antrekanPermintaan, bolehDiantrekan } = await import('./offline');
+      const data = dataUntukAntrean(config.data);
+
+      if (
+        bolehDiantrekan({
+          method: config.method,
+          url: config.url,
+          data,
+          responseType: config.responseType,
+        })
+      ) {
+        try {
+          await antrekanPermintaan({
+            method: config.method,
+            url: config.url || '',
+            baseURL: config.baseURL,
+            data,
+          });
+
+          return {
+            data: {
+              queued: true,
+              message:
+                'Perubahan disimpan di perangkat dan akan dikirim otomatis saat internet kembali.',
+            },
+            status: 202,
+            statusText: 'Accepted',
+            headers: {},
+            config,
+            request: null,
+          };
+        } catch (gagalAntre) {
+          console.error('Gagal menyimpan perubahan ke antrean offline:', gagalAntre);
+        }
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 /** Akar server (tanpa /api), dipakai untuk membentuk URL berkas unggahan. */
 export const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, '');

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { logActivity, logSystemActivity } from '../services/audit.service';
 import { isAdminRole } from '../lib/ticket-access';
+import { kirimPushKeBanyak } from '../services/push.service';
 
 /**
  * Penyaring sederhana untuk pesan yang perlu ditinjau admin. Ini bukan sensor
@@ -292,6 +293,15 @@ export const reportComment = async (req: Permintaan, res: Response, next: NextFu
         },
       });
     }
+
+    await kirimPushKeBanyak(
+      admins.map((a) => a.id),
+      {
+        title: 'Laporan Komentar Baru',
+        body: `Komentar dari ${comment.nama} dilaporkan: ${reason || 'tanpa alasan'}`,
+        url: '/buku-tamu',
+      }
+    ).catch(() => undefined);
 
     await logActivity(
       reporter.id,
@@ -648,6 +658,15 @@ export const laporkanKomentarPublik = async (req: Permintaan, res: Response, nex
           message: `Pesan dari ${komentar.nama} ditandai perlu ditinjau${reason ? `: ${reason}` : '.'}`,
         })),
       });
+
+      await kirimPushKeBanyak(
+        admins.map((a) => a.id),
+        {
+          title: 'Laporan Pesan Buku Tamu',
+          body: `Pesan dari ${komentar.nama} ditandai perlu ditinjau.`,
+          url: '/buku-tamu',
+        }
+      ).catch(() => undefined);
     }
 
     await logSystemActivity(

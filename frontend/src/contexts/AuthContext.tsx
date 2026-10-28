@@ -1,6 +1,7 @@
 // Tambahkan kata kunci 'type' sebelum ReactNode
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { api } from '../lib/axios';
+import { bersihkanCacheOffline, setelPemilikAntrean } from '../lib/offline';
 
 interface User {
   id: string;
@@ -32,6 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Antrean offline terikat pada akun: berganti akun membersihkan antrean lama
+    // agar tidak terkirim memakai sesi pengguna yang baru.
+    if (user?.id) void setelPemilikAntrean(user.id);
+  }, [user?.id]);
+
+  useEffect(() => {
     const checkAuth = async () => {
       try {
         const response = await api.get('/auth/me');
@@ -53,6 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await api.post('/auth/logout');
+      // Hapus antrean & cache data milik akun ini dari perangkat.
+      await bersihkanCacheOffline();
       setUser(null);
     } catch (error) {
       console.error('Logout gagal', error);

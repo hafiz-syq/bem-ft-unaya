@@ -4,34 +4,116 @@ import prisma from '../lib/prisma';
 /**
  * Notifikasi browser (Web Push).
  *
- * Fitur ini aktif hanya bila VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, dan
- * VAPID_SUBJECT diisi di environment. Tanpa kunci, aplikasi tetap berjalan
- * normal; tombol notifikasi di UI otomatis menyembunyikan dirinya.
+ * Kunci VAPID dibaca dari environment bila tersedia. Bila tidak, pasangan kunci
+ * dibuat SEKALI lalu disimpan di tabel SiteSetting, sehingga notifikasi
+ * perangkat tetap aktif tanpa perlu menyetel environment tambahan. Kunci yang
+ * disimpan di database dipakai bersama oleh semua instans server (Vercel),
+ * jadi langganan push yang sudah dibuat tidak pernah kehilangan pasangannya.
+ *
+ * Bila environment diisi, nilai environment selalu menang. Ini memungkinkan
+ * pemilik situs memakai kunci sendiri tanpa menghapus baris database.
  */
 export interface PayloadPush {
   title: string;
   body: string;
   url?: string;
+  /** Tag notifikasi: notifikasi dengan tag sama saling menggantikan. */
+  tag?: string;
 }
 
-let sudahDisiapkan = false;
+interface KonfigurasiVapid {
+  publicKey: string;
+  privateKey: string;
+  subject: string;
+}
 
-export const kunciPublikPush = (): string | null => {
-  const kunci = String(process.env.VAPID_PUBLIC_KEY || '').trim();
-  return kunci || null;
+const KUNCI_SETTING = 'vapid_keys';
+const SUBJEK_BAWAAN = 'mailto:admin@bem-ft-unaya.vercel.app';
+
+let konfigurasi: KonfigurasiVapid | null = null;
+let janjiMenyiapkan: Promise<KonfigurasiVapid | null> | null = null;
+
+const subjekVapid = (): string => {
+  const nilai = String(process.env.VAPID_SUBJECT || '').trim();
+  return nilai || SUBJEK_BAWAAN;
 };
 
-const siapkanWebPush = (): boolean => {
-  if (sudahDisiapkan) return true;
-  const publik = kunciPublikPush();
+const kunciDariEnvironment = (): KonfigurasiVapid | null => {
+  const publik = String(process.env.VAPID_PUBLIC_KEY || '').trim();
   const privat = String(process.env.VAPID_PRIVATE_KEY || '').trim();
-  const subjek = String(process.env.VAPID_SUBJECT || 'mailto:admin@bem-ft-unaya.local').trim();
+  if (!publik || !privat) return null;
+  return { publicKey: publik, privateKey: privat, subject: subjekVapid() };
+};
 
-  if (!publik || !privat) return false;
+/**
+ * Membaca pasangan kunci dari database. Bila belum ada, satu pasangan baru
+ * dibuat. `upsert` dengan update kosong membuat instans yang berlomba hanya
+ * menulis satu kali; instans lain membaca baris yang sama.
+ */
+const kunciDariDatabase = async (): Promise<KonfigurasiVapid> => {
+  const dibuat = webpush.generateVAPIDKeys();
 
-  webpush.setVapidDetails(subjek, publik, privat);
-  sudahDisiapkan = true;
-  return true;
+  const baris = await prisma.siteSetting.upsert({
+    where: { key: KUNCI_SETTING },
+    update: {},
+    create: {
+      key: KUNCI_SETTING,
+      value: JSON.stringify({
+        publicKey: dibuat.publicKey,
+        privateKey: dibuat.privateKey,
+        subject: subjekVapid(),
+      }),
+    },
+  });
+
+  const tersimpan = JSON.parse(baris.value) as Partial<KonfigurasiVapid>;
+  if (!tersimpan.publicKey || !tersimpan.privateKey) {
+    throw new Error('Kunci VAPID tersimpan tidak valid.');
+  }
+
+  return {
+    publicKey: tersimpan.publicKey,
+    privateKey: tersimpan.privateKey,
+    subject: tersimpan.subject || subjekVapid(),
+  };
+};
+
+const pastikanKonfigurasi = async (): Promise<KonfigurasiVapid | null> => {
+  if (konfigurasi) return konfigurasi;
+  if (janjiMenyiapkan) return janjiMenyiapkan;
+
+  janjiMenyiapkan = (async () => {
+    let nilai = kunciDariEnvironment();
+
+    if (!nilai) {
+      try {
+        nilai = await kunciDariDatabase();
+      } catch (error) {
+        console.error('[push] Kunci VAPID tidak dapat dimuat:', error);
+        return null;
+      }
+    }
+
+    try {
+      webpush.setVapidDetails(nilai.subject, nilai.publicKey, nilai.privateKey);
+    } catch (error) {
+      console.error('[push] Kunci VAPID tidak valid:', error);
+      return null;
+    }
+
+    konfigurasi = nilai;
+    return nilai;
+  })().finally(() => {
+    janjiMenyiapkan = null;
+  });
+
+  return janjiMenyiapkan;
+};
+
+/** Kunci publik VAPID untuk didaftarkan browser. Null = fitur tidak tersedia. */
+export const kunciPublikPush = async (): Promise<string | null> => {
+  const nilai = await pastikanKonfigurasi();
+  return nilai?.publicKey ?? null;
 };
 
 export async function simpanLanggananPush(
@@ -64,7 +146,8 @@ async function kirimKeSatuLangganan(
         endpoint: langganan.endpoint,
         keys: { p256dh: langganan.p256dh, auth: langganan.auth },
       },
-      JSON.stringify(payload)
+      JSON.stringify(payload),
+      { TTL: 60 * 60, urgency: 'normal' }
     );
   } catch (error: any) {
     // 404/410 = langganan sudah dicabut browser. Hapus agar tidak dicoba terus.
@@ -77,14 +160,14 @@ async function kirimKeSatuLangganan(
 }
 
 export async function kirimPushKePengguna(userId: string, payload: PayloadPush): Promise<void> {
-  if (!siapkanWebPush()) return;
+  if (!(await pastikanKonfigurasi())) return;
 
   const langganan = await prisma.pushSubscription.findMany({ where: { userId } });
   await Promise.all(langganan.map((l) => kirimKeSatuLangganan(l, payload)));
 }
 
 export async function kirimPushKeBanyak(userIds: string[], payload: PayloadPush): Promise<void> {
-  if (!siapkanWebPush() || userIds.length === 0) return;
+  if (!(await pastikanKonfigurasi()) || userIds.length === 0) return;
 
   // Dibatasi agar satu pengumuman massal tidak membuka ribuan koneksi sekaligus.
   const unik = [...new Set(userIds)].slice(0, 2000);

@@ -40,17 +40,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   useEffect(() => {
+    let aktif = true;
+    let jeda: number | undefined;
+
     const fetchNotifs = async () => {
       try {
         const res = await api.get('/notifications');
-        setNotifications(res.data.data);
-      } catch (error) { console.error(error); }
+        if (aktif) setNotifications(res.data.data);
+      } catch (error) {
+        // Saat offline, daftar terakhir dari cache service worker tetap tampil.
+        console.error(error);
+      }
     };
-    fetchNotifs();
 
-    // Auto-refresh notif setiap 30 detik (opsional tapi bagus untuk real-time feel)
-    const interval = setInterval(fetchNotifs, 30000);
-    return () => clearInterval(interval);
+    const aturPolling = () => {
+      if (!aktif) return;
+
+      // Hemat koneksi: hentikan polling saat tab tidak terlihat, lalu segarkan
+      // segera begitu tab dibuka kembali.
+      if (document.visibilityState === 'hidden') {
+        if (jeda) window.clearInterval(jeda);
+        jeda = undefined;
+        return;
+      }
+
+      void fetchNotifs();
+      if (!jeda) jeda = window.setInterval(fetchNotifs, 20_000);
+    };
+
+    aturPolling();
+    document.addEventListener('visibilitychange', aturPolling);
+
+    return () => {
+      aktif = false;
+      if (jeda) window.clearInterval(jeda);
+      document.removeEventListener('visibilitychange', aturPolling);
+    };
   }, []);
 
   const handleMarkAsRead = async () => {
@@ -237,7 +262,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <ThemeToggle />
 
             {/* Tombol Notifikasi */}
-            <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="relative p-2 text-gray-500 transition rounded-full hover:bg-gray-100 shrink-0 dark:text-gray-400 dark:hover:bg-gray-800">
+            <button
+              type="button"
+              onClick={() => setIsNotifOpen(!isNotifOpen)}
+              aria-label={`Notifikasi${unreadCount > 0 ? `, ${unreadCount} belum dibaca` : ''}`}
+              aria-expanded={isNotifOpen}
+              className="relative p-2 text-gray-500 transition rounded-full hover:bg-gray-100 shrink-0 dark:text-gray-400 dark:hover:bg-gray-800"
+            >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-gray-900"></span>}
             </button>
