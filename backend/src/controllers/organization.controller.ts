@@ -262,16 +262,31 @@ export const deleteOrganization = async (req: any, res: Response, next: NextFunc
       return;
     }
 
-    await prisma.$transaction(async (tx) => {
-      // Urutan penting: jabatan -> slot -> divisi -> organisasi.
-      const slotIds = org.positionSlots.map((s) => s.id);
-      if (slotIds.length > 0) {
-        await tx.position.deleteMany({ where: { positionSlotId: { in: slotIds } } });
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Urutan penting: jabatan -> slot -> divisi -> organisasi.
+        //
+        // Riwayat jabatan dihapus lewat relasi (bukan daftar slot yang sudah
+        // dimuat di atas) supaya slot yang tidak ikut termuat tetap aman dan
+        // tidak memunculkan "Foreign key constraint violated" saat menghapus.
+        await tx.position.deleteMany({
+          where: { positionSlot: { is: { organizationId: id } } },
+        });
+        await tx.positionSlot.deleteMany({ where: { organizationId: id } });
+        await tx.department.deleteMany({ where: { organizationId: id } });
+        await tx.organization.delete({ where: { id } });
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2003') {
+        res.status(409).json({
+          message:
+            `Organisasi "${org.name}" masih dirujuk data lain sehingga belum bisa dihapus. ` +
+            'Pindahkan atau hapus data yang terkait terlebih dahulu.',
+        });
+        return;
       }
-      await tx.positionSlot.deleteMany({ where: { organizationId: id } });
-      await tx.department.deleteMany({ where: { organizationId: id } });
-      await tx.organization.delete({ where: { id } });
-    });
+      throw error;
+    }
 
     await logActivity(
       req.user.id,
@@ -328,19 +343,30 @@ export const deleteDepartment = async (req: any, res: Response, next: NextFuncti
     const jumlahRiwayat = await prisma.position.count({
       where: { positionSlot: { departmentId: id } },
     });
-    const slotIds = dept.positionSlots.map((slot) => slot.id);
 
-    await prisma.$transaction(async (tx) => {
-      // Urutan penting: riwayat jabatan -> slot -> divisi. Tabel Position masih
-      // menunjuk ke PositionSlot lewat foreign key RESTRICT, jadi menghapus slot
-      // lebih dulu melanggar batas relasi dan memunculkan error
-      // "Foreign key constraint violated" seperti yang pernah terjadi.
-      if (slotIds.length > 0) {
-        await tx.position.deleteMany({ where: { positionSlotId: { in: slotIds } } });
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Urutan penting: riwayat jabatan -> slot -> divisi. Tabel Position
+        // menunjuk ke PositionSlot lewat foreign key RESTRICT, jadi slot tidak
+        // boleh dihapus sebelum riwayatnya. Filter relasi dipakai agar SEMUA
+        // riwayat di divisi ini terhapus, bukan hanya yang slotnya termuat.
+        await tx.position.deleteMany({
+          where: { positionSlot: { departmentId: id } },
+        });
+        await tx.positionSlot.deleteMany({ where: { departmentId: id } });
+        await tx.department.delete({ where: { id } });
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2003') {
+        res.status(409).json({
+          message:
+            `Divisi "${dept.name}" masih dirujuk data lain sehingga belum bisa dihapus. ` +
+            'Pindahkan atau hapus data yang terkait terlebih dahulu.',
+        });
+        return;
       }
-      await tx.positionSlot.deleteMany({ where: { departmentId: id } });
-      await tx.department.delete({ where: { id } });
-    });
+      throw error;
+    }
 
     await logActivity(
       req.user.id,

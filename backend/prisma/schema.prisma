@@ -125,9 +125,9 @@ model User {
   sessionVersion       Int                @default(0)
 
   // Berapa perangkat yang boleh aktif bersamaan untuk akun ini.
-  // 1 = perilaku lama (satu akun satu perangkat). Diatur admin dari halaman
-  // Perangkat & Sesi bila pengguna memang butuh lebih dari satu (mis. HP + laptop).
-  maxDevices           Int                @default(1)
+  // 10 = batas bawaan (HP, tablet, laptop, dan perangkat lain). Diatur admin
+  // dari halaman Perangkat & Sesi bila akun perlu dibatasi lebih ketat.
+  maxDevices           Int                @default(10)
   // Perangkat ke-2 dan seterusnya. Perangkat pertama tetap di kolom deviceId
   // di atas supaya data lama tidak perlu dimigrasikan.
   devices              UserDevice[]

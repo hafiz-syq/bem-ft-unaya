@@ -6,7 +6,7 @@ import UserAvatar from '../components/UserAvatar';
 import {
   Plus, MessageSquare, Clock, CheckCircle, XCircle, Search, Loader2, UserCog,
   Paperclip, FileText, Image as ImageIcon, Building2, Download, Eye, EyeOff,
-  ShieldCheck, Info, AlertTriangle, Star, Timer, BookOpen, Save,
+  ShieldCheck, Info, AlertTriangle, Star, Timer, BookOpen, Save, Trash2, UserMinus,
 } from 'lucide-react';
 import { canExportKeluhan, targetLabel, TICKET_TARGETS, ROLE_LABEL, isStaff } from '../lib/roles';
 
@@ -64,6 +64,8 @@ export default function Tickets() {
   const { user } = useAuth();
   const isMahasiswa = user?.role === 'MAHASISWA';
   const staff = isStaff(user?.role);
+  // Melepas penugasan & menghapus tiket hanya untuk DPM ke atas (BEM bukan).
+  const bolehHapusTiket = ['PENGURUS_DPM', 'ADMIN', 'SUPERADMIN'].includes(user?.role || '');
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [assigneesList, setAssigneesList] = useState<Assignee[]>([]);
@@ -232,6 +234,32 @@ export default function Tickets() {
     } finally {
       setMenyimpanNilai(false);
     }
+  };
+
+  const handleUnassign = async (ticket: Ticket) => {
+    if (!window.confirm(`Lepas penugasan tiket #${ticket.ticket_no}? Tiket tetap ada dan bisa ditugaskan ulang.`)) return;
+    setBusyId(ticket.id);
+    try {
+      await api.delete(`/tickets/${ticket.id}/assign`);
+      fetchData();
+    } catch (error) {
+      console.error(error);
+      alert('Gagal melepas penugasan tiket.');
+    } finally { setBusyId(null); }
+  };
+
+  const handleDeleteTicket = async (ticket: Ticket) => {
+    if (!window.confirm(
+      `Hapus tiket #${ticket.ticket_no} "${ticket.title}" beserta seluruh balasan dan lampirannya? Tindakan ini tidak dapat dibatalkan.`
+    )) return;
+    setBusyId(ticket.id);
+    try {
+      await api.delete(`/tickets/${ticket.id}`);
+      setTickets((lama) => lama.filter((t) => t.id !== ticket.id));
+    } catch (error) {
+      console.error(error);
+      alert('Gagal menghapus tiket.');
+    } finally { setBusyId(null); }
   };
 
   const handleAssign = async (ticketId: string) => {
@@ -539,6 +567,25 @@ export default function Tickets() {
                           >
                             Tugaskan
                           </button>
+                          {activeAssignment && bolehHapusTiket && (
+                            <button
+                              onClick={() => handleUnassign(ticket)}
+                              disabled={busyId === ticket.id}
+                              className="inline-flex items-center gap-1 px-3 py-2 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 disabled:opacity-60 dark:text-amber-200 dark:bg-amber-950/50 dark:border-amber-900/60"
+                            >
+                              <UserMinus className="w-3.5 h-3.5" /> Lepas Penugasan
+                            </button>
+                          )}
+                          {bolehHapusTiket && (
+                            <button
+                              onClick={() => handleDeleteTicket(ticket)}
+                              disabled={busyId === ticket.id}
+                              className="inline-flex items-center gap-1 px-3 py-2 text-xs font-bold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-60 dark:text-red-300 dark:bg-red-950/40 dark:border-red-900/60"
+                              title="Hapus tiket beserta balasan dan lampiran"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Hapus Tiket
+                            </button>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap gap-2">

@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
 import { isAdminRole } from '../lib/ticket-access';
+import { bacaKataTerlarang, simpanKataTerlarang, saringKata } from '../lib/forum-filter';
 
 /**
  * Forum diskusi (ruang percakapan).
@@ -17,23 +18,91 @@ const ROLE_PEMBUAT_RUANG = ['PENGURUS_BEM', 'PENGURUS_DPM', 'ADMIN', 'SUPERADMIN
 const bolehKelolaRuang = (role: string | undefined): boolean =>
   !!role && (ROLE_PEMBUAT_RUANG.includes(role) || isAdminRole(role));
 
+/**
+ * Forum baru "terbuka" bila ada minimal satu ruang yang dibuka pengurus.
+ * Mahasiswa/umum tidak melihat menu maupun daftar ruang sebelum itu.
+ */
+const adaRuangTerbuka = async (): Promise<boolean> => {
+  const jumlah = await prisma.chatRoom.count({ where: { isOpen: true } });
+  return jumlah > 0;
+};
+
+/** GET /api/chat/filter — daftar kata yang disamarkan (pengelola forum). */
+export const getForumFilter = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!bolehKelolaRuang(req.user?.role)) {
+      res.status(403).json({ message: 'Hanya pengelola forum yang dapat melihat filter kata.' });
+      return;
+    }
+
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).json({ data: await bacaKataTerlarang() });
+  } catch (error) { next(error); }
+};
+
+/** PUT /api/chat/filter — mengganti daftar kata yang disamarkan. */
+export const saveForumFilter = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!bolehKelolaRuang(req.user?.role)) {
+      res.status(403).json({ message: 'Hanya pengelola forum yang dapat mengubah filter kata.' });
+      return;
+    }
+
+    if (!Array.isArray(req.body?.kata)) {
+      res.status(400).json({ message: 'Daftar kata wajib dikirim sebagai array (kosongkan untuk mematikan filter).' });
+      return;
+    }
+
+    const kata = await simpanKataTerlarang(req.body.kata);
+
+    await logActivity(
+      req.user.id,
+      'UPDATE_FORUM_FILTER',
+      'SiteSetting',
+      `Mengubah filter kata forum menjadi ${kata.length} kata`
+    );
+
+    res.status(200).json({
+      message:
+        kata.length === 0
+          ? 'Filter kata dikosongkan; pesan forum ditampilkan apa adanya.'
+          : `Filter kata disimpan (${kata.length} kata). Kata tersebut disamarkan pada pesan forum.`,
+      data: kata,
+    });
+  } catch (error) { next(error); }
+};
+
+/** GET /api/chat/status — apakah forum sudah dibuka, plus hak kelola pengguna. */
+export const getForumStatus = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).json({
+      forumTerbuka: await adaRuangTerbuka(),
+      bolehKelola: bolehKelolaRuang(req.user?.role),
+    });
+  } catch (error) { next(error); }
+};
+
 const ambilTeks = (nilai: unknown, maks: number): string =>
   String(nilai ?? '').trim().slice(0, maks);
 
-const bentukPesan = (pesan: {
-  id: string;
-  content: string;
-  createdAt: Date;
-  author: {
+const bentukPesan = (
+  pesan: {
     id: string;
-    nim: string;
-    role: string;
-    foto: string | null;
-    profile: { nama: string } | null;
-  };
-}) => ({
+    content: string;
+    createdAt: Date;
+    author: {
+      id: string;
+      nim: string;
+      role: string;
+      foto: string | null;
+      profile: { nama: string } | null;
+    };
+  },
+  kata: string[]
+) => ({
   id: pesan.id,
-  content: pesan.content,
+  content: saringKata(pesan.content, kata),
   createdAt: pesan.createdAt,
   penulis: {
     id: pesan.author.id,
@@ -55,6 +124,20 @@ const penulisSelect = {
 /** GET /api/chat/rooms — daftar ruang beserta jumlah pesan & aktivitas terakhir. */
 export const getRooms = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    const kelola = bolehKelolaRuang(req.user?.role);
+    const forumTerbuka = kelola || (await adaRuangTerbuka());
+
+    // Sebelum pengurus membuka ruang, forum tidak ditampilkan sama sekali
+    // kepada mahasiswa: bukan hanya tombolnya yang disembunyikan, datanya juga.
+    if (!forumTerbuka) {
+      res.status(200).json({
+        data: [],
+        meta: { bolehMembuatRuang: false, forumTerbuka: false },
+      });
+      return;
+    }
+
+    const kata = await bacaKataTerlarang();
     const rooms = await prisma.chatRoom.findMany({
       orderBy: [{ isOpen: 'desc' }, { createdAt: 'desc' }],
       include: {
@@ -75,10 +158,10 @@ export const getRooms = async (req: any, res: Response, next: NextFunction): Pro
         isOpen: ruang.isOpen,
         jumlahPesan: ruang._count.messages,
         pesanTerakhir: ruang.messages[0]
-          ? { isi: ruang.messages[0].content, pada: ruang.messages[0].createdAt }
+          ? { isi: saringKata(ruang.messages[0].content, kata), pada: ruang.messages[0].createdAt }
           : null,
       })),
-      meta: { bolehMembuatRuang: bolehKelolaRuang(req.user?.role) },
+      meta: { bolehMembuatRuang: kelola, forumTerbuka: true },
     });
   } catch (error) { next(error); }
 };
@@ -93,8 +176,9 @@ export const createRoom = async (req: any, res: Response, next: NextFunction): P
       return;
     }
 
-    const nama = ambilTeks(req.body?.nama, 100);
-    const deskripsi = ambilTeks(req.body?.deskripsi, 500);
+    const kata = await bacaKataTerlarang();
+    const nama = saringKata(ambilTeks(req.body?.nama, 100), kata);
+    const deskripsi = saringKata(ambilTeks(req.body?.deskripsi, 500), kata);
 
     if (nama.length < 3) {
       res.status(400).json({ message: 'Nama ruang minimal 3 karakter.' });
@@ -198,6 +282,17 @@ export const getMessages = async (req: any, res: Response, next: NextFunction): 
       return;
     }
 
+    // Membaca riwayat ruang yang sudah ditutup tetap boleh selama forum punya
+    // ruang terbuka lain. Bila semua ruang ditutup, mahasiswa tidak boleh
+    // mengakses forum lewat URL langsung sekalipun.
+    if (!ruang.isOpen && !bolehKelolaRuang(req.user?.role) && !(await adaRuangTerbuka())) {
+      res.status(403).json({
+        code: 'FORUM_BELUM_DIBUKA',
+        message: 'Forum diskusi belum dibuka oleh pengurus.',
+      });
+      return;
+    }
+
     // Ambil waktu pesan batas; bila id-nya sudah tidak ada (dihapus), abaikan
     // saja penyaringnya dan kirimkan daftar penuh sebagai penyelamatan.
     let filterWaktu: { createdAt?: { gte: Date } } = {};
@@ -209,16 +304,19 @@ export const getMessages = async (req: any, res: Response, next: NextFunction): 
       if (batas) filterWaktu = { createdAt: { gte: batas.createdAt } };
     }
 
-    const pesan = await prisma.chatMessage.findMany({
-      where: { roomId: id, ...filterWaktu },
-      orderBy: { createdAt: 'asc' },
-      take: 200,
-      include: { author: { select: penulisSelect } },
-    });
+    const [pesan, kata] = await Promise.all([
+      prisma.chatMessage.findMany({
+        where: { roomId: id, ...filterWaktu },
+        orderBy: { createdAt: 'asc' },
+        take: 200,
+        include: { author: { select: penulisSelect } },
+      }),
+      bacaKataTerlarang(),
+    ]);
 
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({
-      data: pesan.map(bentukPesan),
+      data: pesan.map((p) => bentukPesan(p, kata)),
       ruang: {
         id: ruang.id,
         nama: ruang.name,
@@ -234,12 +332,16 @@ export const getMessages = async (req: any, res: Response, next: NextFunction): 
 export const sendMessage = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
     const id = String(req.params.id);
-    const isi = ambilTeks(req.body?.isi, 2000);
+    const isiAsli = ambilTeks(req.body?.isi, 2000);
 
-    if (!isi) {
+    if (!isiAsli) {
       res.status(400).json({ message: 'Pesan tidak boleh kosong.' });
       return;
     }
+
+    const kata = await bacaKataTerlarang();
+    const isi = saringKata(isiAsli, kata);
+    const disaring = isi !== isiAsli;
 
     const ruang = await prisma.chatRoom.findUnique({ where: { id }, select: { id: true, isOpen: true } });
     if (!ruang) {
@@ -256,7 +358,12 @@ export const sendMessage = async (req: any, res: Response, next: NextFunction): 
       include: { author: { select: penulisSelect } },
     });
 
-    res.status(201).json({ message: 'Pesan terkirim.', data: bentukPesan(baru) });
+    res.status(201).json({
+      message: disaring
+        ? 'Pesan terkirim. Beberapa kata disamarkan sesuai filter forum.'
+        : 'Pesan terkirim.',
+      data: bentukPesan(baru, kata),
+    });
   } catch (error) { next(error); }
 };
 

@@ -3,7 +3,7 @@ import { api } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdminRole, ROLE_LABEL } from '../lib/roles';
 import {
-  Megaphone, Plus, Loader2, X, Trash2, Check, Users, CalendarDays, Building2, Send,
+  Megaphone, Plus, Loader2, X, Trash2, Check, Users, CalendarDays, Building2, Send, Pencil,
 } from 'lucide-react';
 
 interface Pengumuman {
@@ -50,6 +50,7 @@ export default function Announcements() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [modal, setModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [menyimpan, setMenyimpan] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -93,26 +94,67 @@ export default function Announcements() {
     }
   };
 
+  const bukaBuat = () => {
+    setEditingId(null);
+    setError('');
+    setNotice('');
+    setForm((f) => ({ ...f, title: '', content: '' }));
+    setModal(true);
+  };
+
+  const bukaEdit = (p: Pengumuman) => {
+    setEditingId(p.id);
+    setError('');
+    setNotice('');
+    setForm({
+      title: p.title,
+      content: p.content,
+      audience: p.audience as Segmen,
+      audienceRole: p.audienceRole || 'MAHASISWA',
+      audienceAngkatan: p.audienceAngkatan ? String(p.audienceAngkatan) : String(new Date().getFullYear() - 1),
+      audienceOrganizationId: p.audienceOrganizationId || '',
+    });
+    setModal(true);
+  };
+
+  const tutupModal = () => {
+    setModal(false);
+    setEditingId(null);
+  };
+
   const simpan = async (e: React.FormEvent) => {
     e.preventDefault();
     setMenyimpan(true);
     setError('');
     try {
-      const res = await api.post('/announcements', {
-        title: form.title.trim(),
-        content: form.content.trim(),
-        audience: form.audience,
-        audienceRole: form.audience === 'ROLE' ? form.audienceRole : undefined,
-        audienceAngkatan: form.audience === 'ANGKATAN' ? Number(form.audienceAngkatan) : undefined,
-        audienceOrganizationId:
-          form.audience === 'ORGANISASI' ? form.audienceOrganizationId : undefined,
-      });
-      setNotice(res.data.message);
+      let pesan: string;
+      if (editingId) {
+        // Segmen penerima sengaja tidak diubah saat edit: notifikasi yang sudah
+        // terkirim tidak bisa ditarik kembali. Hanya judul dan isi yang diubah.
+        const res = await api.put(`/announcements/${editingId}`, {
+          title: form.title.trim(),
+          content: form.content.trim(),
+        });
+        pesan = res.data.message || 'Pengumuman diperbarui.';
+      } else {
+        const res = await api.post('/announcements', {
+          title: form.title.trim(),
+          content: form.content.trim(),
+          audience: form.audience,
+          audienceRole: form.audience === 'ROLE' ? form.audienceRole : undefined,
+          audienceAngkatan: form.audience === 'ANGKATAN' ? Number(form.audienceAngkatan) : undefined,
+          audienceOrganizationId:
+            form.audience === 'ORGANISASI' ? form.audienceOrganizationId : undefined,
+        });
+        pesan = res.data.message;
+      }
+      setNotice(pesan);
       setModal(false);
+      setEditingId(null);
       setForm((f) => ({ ...f, title: '', content: '' }));
       await muat();
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Gagal membuat pengumuman.');
+      setError(err?.response?.data?.message || (editingId ? 'Gagal mengubah pengumuman.' : 'Gagal membuat pengumuman.'));
     } finally {
       setMenyimpan(false);
     }
@@ -148,7 +190,7 @@ export default function Announcements() {
         {admin && (
           <button
             type="button"
-            onClick={() => setModal(true)}
+            onClick={bukaBuat}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500"
           >
             <Plus className="w-4 h-4" /> Buat Pengumuman
@@ -199,6 +241,15 @@ export default function Announcements() {
                         </span>
                         <button
                           type="button"
+                          onClick={(e) => { e.stopPropagation(); bukaEdit(p); }}
+                          className="p-1.5 text-amber-600 rounded-lg hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/60"
+                          aria-label={`Edit pengumuman ${p.title}`}
+                          title="Edit pengumuman"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={(e) => { e.stopPropagation(); hapus(p); }}
                           disabled={busyId === p.id}
                           className="p-1.5 text-red-600 rounded-lg hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/60 disabled:opacity-50"
@@ -228,15 +279,21 @@ export default function Announcements() {
           aria-modal="true"
           aria-label="Buat pengumuman"
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm"
-          onClick={() => setModal(false)}
+          onClick={tutupModal}
         >
           <form onSubmit={simpan} onClick={(e) => e.stopPropagation()} className="w-full max-w-xl max-h-[92vh] overflow-y-auto bg-white rounded-2xl dark:bg-gray-900 dark:border dark:border-gray-800">
             <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100 dark:border-gray-800">
               <div>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Pengumuman Baru</h2>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Notifikasi dalam aplikasi dan push browser dikirim saat disimpan.</p>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                  {editingId ? 'Edit Pengumuman' : 'Pengumuman Baru'}
+                </h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {editingId
+                    ? 'Perubahan langsung terlihat oleh pembaca. Segmen penerima tidak diubah.'
+                    : 'Notifikasi dalam aplikasi dan push browser dikirim saat disimpan.'}
+                </p>
               </div>
-              <button type="button" onClick={() => setModal(false)} aria-label="Tutup" className="p-1 text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"><X className="w-5 h-5" /></button>
+              <button type="button" onClick={tutupModal} aria-label="Tutup" className="p-1 text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="p-5 space-y-4">
@@ -248,50 +305,64 @@ export default function Announcements() {
                 <label htmlFor="umum-isi" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Isi Pengumuman</label>
                 <textarea id="umum-isi" required rows={5} maxLength={10000} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700" />
               </div>
-              <div>
-                <label htmlFor="umum-segmen" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Kirim Kepada</label>
-                <select id="umum-segmen" value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value as Segmen })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-                  <option value="SEMUA">Semua pengguna</option>
-                  <option value="ROLE">Role tertentu</option>
-                  <option value="ANGKATAN">Angkatan tertentu</option>
-                  <option value="ORGANISASI">Organisasi tertentu</option>
-                </select>
-              </div>
-
-              {form.audience === 'ROLE' && (
-                <div>
-                  <label htmlFor="umum-role" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Role</label>
-                  <select id="umum-role" value={form.audienceRole} onChange={(e) => setForm({ ...form, audienceRole: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-                    {Object.entries(ROLE_LABEL).filter(([r]) => r !== 'TAMU').map(([r, label]) => (
-                      <option key={r} value={r}>{label}</option>
-                    ))}
-                  </select>
+              {editingId ? (
+                <div className="p-3 text-sm border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-800/60 dark:border-gray-700">
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">Segmen penerima</p>
+                  <p className="mt-1 font-bold text-gray-900 dark:text-gray-100">
+                    {segmenLabel(daftar.find((x) => x.id === editingId) || ({ audience: form.audience, audienceRole: form.audienceRole, audienceAngkatan: Number(form.audienceAngkatan) } as Pengumuman))}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Segmen tidak dapat diubah setelah pengumuman dibuat. Hapus lalu buat baru bila penerima harus berbeda.
+                  </p>
                 </div>
-              )}
+              ) : (
+                <>
+                  <div>
+                    <label htmlFor="umum-segmen" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Kirim Kepada</label>
+                    <select id="umum-segmen" value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value as Segmen })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
+                      <option value="SEMUA">Semua pengguna</option>
+                      <option value="ROLE">Role tertentu</option>
+                      <option value="ANGKATAN">Angkatan tertentu</option>
+                      <option value="ORGANISASI">Organisasi tertentu</option>
+                    </select>
+                  </div>
 
-              {form.audience === 'ANGKATAN' && (
-                <div>
-                  <label htmlFor="umum-angkatan" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Tahun Angkatan</label>
-                  <input id="umum-angkatan" type="number" min={2000} max={2099} value={form.audienceAngkatan} onChange={(e) => setForm({ ...form, audienceAngkatan: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700" />
-                </div>
-              )}
+                  {form.audience === 'ROLE' && (
+                    <div>
+                      <label htmlFor="umum-role" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Role</label>
+                      <select id="umum-role" value={form.audienceRole} onChange={(e) => setForm({ ...form, audienceRole: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
+                        {Object.entries(ROLE_LABEL).filter(([r]) => r !== 'TAMU').map(([r, label]) => (
+                          <option key={r} value={r}>{label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-              {form.audience === 'ORGANISASI' && (
-                <div>
-                  <label htmlFor="umum-org" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Organisasi</label>
-                  <select id="umum-org" required value={form.audienceOrganizationId} onChange={(e) => setForm({ ...form, audienceOrganizationId: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-                    <option value="">Pilih organisasi...</option>
-                    {organisasi.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400"><Building2 className="inline w-3 h-3 mr-1" /> Dikirim ke pengurus yang punya jabatan aktif di organisasi ini.</p>
-                </div>
+                  {form.audience === 'ANGKATAN' && (
+                    <div>
+                      <label htmlFor="umum-angkatan" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Tahun Angkatan</label>
+                      <input id="umum-angkatan" type="number" min={2000} max={2099} value={form.audienceAngkatan} onChange={(e) => setForm({ ...form, audienceAngkatan: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700" />
+                    </div>
+                  )}
+
+                  {form.audience === 'ORGANISASI' && (
+                    <div>
+                      <label htmlFor="umum-org" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Organisasi</label>
+                      <select id="umum-org" required value={form.audienceOrganizationId} onChange={(e) => setForm({ ...form, audienceOrganizationId: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
+                        <option value="">Pilih organisasi...</option>
+                        {organisasi.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400"><Building2 className="inline w-3 h-3 mr-1" /> Dikirim ke pengurus yang punya jabatan aktif di organisasi ini.</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
             <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-gray-800">
-              <button type="button" onClick={() => setModal(false)} className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800">Batal</button>
+              <button type="button" onClick={tutupModal} className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800">Batal</button>
               <button type="submit" disabled={menyimpan} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
-                {menyimpan ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4" /> Kirim</>}
+                {menyimpan ? <Loader2 className="w-4 h-4 animate-spin" /> : editingId ? <><Pencil className="w-4 h-4" /> Simpan Perubahan</> : <><Send className="w-4 h-4" /> Kirim</>}
               </button>
             </div>
           </form>

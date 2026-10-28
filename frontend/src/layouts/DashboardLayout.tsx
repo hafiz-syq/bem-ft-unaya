@@ -39,6 +39,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
+  // Forum hanya tampil di menu setelah pengurus membuka minimal satu ruang.
+  // Bagi pengelola forum, menu tetap tampil agar mereka bisa membukanya.
+  const [forumTerbuka, setForumTerbuka] = useState(false);
+
   useEffect(() => {
     let aktif = true;
     let jeda: number | undefined;
@@ -78,6 +82,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, []);
 
+  useEffect(() => {
+    let aktif = true;
+    let jeda: number | undefined;
+
+    const cekForum = async () => {
+      try {
+        const res = await api.get('/chat/status');
+        if (aktif) setForumTerbuka(Boolean(res.data?.forumTerbuka));
+      } catch {
+        // Status forum bersifat pelengkap; menu tetap memakai nilai terakhir.
+      }
+    };
+
+    const atur = () => {
+      if (!aktif) return;
+      if (document.visibilityState === 'hidden') {
+        if (jeda) window.clearInterval(jeda);
+        jeda = undefined;
+        return;
+      }
+      void cekForum();
+      if (!jeda) jeda = window.setInterval(cekForum, 20_000);
+    };
+
+    atur();
+    document.addEventListener('visibilitychange', atur);
+
+    return () => {
+      aktif = false;
+      if (jeda) window.clearInterval(jeda);
+      document.removeEventListener('visibilitychange', atur);
+    };
+  }, []);
+
   const handleMarkAsRead = async () => {
     try {
       await api.put('/notifications/read-all');
@@ -103,6 +141,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const role = user?.role || '';
+  const bolehKelolaForum = ['PENGURUS_BEM', 'PENGURUS_DPM', 'ADMIN', 'SUPERADMIN'].includes(role);
 
   // Arsip surat hanya untuk pimpinan inti + admin. Menu disembunyikan bagi
   // pengurus lain; aturan sebenarnya tetap dijaga server.
@@ -122,9 +161,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // Buku tamu terbuka untuk semua role; mahasiswa hanya bisa membaca,
     // tombol moderasi & balasan hanya muncul untuk pengurus dan admin.
     { name: 'Buku Tamu', path: '/buku-tamu', icon: MessageSquare, show: true },
-    // Forum: semua akun boleh membaca & menulis; pembuatan ruang dibatasi
-    // BEM/DPM/admin (dijaga server, tombolnya menyesuaikan peran).
-    { name: 'Forum Diskusi', path: '/forum', icon: MessagesSquare, show: true },
+    // Forum: semua akun boleh membaca & menulis setelah pengurus membuka
+    // minimal satu ruang. Pengelola forum selalu melihat menu agar bisa
+    // membuat/membuka ruang pertama.
+    { name: 'Forum Diskusi', path: '/forum', icon: MessagesSquare, show: bolehKelolaForum || forumTerbuka },
     { name: 'Pengumuman', path: '/pengumuman', icon: Megaphone, show: true },
     { name: 'Arsip Surat', path: '/dokumen', icon: FolderArchive, show: bolehArsip },
     // Direktori mahasiswa terbuka untuk semua akun yang login; mahasiswa

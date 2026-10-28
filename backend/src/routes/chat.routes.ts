@@ -3,8 +3,11 @@ import {
   createRoom,
   deleteMessage,
   deleteRoom,
+  getForumFilter,
+  getForumStatus,
   getMessages,
   getRooms,
+  saveForumFilter,
   sendMessage,
   setRoomStatus,
 } from '../controllers/chat.controller';
@@ -17,6 +20,9 @@ const router = Router();
 // di controller supaya pesan penolakan bisa lebih menjelaskan.
 router.use(requireAuth);
 
+router.get('/status', getForumStatus);
+router.get('/filter', getForumFilter);
+router.put('/filter', saveForumFilter);
 router.get('/rooms', getRooms);
 router.post('/rooms', createRoom);
 router.patch('/rooms/:id', setRoomStatus);

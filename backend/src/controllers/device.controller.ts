@@ -281,7 +281,7 @@ export const kelolaPerangkat = async (req: any, res: Response, next: NextFunctio
 /**
  * Mengatur berapa perangkat yang boleh aktif bersamaan untuk satu akun.
  *
- * 1 = perilaku lama (satu akun satu perangkat). Nilai maksimum dibatasi 5 agar
+ * 1 = perilaku lama (satu akun satu perangkat). Nilai maksimum dibatasi 10 agar
  * akun tidak dipakai berpindah-pindah tanpa kendali. Menurunkan batas TIDAK
  * memutus perangkat yang sudah terdaftar; untuk memutus semuanya tetap pakai
  * mode LEPAS, supaya admin tidak tanpa sengaja mengeluarkan pengguna.
@@ -290,8 +290,8 @@ export const aturBatasPerangkat = async (req: any, res: Response, next: NextFunc
   try {
     const batas = parseInt(String(req.body?.maxDevices ?? ''), 10);
 
-    if (!Number.isInteger(batas) || batas < 1 || batas > 5) {
-      res.status(400).json({ message: 'Batas perangkat harus angka 1 sampai 5.' });
+    if (!Number.isInteger(batas) || batas < 1 || batas > 10) {
+      res.status(400).json({ message: 'Batas perangkat harus angka 1 sampai 10.' });
       return;
     }
 

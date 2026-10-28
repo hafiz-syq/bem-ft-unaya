@@ -170,6 +170,20 @@ const BARIS: Baris[] = [
   { metode: 'POST', jalur: '/tickets', harapan: { tamu: 401 } },
   { metode: 'POST', jalur: '/tickets/:id/replies', harapan: { tamu: 401 } },
   { metode: 'POST', jalur: '/tickets/:id/assign', harapan: { tamu: 401 } },
+  {
+    metode: 'DELETE',
+    jalur: '/tickets/:id/assign',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'lepas penugasan hanya untuk DPM+/admin; id tidak ada sehingga admin menerima 404 tanpa perubahan',
+  },
+  {
+    metode: 'DELETE',
+    jalur: '/tickets/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'hapus tiket hanya untuk DPM+/admin; id tidak ada sehingga admin menerima 404 tanpa penghapusan',
+  },
   { metode: 'PUT', jalur: '/tickets/:id/moderation', harapan: { tamu: 401 } },
 
   // ── organization.routes.ts (seluruh rute: ADMIN) ─────────────────────────
@@ -443,6 +457,20 @@ const BARIS: Baris[] = [
   },
   { metode: 'GET', jalur: '/presence/online', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
   { metode: 'GET', jalur: '/chat/rooms', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
+  { metode: 'GET', jalur: '/chat/status', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
+  {
+    metode: 'GET',
+    jalur: '/chat/filter',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+    catatan: 'filter kata hanya dibaca pengelola forum (BEM/DPM/admin)',
+  },
+  {
+    metode: 'PUT',
+    jalur: '/chat/filter',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'body tanpa field kata ditolak 400 sebelum menyimpan, jadi daftar filter asli tidak berubah',
+  },
   {
     metode: 'POST',
     jalur: '/chat/rooms',

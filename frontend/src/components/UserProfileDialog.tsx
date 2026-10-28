@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   X, Loader2, ShieldCheck, ShieldAlert, GraduationCap, IdCard,
-  Briefcase, CalendarDays, UserRound, ImageOff,
+  Briefcase, CalendarDays, UserRound, ImageOff, Mail, KeyRound,
 } from 'lucide-react';
 import { api, assetUrl } from '../lib/axios';
 import { ROLE_LABEL, isAdminRole, isOfficer } from '../lib/roles';
 import { usePresence } from '../contexts/PresenceContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ProfilPublik {
   id: string;
@@ -37,6 +39,9 @@ const tanggal = (nilai: string | null): string => {
  */
 export default function UserProfileDialog({ userId, onClose }: { userId: string; onClose: () => void }) {
   const { online } = usePresence();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const profilSendiri = user?.id === userId;
   const [profil, setProfil] = useState<ProfilPublik | null>(null);
   const [memuat, setMemuat] = useState(true);
   const [galat, setGalat] = useState('');
@@ -214,6 +219,25 @@ export default function UserProfileDialog({ userId, onClose }: { userId: string;
                   </div>
                 )}
               </dl>
+
+              {profilSendiri && (
+                <div className="grid grid-cols-1 gap-2 mt-4 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => { onClose(); navigate('/profile?bagian=email'); }}
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-amber-700 border border-amber-200 rounded-lg bg-amber-50 hover:bg-amber-100 dark:text-amber-200 dark:bg-amber-950/50 dark:border-amber-900/60 dark:hover:bg-amber-950/80"
+                  >
+                    <Mail className="w-3.5 h-3.5" /> Ubah Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { onClose(); navigate('/profile?bagian=sandi'); }}
+                    className="inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-gray-700 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100 dark:text-gray-200 dark:bg-gray-800/60 dark:border-gray-700 dark:hover:bg-gray-800"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" /> Ganti Sandi
+                  </button>
+                </div>
+              )}
 
               {!profil.foto && (
                 <p className="flex items-center justify-center gap-1.5 mt-3 text-[11px] text-gray-500 dark:text-gray-400">

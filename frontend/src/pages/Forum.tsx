@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MessagesSquare, Plus, Loader2, Send, Lock, Unlock, Trash2, X, Users,
-  MessageCircle, RefreshCw, AlertTriangle,
+  MessageCircle, RefreshCw, AlertTriangle, Filter, Check,
 } from 'lucide-react';
 import { api } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -74,8 +74,10 @@ export default function Forum() {
 
   const [ruang, setRuang] = useState<Ruang[]>([]);
   const [bolehMembuat, setBolehMembuat] = useState(false);
+  const [forumTerbuka, setForumTerbuka] = useState(false);
   const [memuatRuang, setMemuatRuang] = useState(true);
   const [galat, setGalat] = useState('');
+  const [notice, setNotice] = useState('');
 
   const [aktifId, setAktifId] = useState<string | null>(null);
   const [detail, setDetail] = useState<DetailRuang | null>(null);
@@ -90,6 +92,13 @@ export default function Forum() {
   const [galatBuat, setGalatBuat] = useState('');
   const [menyimpanBuat, setMenyimpanBuat] = useState(false);
 
+  // Filter kata forum (pengelola forum).
+  const [modalFilter, setModalFilter] = useState(false);
+  const [kataFilter, setKataFilter] = useState('');
+  const [memuatFilter, setMemuatFilter] = useState(false);
+  const [menyimpanFilter, setMenyimpanFilter] = useState(false);
+  const [galatFilter, setGalatFilter] = useState('');
+
   const ujungPesan = useRef<HTMLDivElement>(null);
   // Salinan daftar pesan agar polling delta selalu tahu id pesan terakhir
   // tanpa membuat fungsi callback basi (usang) pada interval.
@@ -103,11 +112,25 @@ export default function Forum() {
     try {
       const res = await api.get('/chat/rooms');
       const daftar: Ruang[] = res.data?.data ?? [];
+      const terbuka = Boolean(res.data?.meta?.forumTerbuka);
       setRuang(daftar);
       setBolehMembuat(Boolean(res.data?.meta?.bolehMembuatRuang));
+      setForumTerbuka(terbuka);
       setGalat('');
-      // Ruang pertama otomatis dipilih agar forum langsung bisa dibaca.
-      setAktifId((sebelumnya) => sebelumnya ?? daftar[0]?.id ?? null);
+
+      if (!terbuka) {
+        // Forum ditutup: kosongkan ruang aktif agar riwayat lama tidak tetap
+        // terlihat di layar setelah pengurus menutup forum.
+        setAktifId(null);
+        setDetail(null);
+        setPesan([]);
+      } else {
+        // Pertahankan ruang yang sedang dibuka bila masih ada; jika tidak,
+        // pilih ruang pertama agar forum langsung bisa dibaca.
+        setAktifId((sebelumnya) =>
+          sebelumnya && daftar.some((r) => r.id === sebelumnya) ? sebelumnya : daftar[0]?.id ?? null
+        );
+      }
     } catch {
       setGalat('Daftar ruang forum gagal dimuat. Coba muat ulang halaman.');
     } finally {
@@ -181,6 +204,46 @@ export default function Forum() {
   useEffect(() => {
     ujungPesan.current?.scrollIntoView({ block: 'end' });
   }, [pesan.length, aktifId]);
+
+  const bukaFilter = async () => {
+    setModalFilter(true);
+    setGalatFilter('');
+    setMemuatFilter(true);
+    try {
+      const res = await api.get('/chat/filter');
+      const daftar: string[] = res.data?.data ?? [];
+      setKataFilter(daftar.join('\n'));
+    } catch (err: unknown) {
+      setGalatFilter(pesanGalat(err, 'Filter kata gagal dimuat.'));
+    } finally {
+      setMemuatFilter(false);
+    }
+  };
+
+  const simpanFilter = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGalatFilter('');
+    const daftar = Array.from(
+      new Set(
+        kataFilter
+          .split(/[\n,;]+/)
+          .map((k) => k.trim().toLowerCase())
+          .filter(Boolean)
+          .slice(0, 200)
+      )
+    );
+
+    setMenyimpanFilter(true);
+    try {
+      const res = await api.put('/chat/filter', { kata: daftar });
+      setModalFilter(false);
+      setNotice(res.data?.message || 'Filter kata disimpan.');
+    } catch (err: unknown) {
+      setGalatFilter(pesanGalat(err, 'Filter kata gagal disimpan.'));
+    } finally {
+      setMenyimpanFilter(false);
+    }
+  };
 
   const kirim = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -286,6 +349,26 @@ export default function Forum() {
   const jumlahOnline = online.size;
   const ruangAktif = useMemo(() => ruang.find((r) => r.id === aktifId) ?? null, [ruang, aktifId]);
 
+  // Halaman forum tidak ditampilkan kepada mahasiswa sebelum pengurus membuka
+  // ruang pertama. Pengelola forum tetap mendapat halaman ini agar bisa
+  // membuat ruang, sedangkan akses langsung lewat URL juga ditutup.
+  if (!memuatRuang && !bolehMembuat && !forumTerbuka && !galat) {
+    return (
+      <div className="max-w-2xl p-6 mx-auto md:p-10">
+        <div className="p-8 text-center bg-white border border-gray-100 shadow-sm rounded-2xl dark:bg-gray-900 dark:border-gray-800">
+          <div className="flex items-center justify-center w-14 h-14 mx-auto mb-4 text-gray-500 bg-gray-100 rounded-full dark:bg-gray-800 dark:text-gray-300">
+            <Lock className="w-7 h-7" />
+          </div>
+          <h1 className="text-xl font-black text-gray-900 dark:text-gray-100">Forum Diskusi Belum Dibuka</h1>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            Forum akan muncul setelah pengurus BEM, DPM, atau admin membuka ruang diskusi
+            pertama. Silakan kembali lagi nanti.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl p-4 mx-auto space-y-5 md:p-8">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
@@ -313,13 +396,22 @@ export default function Forum() {
           </button>
 
           {bolehMembuat && (
-            <button
-              type="button"
-              onClick={() => { setFormBuat({ nama: '', deskripsi: '' }); setGalatBuat(''); setModalBuat(true); }}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500"
-            >
-              <Plus className="w-4 h-4" /> Buat Ruang
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => void bukaFilter()}
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800"
+              >
+                <Filter className="w-4 h-4" /> Filtrasi Kata
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFormBuat({ nama: '', deskripsi: '' }); setGalatBuat(''); setModalBuat(true); }}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500"
+              >
+                <Plus className="w-4 h-4" /> Buat Ruang
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -327,6 +419,11 @@ export default function Forum() {
       {galat && (
         <div className="flex items-start gap-2 p-3 text-sm text-red-700 border border-red-200 rounded-lg bg-red-50 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/60">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /> {galat}
+        </div>
+      )}
+      {notice && (
+        <div className="flex items-start gap-2 p-3 text-sm text-green-800 border border-green-200 rounded-lg bg-green-50 dark:bg-green-950/40 dark:text-green-300 dark:border-green-900/60">
+          <Check className="w-4 h-4 mt-0.5 shrink-0" /> {notice}
         </div>
       )}
 
@@ -583,6 +680,73 @@ export default function Forum() {
               </button>
               <button type="submit" disabled={menyimpanBuat} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
                 {menyimpanBuat ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Buat
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal filtrasi kata */}
+      {modalFilter && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-gray-900/70 backdrop-blur-sm"
+          onClick={() => setModalFilter(false)}
+          role="presentation"
+        >
+          <form
+            onSubmit={simpanFilter}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="judul-filter-kata"
+            className="w-full max-w-lg p-6 bg-white shadow-2xl rounded-2xl dark:bg-gray-900 dark:border dark:border-gray-800"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 id="judul-filter-kata" className="text-lg font-black text-gray-900 dark:text-gray-100">
+                  Filtrasi Kata Forum
+                </h2>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Kata pada daftar ini otomatis disamarkan menjadi bintang saat pesan dikirim dan ditampilkan.
+                </p>
+              </div>
+              <button type="button" onClick={() => setModalFilter(false)} aria-label="Tutup" className="p-1 text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {memuatFilter ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-500 dark:text-gray-400">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Memuat daftar kata…
+                </div>
+              ) : (
+                <>
+                  <label htmlFor="daftar-kata-filter" className="block text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
+                    Daftar kata (satu kata per baris)
+                  </label>
+                  <textarea
+                    id="daftar-kata-filter"
+                    rows={10}
+                    value={kataFilter}
+                    onChange={(e) => setKataFilter(e.target.value)}
+                    placeholder={'Contoh:\nkata kasar\nspam\nprovokasi'}
+                    className="w-full px-3 py-2 text-sm font-mono text-gray-900 bg-white border border-gray-300 rounded-lg resize-y dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
+                  />
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    Maksimal 200 kata. Kosongkan lalu simpan untuk mematikan filter. Perubahan berlaku paling lambat 30 detik pada server lain.
+                  </p>
+                </>
+              )}
+              {galatFilter && <p className="text-sm font-bold text-red-600 dark:text-red-400">{galatFilter}</p>}
+            </div>
+
+            <div className="flex justify-end gap-2 mt-5">
+              <button type="button" onClick={() => setModalFilter(false)} className="px-4 py-2 text-sm font-bold text-gray-600 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
+                Batal
+              </button>
+              <button type="submit" disabled={menyimpanFilter || memuatFilter} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
+                {menyimpanFilter ? <Loader2 className="w-4 h-4 animate-spin" /> : <Filter className="w-4 h-4" />} Simpan Filter
               </button>
             </div>
           </form>

@@ -1,6 +1,10 @@
 import { Response, NextFunction } from 'express';
+import fs from 'fs';
+import path from 'path';
 import ExcelJS from 'exceljs';
 import prisma from '../lib/prisma';
+import { folderUploads } from '../lib/uploads';
+import { logActivity } from '../services/audit.service';
 import { sendEmailNotification, generateTicketNotificationEmail } from '../services/email.service';
 import { kirimPushKeBanyak, kirimPushKePengguna } from '../services/push.service';
 import { hitungTenggatSla } from './ticket-extra.controller';
@@ -15,6 +19,15 @@ import {
   ticketVisibilityWhere,
   type TicketTarget,
 } from '../lib/ticket-access';
+
+/**
+ * Role minimum yang boleh melepas penugasan dan menghapus tiket.
+ * DPM dianggap tingkat tertinggi di organisasi, sehingga BEM dan himpunan
+ * tidak termasuk. Admin & superadmin selalu boleh.
+ */
+const ROLE_HAPUS_TIKET = ['PENGURUS_DPM', 'ADMIN', 'SUPERADMIN'];
+const bolehHapusTiket = (role: string | undefined): boolean =>
+  !!role && ROLE_HAPUS_TIKET.includes(role);
 
 /**
  * Menentukan siapa yang mendapat notifikasi (database + email) untuk sebuah tiket.
@@ -473,7 +486,109 @@ export const setTicketModeration = async (req: any, res: Response, next: NextFun
   } catch (error) { next(error); }
 };
 
-// 8. Ekspor data keluhan ke Excel (hanya ADMIN & PENGURUS DPM)
+// 8. Melepas penugasan aktif tanpa menghapus tiket.
+//    Hanya DPM, admin, dan superadmin; tiket harus berada dalam jangkauan
+//    pembacanya supaya pengurus himpunan tidak bisa melepas tugas organisasi lain.
+export const unassignTicket = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!bolehHapusTiket(req.user.role)) {
+      res.status(403).json({
+        message: 'Hanya pengurus DPM, admin, dan superadmin yang dapat melepas penugasan tiket.',
+      });
+      return;
+    }
+
+    const { id } = req.params;
+    const ticket = await prisma.ticket.findUnique({
+      where: { id },
+      include: { assignments: { where: { isActive: true } } },
+    });
+    if (!ticket) { res.status(404).json({ message: 'Tiket tidak ditemukan.' }); return; }
+
+    if (!canAccessTicket(req.user, ticket)) {
+      res.status(403).json({ message: 'Anda tidak berhak melepas penugasan tiket ini.' });
+      return;
+    }
+
+    if (ticket.assignments.length === 0) {
+      res.status(400).json({ message: 'Tiket ini tidak memiliki penugasan aktif.' });
+      return;
+    }
+
+    await prisma.ticketAssignment.updateMany({
+      where: { ticketId: id, isActive: true },
+      data: { isActive: false, completedAt: new Date() },
+    });
+
+    await logActivity(
+      req.user.id,
+      'UNASSIGN_TICKET',
+      'Ticket',
+      `Melepas penugasan tiket #${ticket.ticket_no}`,
+      id
+    );
+
+    res.status(200).json({ message: 'Penugasan tiket berhasil dilepas.' });
+  } catch (error) { next(error); }
+};
+
+// 9. Menghapus tiket beserta balasan, penugasan, dan lampirannya.
+export const deleteTicket = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!bolehHapusTiket(req.user.role)) {
+      res.status(403).json({
+        message: 'Hanya pengurus DPM, admin, dan superadmin yang dapat menghapus tiket.',
+      });
+      return;
+    }
+
+    const { id } = req.params;
+    const ticket = await prisma.ticket.findUnique({
+      where: { id },
+      include: {
+        assignments: { where: { isActive: true } },
+        attachments: { select: { id: true, filename: true } },
+      },
+    });
+    if (!ticket) { res.status(404).json({ message: 'Tiket tidak ditemukan.' }); return; }
+
+    if (!canAccessTicket(req.user, ticket)) {
+      res.status(403).json({ message: 'Anda tidak berhak menghapus tiket ini.' });
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Urutan penting: anak-anak tiket lebih dulu karena foreign key-nya
+      // RESTRICT (tanpa onDelete Cascade).
+      await tx.ticketReply.deleteMany({ where: { ticketId: id } });
+      await tx.ticketAssignment.deleteMany({ where: { ticketId: id } });
+      await tx.attachment.deleteMany({ where: { ticketId: id } });
+      await tx.ticket.delete({ where: { id } });
+    });
+
+    // Berkas lampiran dihapus setelah transaksi sukses, dengan best effort:
+    // kegagalan menghapus berkas tidak boleh membatalkan penghapusan data.
+    await Promise.all(
+      ticket.attachments.map((lampiran) =>
+        fs.promises
+          .unlink(path.join(folderUploads(), path.basename(lampiran.filename)))
+          .catch(() => undefined)
+      )
+    );
+
+    await logActivity(
+      req.user.id,
+      'DELETE_TICKET',
+      'Ticket',
+      `Menghapus tiket #${ticket.ticket_no} "${ticket.title}" beserta balasan dan lampirannya`,
+      id
+    );
+
+    res.status(200).json({ message: `Tiket #${ticket.ticket_no} berhasil dihapus.` });
+  } catch (error) { next(error); }
+};
+
+// 10. Ekspor data keluhan ke Excel (hanya ADMIN & PENGURUS DPM)
 export const exportKeluhanExcel = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
     if (!canExportKeluhan(req.user.role)) {

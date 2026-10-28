@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, assetUrl } from '../lib/axios';
 import {
   UserCircle, ShieldCheck, BookOpen, Loader2, Mail, Pencil, Save, X, Check,
@@ -45,6 +45,8 @@ interface ProfileData {
 
 export default function Profile() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const bagian = searchParams.get('bagian');
   const { login } = useAuth();
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,6 +73,9 @@ export default function Profile() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState('');
   const [passwordErr, setPasswordErr] = useState('');
+  // Pintasan dari dialog profil: ?bagian=email / ?bagian=sandi hanya diproses
+  // sekali per kunjungan, supaya menyimpan email tidak memicu fokus berulang.
+  const sudahProsesBagian = useRef(false);
 
   const fetchProfile = async () => {
     try {
@@ -88,6 +93,26 @@ export default function Profile() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    sudahProsesBagian.current = false;
+  }, [bagian]);
+
+  useEffect(() => {
+    if (sudahProsesBagian.current || loading || !data || !bagian) return;
+    sudahProsesBagian.current = true;
+
+    if (bagian === 'email') {
+      setEmailInput(data.profile?.email || data.email || '');
+      setEmailMsg('');
+      setEmailErr('');
+      setIsEditingEmail(true);
+      window.setTimeout(() => document.getElementById('prof-email')?.focus(), 150);
+    } else if (bagian === 'sandi') {
+      document.getElementById('kartu-sandi')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      window.setTimeout(() => document.getElementById('prof-password-lama')?.focus(), 450);
+    }
+  }, [bagian, loading, data]);
 
   const handleSaveEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -392,7 +417,7 @@ export default function Profile() {
       </div>
 
       {/* KARTU EMAIL PRIBADI */}
-      <div className="overflow-hidden bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-xl">
+      <div id="kartu-email" className="overflow-hidden bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-xl scroll-mt-24">
         <div className="flex items-center gap-3 px-8 py-5 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-950/60">
             <Mail className="w-5 h-5 text-amber-500" />
@@ -481,7 +506,7 @@ export default function Profile() {
       </div>
 
       {/* KARTU KEAMANAN: GANTI PASSWORD (SEMUA ROLE) */}
-      <div className="overflow-hidden bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-xl">
+      <div id="kartu-sandi" className="overflow-hidden bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-xl scroll-mt-24">
         <div className="flex items-center gap-3 px-8 py-5 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-950/60">
             <ShieldCheck className="w-5 h-5 text-amber-500" />

@@ -6,6 +6,8 @@ import {
   replyTicket,
   getAssignees,
   assignTicket,
+  unassignTicket,
+  deleteTicket,
   setTicketModeration,
   exportKeluhanExcel,
 } from '../controllers/ticket.controller';
@@ -37,6 +39,8 @@ const unggahLampiran = denganWebp(uploadAttachment);
 router.post('/', requireAuth, unggahLampiran.single('file'), createTicket);
 router.post('/:id/replies', requireAuth, replyTicket);
 router.post('/:id/assign', requireAuth, assignTicket);
+router.delete('/:id/assign', requireAuth, unassignTicket);
+router.delete('/:id', requireAuth, deleteTicket);
 router.put('/:id/moderation', requireAuth, setTicketModeration);
 router.patch('/:id/priority', requireAuth, setTicketPriority);
 router.post('/:id/rating', requireAuth, rateTicket);

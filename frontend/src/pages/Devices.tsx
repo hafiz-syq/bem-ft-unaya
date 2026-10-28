@@ -193,7 +193,7 @@ export default function Devices() {
             <Smartphone className="w-6 h-6 text-amber-500" /> Perangkat & Sesi
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Akun aktif di satu perangkat secara bawaan. Untuk pengguna yang benar-benar butuh lebih dari satu (mis. HP + laptop), admin dapat menaikkan batas perangkat pada akun tersebut.
+            Akun dapat aktif di maksimal 10 perangkat (HP, tablet, laptop, dan perangkat lain). Admin dapat menurunkan batas per akun bila perlu.
           </p>
         </div>
         <button
@@ -371,7 +371,7 @@ export default function Devices() {
                     aria-label={`Batas perangkat ${a.nama || a.nim}`}
                     className="px-2 py-1.5 text-sm bg-white border border-gray-300 rounded-lg dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700 disabled:opacity-50 focus:ring-2 focus:ring-amber-400"
                   >
-                    {[1, 2, 3, 4, 5].map((n) => (
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
                       <option key={n} value={n}>{n} perangkat</option>
                     ))}
                   </select>
