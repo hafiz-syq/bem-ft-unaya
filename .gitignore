@@ -4,6 +4,10 @@ node_modules/
 # Environment files (contain secrets)
 .env
 .env.*.local
+# Varian env produksi backend juga memuat kredensial; simpan di dashboard
+# hosting, bukan di repo. Contoh env tetap dilacak sebagai dokumentasi.
+backend/.env.*
+!backend/.env.example
 
 # Vite dev & build output
 frontend/dist/
@@ -16,11 +20,17 @@ backend/dist/
 .DS_Store
 Thumbs.db
 
+# Log proses (dev/server), termasuk log backup.
+*.log
+
 # Dump database (berisi data pribadi & hash password) — jangan masuk repo.
 # Berkas yang sudah terlacak tetap perlu dikeluarkan dengan `git rm --cached`.
 backups/
 *.sql.gz
 *.sql.zip
+# Dump SQL manual di akar repo. Sengaja tidak memakai `*.sql` supaya migrasi
+# Prisma di backend/prisma/migrations tetap bisa ditambahkan ke repo.
+/*.sql
 
 # Berkas unggahan pengguna (foto, lampiran tiket) tidak boleh masuk repo.
 # Hanya penanda folder yang dilacak supaya direktori tetap ada setelah clone.
