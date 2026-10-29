@@ -2,17 +2,35 @@
 <html lang="id">
 
 <head>
-    <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-P2BN6ZKWHF"></script>
+  <meta charset="UTF-8" />
+
+  <!-- Sambungkan lebih awal ke origin gambar & analitik: menghemat ratusan
+       milidetik pada permintaan gambar/JavaScript pertama (LCP). -->
+  <link rel="preconnect" href="https://res.cloudinary.com" crossorigin />
+  <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+  <link rel="preconnect" href="https://www.googletagmanager.com" />
+
+  <!-- Google tag (gtag.js) — dimuat saat peramban menganggur supaya 163 KB
+       skrip pihak ketiga tidak menahan render halaman pertama. -->
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag() { dataLayer.push(arguments); }
-    gtag('js', new Date());
-
-    gtag('config', 'G-P2BN6ZKWHF');
+    (function () {
+      var muat = function () {
+        if (window.__gtagDimuat) return;
+        window.__gtagDimuat = true;
+        var skrip = document.createElement('script');
+        skrip.async = true;
+        skrip.src = 'https://www.googletagmanager.com/gtag/js?id=G-P2BN6ZKWHF';
+        document.head.appendChild(skrip);
+        gtag('js', new Date());
+        gtag('config', 'G-P2BN6ZKWHF');
+      };
+      if ('requestIdleCallback' in window) requestIdleCallback(muat, { timeout: 3500 });
+      else setTimeout(muat, 3500);
+    })();
   </script>
-  
-  <meta charset="UTF-8" />
+
   <link rel="icon" type="image/png" href="/favicon-64.png" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/icon-192.png" />

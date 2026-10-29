@@ -167,7 +167,7 @@ export default function SeasonalTheme() {
           type="button"
           onClick={simpan}
           disabled={menyimpan || pilihan === tema}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {menyimpan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
           {pilihan === tema ? 'Tema sudah aktif' : 'Simpan tema'}

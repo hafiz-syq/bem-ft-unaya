@@ -83,8 +83,30 @@ export default function Dashboard() {
     fetchStats();
   }, []);
 
+  // Banner sambutan hanya bergantung pada data sesi, bukan statistik. Ia
+  // dirender lebih dulu supaya elemen terbesar di layar (LCP) tidak menunggu
+  // dua permintaan /dashboard/* selesai.
+  const bannerSambutan = (
+    <div className="relative p-6 overflow-hidden text-white shadow-lg sm:p-8 bg-gradient-to-r from-amber-400 to-orange-400 rounded-2xl">
+      <div className="relative z-10">
+        <h1 className="mb-2 text-2xl font-black break-words sm:text-3xl">Selamat Datang, {user?.nim}!</h1>
+        <p className="max-w-2xl text-sm sm:text-base md:text-lg text-amber-100">
+          {user?.role === 'MAHASISWA'
+            ? 'Ini adalah portal resmi BEM-FT UNAYA. Sampaikan aspirasi dan keluhan Anda untuk Fakultas Teknik yang lebih baik.'
+            : 'Pantau aktivitas dan statistik layanan tiket BEM-FT UNAYA secara real-time dari panel kontrol ini.'}
+        </p>
+      </div>
+      <LayoutDashboard className="absolute right-0 w-40 h-40 text-white pointer-events-none sm:w-48 sm:h-48 sm:right-4 -bottom-4 opacity-10" />
+    </div>
+  );
+
   if (loading) {
-    return <div className="flex items-center justify-center h-[70vh]"><Loader2 className="w-10 h-10 text-amber-400 animate-spin" /></div>;
+    return (
+      <div className="w-full p-4 mx-auto space-y-6 overflow-x-hidden max-w-7xl sm:p-6 md:p-8">
+        {bannerSambutan}
+        <div className="flex items-center justify-center h-[50vh]"><Loader2 className="w-10 h-10 text-amber-400 animate-spin" /></div>
+      </div>
+    );
   }
 
   const kartuStatistik = statistik?.kartu ?? {};
@@ -136,20 +158,7 @@ export default function Dashboard() {
     <div className="w-full p-4 mx-auto space-y-6 overflow-x-hidden max-w-7xl sm:p-6 md:p-8">
       
       {/* Header Ucapan Selamat Datang */}
-      {/* [PERBAIKAN]: Mengecilkan padding banner di mobile (p-6) */}
-      <div className="relative p-6 overflow-hidden text-white shadow-lg sm:p-8 bg-gradient-to-r from-amber-400 to-orange-400 rounded-2xl">
-        <div className="relative z-10">
-          {/* [PERBAIKAN]: Menyesuaikan ukuran font dan menambahkan break-words agar teks panjang tidak merusak layout */}
-          <h1 className="mb-2 text-2xl font-black break-words sm:text-3xl">Selamat Datang, {user?.nim}!</h1>
-          {/* [PERBAIKAN]: Menyesuaikan teks paragraf untuk layar kecil */}
-          <p className="max-w-2xl text-sm sm:text-base md:text-lg text-amber-100">
-            {user?.role === 'MAHASISWA' 
-              ? 'Ini adalah portal resmi BEM-FT UNAYA. Sampaikan aspirasi dan keluhan Anda untuk Fakultas Teknik yang lebih baik.'
-              : 'Pantau aktivitas dan statistik layanan tiket BEM-FT UNAYA secara real-time dari panel kontrol ini.'}
-          </p>
-        </div>
-        <LayoutDashboard className="absolute right-0 w-40 h-40 text-white pointer-events-none sm:w-48 sm:h-48 sm:right-4 -bottom-4 opacity-10" />
-      </div>
+      {bannerSambutan}
 
       {isAdminRole(user?.role) && (
         <section className="flex flex-col gap-3 p-4 bg-white border border-gray-100 shadow-sm sm:flex-row sm:items-center sm:justify-between rounded-xl dark:bg-gray-900 dark:border-gray-800">
@@ -175,7 +184,7 @@ export default function Dashboard() {
               type="button"
               onClick={unduhLaporan}
               disabled={mengunduhLaporan || !bulanLaporan}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
             >
               {mengunduhLaporan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               Unduh Excel

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, assetUrl } from '../lib/axios';
+import { avatarUrl } from '../lib/gambar';
 import {
   FileText, Plus, Trash2, Globe, Loader2, XCircle, Calendar, Image as ImageIcon,
   MapPin, Clock, Paperclip, Pencil, Save, Award, Settings2, Link2, Share2, Users, Check
@@ -336,7 +337,7 @@ export default function CMSManager() {
           </p>
         </div>
         {activeTab !== 'PENGATURAN' && (
-          <button onClick={openCreate} className="flex items-center justify-center w-full gap-2 px-4 py-2 font-bold text-white transition-all rounded-lg bg-amber-400 hover:bg-amber-500 active:scale-95 md:w-auto">
+          <button onClick={openCreate} className="flex items-center justify-center w-full gap-2 px-4 py-2 font-bold text-gray-900 transition-all rounded-lg bg-amber-400 hover:bg-amber-500 active:scale-95 md:w-auto">
             <Plus className="w-4 h-4" /> Tambah {activeTab === 'KONTEN' ? 'Konten' : activeTab === 'AGENDA' ? 'Agenda' : activeTab === 'GALERI' ? 'Galeri' : 'Demisioner'}
           </button>
         )}
@@ -458,9 +459,9 @@ export default function CMSManager() {
               <div key={item.id} className="flex flex-col overflow-hidden transition bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm rounded-xl hover:shadow-md">
                 <div className="flex items-center gap-4 p-4">
                   {item.foto ? (
-                    <img src={assetUrl(item.foto)} alt={item.nama} className="object-cover w-16 h-16 rounded-full shrink-0 ring-2 ring-amber-100 dark:ring-amber-900/60" />
+                    <img src={avatarUrl(item.foto, 64)} alt={item.nama} className="object-cover w-16 h-16 rounded-full shrink-0 ring-2 ring-amber-100 dark:ring-amber-900/60" />
                   ) : (
-                    <div className="flex items-center justify-center w-16 h-16 text-lg font-black text-white rounded-full shrink-0 bg-amber-400">
+                    <div className="flex items-center justify-center w-16 h-16 text-lg font-black text-gray-900 rounded-full shrink-0 bg-amber-400">
                       {item.nama.substring(0, 2).toUpperCase()}
                     </div>
                   )}
@@ -515,7 +516,7 @@ export default function CMSManager() {
             </div>
 
             <div className="flex justify-end">
-              <button type="submit" disabled={submitting} className="flex items-center gap-2 px-5 py-2 font-bold text-white transition rounded-lg bg-amber-400 hover:bg-amber-500 active:scale-95 disabled:opacity-60">
+              <button type="submit" disabled={submitting} className="flex items-center gap-2 px-5 py-2 font-bold text-gray-900 transition rounded-lg bg-amber-400 hover:bg-amber-500 active:scale-95 disabled:opacity-60">
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Simpan Visi & Misi</>}
               </button>
             </div>
@@ -793,7 +794,7 @@ export default function CMSManager() {
                 type="submit"
                 form={activeTab === 'KONTEN' ? 'form-konten' : activeTab === 'AGENDA' ? 'form-agenda' : activeTab === 'GALERI' ? 'form-galeri' : 'form-demisioner'}
                 disabled={submitting}
-                className="flex items-center gap-2 px-5 py-2 font-bold text-white transition-all rounded-lg shadow-md bg-amber-400 hover:bg-amber-500 active:scale-95"
+                className="flex items-center gap-2 px-5 py-2 font-bold text-gray-900 transition-all rounded-lg shadow-md bg-amber-400 hover:bg-amber-500 active:scale-95"
               >
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan'}
               </button>

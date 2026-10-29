@@ -174,7 +174,7 @@ export default function LupaPassword() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center items-center py-2.5 px-4 rounded-lg text-sm font-bold text-white bg-amber-400 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex justify-center items-center py-2.5 px-4 rounded-lg text-sm font-bold text-gray-900 bg-amber-400 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Kirim Kode OTP'}
             </button>
@@ -202,7 +202,7 @@ export default function LupaPassword() {
             <button
               type="submit"
               disabled={loading || kode.length !== 6}
-              className="w-full flex justify-center items-center py-2.5 px-4 rounded-lg text-sm font-bold text-white bg-amber-400 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex justify-center items-center py-2.5 px-4 rounded-lg text-sm font-bold text-gray-900 bg-amber-400 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verifikasi & Buat Password Baru'}
             </button>

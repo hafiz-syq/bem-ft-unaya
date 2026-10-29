@@ -69,7 +69,7 @@ export default function ResetPassword() {
             </div>
             <Link
               to="/lupa-password"
-              className="block w-full py-2.5 text-sm font-bold text-center text-white rounded-lg bg-amber-400 hover:bg-amber-500"
+              className="block w-full py-2.5 text-sm font-bold text-center text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500"
             >
               Minta Tautan Baru
             </Link>
@@ -87,7 +87,7 @@ export default function ResetPassword() {
             </div>
             <button
               onClick={() => navigate('/login')}
-              className="w-full py-2.5 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500"
+              className="w-full py-2.5 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500"
             >
               Ke Halaman Login
             </button>
@@ -146,7 +146,7 @@ export default function ResetPassword() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-2.5 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? <Loader2 className="w-5 h-5 mx-auto animate-spin" /> : 'Simpan Password Baru'}
               </button>

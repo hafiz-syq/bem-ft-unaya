@@ -182,18 +182,27 @@ export default function Forum() {
     } catch {
       if (tampilkanMemuat && masihAktif()) setGalat('Pesan ruang ini gagal dimuat.');
     } finally {
-      if (tampilkanMemuat && masihAktif()) setMemuatPesan(false);
+      // Permintaan terbaru selalu menutup indikator muat, termasuk polling
+      // delta yang menggantikan muat penuh di jaringan lambat. Bila hanya
+      // `tampilkanMemuat` yang boleh menutupnya, indikator bisa berputar
+      // selamanya ketika muat penuh kalah cepat oleh polling berikutnya.
+      if (masihAktif()) setMemuatPesan(false);
     }
   }, []);
 
   useEffect(() => {
+    // Kosongkan daftar ruang sebelumnya sebelum memuat ruang baru. Tanpa ini,
+    // polling delta yang berjalan saat muat penuh masih di jalan akan memakai
+    // id pesan ruang lama sebagai batas `after` dan mencampur pesan dua ruang.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPesan([]);
+    setDetail(null);
+    pesanRef.current = [];
+
     if (!aktifId) {
       // Batalkan permintaan yang masih berjalan agar pesan ruang lama tidak
       // muncul lagi setelah daftar dikosongkan.
       urutanPermintaan.current += 1;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPesan([]);
-      setDetail(null);
       return;
     }
     void ambilPesan(aktifId, true);
@@ -424,7 +433,7 @@ export default function Forum() {
               <button
                 type="button"
                 onClick={() => { setFormBuat({ nama: '', deskripsi: '' }); setGalatBuat(''); setModalBuat(true); }}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500"
               >
                 <Plus className="w-4 h-4" /> Buat Ruang
               </button>
@@ -619,7 +628,7 @@ export default function Forum() {
                   <button
                     type="submit"
                     disabled={mengirim || !isi.trim()}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {mengirim ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     Kirim
@@ -695,7 +704,7 @@ export default function Forum() {
               <button type="button" onClick={() => setModalBuat(false)} className="px-4 py-2 text-sm font-bold text-gray-600 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
                 Batal
               </button>
-              <button type="submit" disabled={menyimpanBuat} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
+              <button type="submit" disabled={menyimpanBuat} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
                 {menyimpanBuat ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Buat
               </button>
             </div>
@@ -762,7 +771,7 @@ export default function Forum() {
               <button type="button" onClick={() => setModalFilter(false)} className="px-4 py-2 text-sm font-bold text-gray-600 rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
                 Batal
               </button>
-              <button type="submit" disabled={menyimpanFilter || memuatFilter} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
+              <button type="submit" disabled={menyimpanFilter || memuatFilter} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
                 {menyimpanFilter ? <Loader2 className="w-4 h-4 animate-spin" /> : <Filter className="w-4 h-4" />} Simpan Filter
               </button>
             </div>

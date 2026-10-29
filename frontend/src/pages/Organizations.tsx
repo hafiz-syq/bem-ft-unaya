@@ -219,7 +219,7 @@ export default function Organizations() {
         
         <button 
           onClick={() => setIsOrgModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 font-medium text-white transition rounded-lg bg-amber-400 hover:bg-amber-500"
+          className="flex items-center gap-2 px-4 py-2 font-medium text-gray-900 transition rounded-lg bg-amber-400 hover:bg-amber-500"
         >
           <Plus className="w-4 h-4" /> Tambah Organisasi
         </button>
@@ -411,7 +411,7 @@ export default function Organizations() {
               )}
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setEditTarget(null)} className="px-4 py-2 font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
-                <button type="submit" disabled={menyimpanEdit || !editNama.trim()} className="flex items-center gap-2 px-4 py-2 font-medium text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
+                <button type="submit" disabled={menyimpanEdit || !editNama.trim()} className="flex items-center gap-2 px-4 py-2 font-medium text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
                   {menyimpanEdit ? <Loader2 className="w-4 h-4 animate-spin"/> : 'Simpan'}
                 </button>
               </div>
@@ -451,7 +451,7 @@ export default function Organizations() {
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setIsOrgModalOpen(false)} className="px-4 py-2 font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
-                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 font-medium text-white rounded-lg bg-amber-400 hover:bg-amber-500">
+                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 font-medium text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500">
                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : 'Simpan'}
                 </button>
               </div>
@@ -475,7 +475,7 @@ export default function Organizations() {
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setIsDeptModalOpen(false)} className="px-4 py-2 font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
-                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 font-medium text-white rounded-lg bg-amber-400 hover:bg-amber-500">
+                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 font-medium text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500">
                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : 'Simpan'}
                 </button>
               </div>

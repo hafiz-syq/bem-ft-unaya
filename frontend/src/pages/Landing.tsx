@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api, assetUrl } from '../lib/axios';
+import { avatarUrl } from '../lib/gambar';
 import { useAuth } from '../contexts/AuthContext';
 import { useSeasonalTheme } from '../contexts/SeasonalThemeContext';
 import { LABEL_TEMA, UCAPAN_TEMA } from '../lib/tema-musiman';
@@ -285,7 +286,7 @@ export default function Landing() {
           {user && <MenuProfil />}
           {!user && (
             <div className="items-center hidden lg:flex">
-              <Link to="/login" className="flex items-center gap-2 px-5 py-2.5 bg-amber-400 text-white font-bold rounded-lg hover:bg-amber-500 hover:-translate-y-0.5 active:scale-95 transition-all">
+              <Link to="/login" className="flex items-center gap-2 px-5 py-2.5 bg-amber-400 text-gray-900 font-bold rounded-lg hover:bg-amber-500 hover:-translate-y-0.5 active:scale-95 transition-all">
                 <LogIn className="w-4 h-4" /> Masuk Portal
               </Link>
             </div>
@@ -305,7 +306,8 @@ export default function Landing() {
         </button>
 
         {/* Menu Mobile Dropdown */}
-        <div 
+        <div
+          id="mobile-menu"
           className={`absolute left-0 right-0 top-[100%] z-50 flex flex-col w-full px-4 py-2 lg:hidden transition-all duration-[700ms] ${isMobileMenuOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}
         >
           <div
@@ -335,11 +337,15 @@ export default function Landing() {
               <a href="#aspirasi" onClick={(e) => { handleSmoothScroll(e, 'aspirasi'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 transition-colors dark:text-gray-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 dark:hover:text-amber-300">
                 <Megaphone className="w-5 h-5" /> Aspirasi &amp; Keluhan
               </a>
-              <div className="my-3 border-t border-gray-100 dark:border-gray-800" />
+              {/* Garis pemisah hanya berguna bila ada tombol Masuk di bawahnya;
+                  pengguna yang sudah login memakai menu avatar di header. */}
               {!user && (
-                <Link to="/login" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center justify-center gap-2 py-3 font-bold text-white transition-all shadow-md rounded-xl bg-amber-400 hover:bg-amber-500 active:scale-95">
-                  <LogIn className="w-5 h-5"/> Masuk Portal
-                </Link>
+                <>
+                  <div className="my-3 border-t border-gray-100 dark:border-gray-800" />
+                  <Link to="/login" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center justify-center gap-2 py-3 font-bold text-gray-900 transition-all shadow-md rounded-xl bg-amber-400 hover:bg-amber-500 active:scale-95">
+                    <LogIn className="w-5 h-5"/> Masuk Portal
+                  </Link>
+                </>
               )}
             </div>
           </div>
@@ -377,7 +383,7 @@ export default function Landing() {
             {/* Penambahan flex-col sm:flex-row agar tombol menyusun rapi di bawah pada layar kecil */}
             <div className="flex flex-col justify-center gap-4 pt-6 sm:flex-row">
               <a href="#berita" onClick={(e) => handleSmoothScroll(e, 'berita')} className="w-full px-6 py-3 font-bold transition-all duration-300 bg-white rounded-lg shadow-lg dark:bg-gray-900 sm:w-auto text-amber-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:scale-105 active:scale-95">Kabar Terbaru</a>
-              <a href="#program" onClick={(e) => handleSmoothScroll(e, 'program')} className="w-full px-6 py-3 font-bold text-white transition-all duration-300 border rounded-lg sm:w-auto border-amber-300 dark:border-amber-700 bg-amber-400 hover:bg-amber-300 hover:scale-105 active:scale-95">Program Kerja</a>
+              <a href="#program" onClick={(e) => handleSmoothScroll(e, 'program')} className="w-full px-6 py-3 font-bold text-gray-900 transition-all duration-300 border rounded-lg sm:w-auto border-amber-300 dark:border-amber-700 bg-amber-400 hover:bg-amber-300 hover:scale-105 active:scale-95">Program Kerja</a>
             </div>
           </RevealOnScroll>
         </div>
@@ -478,9 +484,9 @@ export default function Landing() {
                     <>
                       <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
                         {aktifDemo.foto ? (
-                          <LazyImage src={assetUrl(aktifDemo.foto)} alt={aktifDemo.nama} className="object-cover w-24 h-24 rounded-full shadow-lg shrink-0 ring-4 ring-amber-50 dark:ring-amber-900/50" />
+                          <LazyImage src={avatarUrl(aktifDemo.foto, 96)} alt={aktifDemo.nama} className="object-cover w-24 h-24 rounded-full shadow-lg shrink-0 ring-4 ring-amber-50 dark:ring-amber-900/50" />
                         ) : (
-                          <div className="flex items-center justify-center w-24 h-24 text-2xl font-black text-white rounded-full shadow-lg shrink-0 bg-amber-400">
+                          <div className="flex items-center justify-center w-24 h-24 text-2xl font-black text-gray-900 rounded-full shadow-lg shrink-0 bg-amber-400">
                             {aktifDemo.nama.substring(0, 2).toUpperCase()}
                           </div>
                         )}
@@ -504,10 +510,10 @@ export default function Landing() {
 
                       <div className="flex items-center justify-between pt-4 mt-6 border-t border-gray-100 dark:border-gray-800">
                         <div className="flex gap-2">
-                          <button onClick={() => geserDemo(-1)} aria-label="Demisioner sebelumnya" className="p-2 text-gray-600 transition bg-gray-100 rounded-full dark:text-gray-400 dark:bg-gray-800 hover:bg-amber-400 hover:text-white">
+                          <button onClick={() => geserDemo(-1)} aria-label="Demisioner sebelumnya" className="p-2 text-gray-600 transition bg-gray-100 rounded-full dark:text-gray-400 dark:bg-gray-800 hover:bg-amber-400 hover:text-gray-900">
                             <ChevronLeft className="w-4 h-4" />
                           </button>
-                          <button onClick={() => geserDemo(1)} aria-label="Demisioner berikutnya" className="p-2 text-gray-600 transition bg-gray-100 rounded-full dark:text-gray-400 dark:bg-gray-800 hover:bg-amber-400 hover:text-white">
+                          <button onClick={() => geserDemo(1)} aria-label="Demisioner berikutnya" className="p-2 text-gray-600 transition bg-gray-100 rounded-full dark:text-gray-400 dark:bg-gray-800 hover:bg-amber-400 hover:text-gray-900">
                             <ChevronRight className="w-4 h-4" />
                           </button>
                         </div>
@@ -528,9 +534,9 @@ export default function Landing() {
                       }`}
                     >
                       {item.foto ? (
-                        <img src={assetUrl(item.foto)} alt={item.nama} loading="lazy" decoding="async" className="object-cover w-10 h-10 rounded-full shrink-0" />
+                        <img src={avatarUrl(item.foto, 40)} alt={item.nama} loading="lazy" decoding="async" className="object-cover w-10 h-10 rounded-full shrink-0" />
                       ) : (
-                        <div className="flex items-center justify-center w-10 h-10 text-xs font-black text-white rounded-full shrink-0 bg-amber-400">
+                        <div className="flex items-center justify-center w-10 h-10 text-xs font-black text-gray-900 rounded-full shrink-0 bg-amber-400">
                           {item.nama.substring(0, 2).toUpperCase()}
                         </div>
                       )}
@@ -602,7 +608,7 @@ export default function Landing() {
                             <p className="mb-4 text-sm text-gray-600 dark:text-gray-400 line-clamp-3">{item.content}</p>
                             <div className="flex items-center justify-between pt-4 mt-auto border-t border-gray-100 dark:border-gray-800">
                               <div className="text-xs font-medium text-gray-500 dark:text-gray-400"><p className="font-bold text-gray-900 dark:text-gray-100">{item.author.profile?.nama}</p><p>{new Date(item.createdAt).toLocaleDateString('id-ID')}</p></div>
-                              <span aria-hidden="true" className="flex items-center justify-center w-8 h-8 transition-all duration-300 rounded-full text-amber-400 bg-gray-50 dark:bg-gray-800 shrink-0 group-hover:bg-amber-400 group-hover:text-white"><ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" /></span>
+                              <span aria-hidden="true" className="flex items-center justify-center w-8 h-8 transition-all duration-300 rounded-full text-amber-400 bg-gray-50 dark:bg-gray-800 shrink-0 group-hover:bg-amber-400 group-hover:text-gray-900"><ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" /></span>
                             </div>
                           </div>
                         </Link>
@@ -920,7 +926,7 @@ export default function Landing() {
                 </div>
                 <textarea required rows={4} placeholder="Tuliskan pesan Anda di sini..." className="w-full p-3 border border-gray-300 rounded-lg outline-none resize-none dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-amber-500" value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})}></textarea>
                 
-                <button type="submit" disabled={isSubmitting} className="flex items-center justify-center w-full gap-2 py-3 font-bold text-white transition-all duration-200 rounded-lg bg-amber-400 hover:bg-amber-500 hover:shadow-lg active:scale-95">
+                <button type="submit" disabled={isSubmitting} className="flex items-center justify-center w-full gap-2 py-3 font-bold text-gray-900 transition-all duration-200 rounded-lg bg-amber-400 hover:bg-amber-500 hover:shadow-lg active:scale-95">
                   {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin"/> : <><Send className="w-5 h-5 shrink-0" /> Kirim Pesan Publik</>}
                 </button>
               </form>
@@ -984,7 +990,7 @@ export default function Landing() {
                   href={selectedAgenda.socialMediaLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-center w-full gap-2 py-3 font-bold transition-colors border-2 border-amber-400 rounded-xl text-amber-600 dark:text-amber-400 hover:bg-amber-400 hover:text-white dark:hover:text-gray-900"
+                  className="flex items-center justify-center w-full gap-2 py-3 font-bold transition-colors border-2 border-amber-400 rounded-xl text-amber-600 dark:text-amber-400 hover:bg-amber-400 hover:text-gray-900 dark:hover:text-gray-900"
                 >
                   Lihat Postingan Media Sosial <Share2 className="w-4 h-4" />
                 </a>
@@ -992,7 +998,7 @@ export default function Landing() {
 
               {selectedAgenda.registrationLink && (
                 isMahasiswaOrAbove(user?.role) ? (
-                  <a href={selectedAgenda.registrationLink} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-full gap-2 py-3 mt-4 font-bold text-white transition-all shadow-md bg-amber-400 rounded-xl hover:bg-amber-500 active:scale-95">
+                  <a href={selectedAgenda.registrationLink} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-full gap-2 py-3 mt-4 font-bold text-gray-900 transition-all shadow-md bg-amber-400 rounded-xl hover:bg-amber-500 active:scale-95">
                     Daftar / Ikuti Kegiatan <ExternalLink className="w-4 h-4" />
                   </a>
                 ) : (
@@ -1003,7 +1009,7 @@ export default function Landing() {
                     <p className="text-xs text-gray-600 dark:text-gray-400">
                       Masuk dengan akun mahasiswa untuk melihat tautan pendaftaran kegiatan ini.
                     </p>
-                    <Link to="/login" className="inline-flex items-center justify-center w-full gap-2 py-2 mt-1 font-bold text-white transition-colors bg-amber-400 rounded-lg hover:bg-amber-500">
+                    <Link to="/login" className="inline-flex items-center justify-center w-full gap-2 py-2 mt-1 font-bold text-gray-900 transition-colors bg-amber-400 rounded-lg hover:bg-amber-500">
                       <LogIn className="w-4 h-4" /> Masuk untuk mendaftar
                     </Link>
                   </div>

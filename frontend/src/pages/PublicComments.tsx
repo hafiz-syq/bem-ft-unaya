@@ -277,7 +277,7 @@ export default function PublicComments() {
               onClick={() => setFilter(s)}
               className={`px-4 py-2 text-sm font-bold rounded-lg border transition ${
                 filter === s
-                  ? 'bg-amber-400 text-white border-amber-400'
+                  ? 'bg-amber-400 text-gray-900 border-amber-400'
                   : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
               }`}
             >
@@ -320,7 +320,7 @@ export default function PublicComments() {
             <div key={k.id} className="overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm rounded-xl">
               <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex items-start gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 text-xs font-bold text-white rounded-full shrink-0 bg-amber-400">
+                  <div className="flex items-center justify-center w-10 h-10 text-xs font-bold text-gray-900 rounded-full shrink-0 bg-amber-400">
                     {k.nama.substring(0, 2).toUpperCase()}
                   </div>
                   <div>
@@ -480,7 +480,7 @@ export default function PublicComments() {
                   <button
                     onClick={() => kirimBalasan(k)}
                     disabled={busyId === k.id}
-                    className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-white transition rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
+                    className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 transition rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
                   >
                     {busyId === k.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4" /> Balas</>}
                   </button>

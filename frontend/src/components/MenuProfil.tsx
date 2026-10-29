@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LayoutDashboard, Mail, KeyRound } from 'lucide-react';
-import { assetUrl } from '../lib/axios';
+import { avatarUrl } from '../lib/gambar';
 import { useAuth } from '../contexts/AuthContext';
 
 /**
@@ -78,7 +78,7 @@ export default function MenuProfil() {
         } focus:outline-none`}
       >
         {user.foto ? (
-          <img src={assetUrl(user.foto)} alt={nama} className="object-cover w-full h-full" />
+          <img src={avatarUrl(user.foto, 40)} alt={nama} className="object-cover w-full h-full" />
         ) : (
           inisial
         )}

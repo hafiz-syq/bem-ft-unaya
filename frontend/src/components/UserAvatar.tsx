@@ -1,4 +1,4 @@
-import { assetUrl } from '../lib/axios';
+import { avatarUrl } from '../lib/gambar';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfileDialog } from '../contexts/ProfileDialogContext';
 import StatusOnline from './StatusOnline';
@@ -19,6 +19,14 @@ const UKURAN: Record<NonNullable<Props['size']>, string> = {
   sm: 'w-8 h-8 text-[10px]',
   md: 'w-10 h-10 text-xs',
   lg: 'w-12 h-12 text-sm',
+};
+
+// Ukuran tampil (CSS px) dipakai untuk meminta gambar Cloudinary yang pas.
+const UKURAN_PX: Record<NonNullable<Props['size']>, number> = {
+  xs: 24,
+  sm: 32,
+  md: 40,
+  lg: 48,
 };
 
 const NADA: Record<NonNullable<Props['tone']>, string> = {
@@ -46,7 +54,7 @@ export default function UserAvatar({ userId, nama, foto, size = 'md', className 
   const isi = (
     <>
       {foto ? (
-        <img src={assetUrl(foto)} alt={nama || 'Foto profil'} className="object-cover w-full h-full" loading="lazy" />
+        <img src={avatarUrl(foto, UKURAN_PX[size])} alt={nama || 'Foto profil'} className="object-cover w-full h-full" loading="lazy" />
       ) : (
         inisial
       )}

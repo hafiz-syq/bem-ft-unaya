@@ -208,7 +208,7 @@ export default function Documents() {
         <button
           type="button"
           onClick={() => setModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500"
+          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500"
         >
           <Plus className="w-4 h-4" /> Tambah Dokumen
         </button>
@@ -433,7 +433,7 @@ export default function Documents() {
             </div>
             <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-gray-800">
               <button type="button" onClick={() => setModal(false)} className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800">Batal</button>
-              <button type="submit" disabled={menyimpan} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
+              <button type="submit" disabled={menyimpan} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
                 {menyimpan ? <Loader2 className="w-4 h-4 animate-spin" /> : <><FileText className="w-4 h-4" /> Simpan</>}
               </button>
             </div>

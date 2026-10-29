@@ -5,7 +5,8 @@ import {
   X, Loader2, ShieldCheck, ShieldAlert, GraduationCap, IdCard,
   Briefcase, CalendarDays, UserRound, ImageOff, Mail, KeyRound,
 } from 'lucide-react';
-import { api, assetUrl } from '../lib/axios';
+import { api } from '../lib/axios';
+import { avatarUrl } from '../lib/gambar';
 import { ROLE_LABEL, isAdminRole, isOfficer } from '../lib/roles';
 import { usePresence } from '../contexts/PresenceContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -121,7 +122,7 @@ export default function UserProfileDialog({ userId, onClose }: { userId: string;
               <Loader2 className="w-6 h-6 animate-spin" />
             ) : profil?.foto ? (
               <img
-                src={assetUrl(profil.foto)}
+                src={avatarUrl(profil.foto, 96)}
                 alt={profil.nama || profil.nim}
                 className="object-cover w-full h-full"
               />

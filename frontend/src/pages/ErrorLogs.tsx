@@ -128,7 +128,7 @@ export default function ErrorLogs() {
             key={f}
             type="button"
             onClick={() => setFilter(f)}
-            className={`px-4 py-2 text-sm font-bold rounded-lg border transition ${filter === f ? 'bg-amber-400 text-white border-amber-400' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-700'}`}
+            className={`px-4 py-2 text-sm font-bold rounded-lg border transition ${filter === f ? 'bg-amber-400 text-gray-900 border-amber-400' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-700'}`}
           >
             {f === 'OPEN' ? 'Belum selesai' : f === 'RESOLVED' ? 'Selesai' : 'Semua'}
           </button>

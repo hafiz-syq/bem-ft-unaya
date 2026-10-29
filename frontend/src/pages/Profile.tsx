@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api, assetUrl } from '../lib/axios';
+import { api } from '../lib/axios';
+import { avatarUrl } from '../lib/gambar';
 import {
   UserCircle, ShieldCheck, BookOpen, Loader2, Mail, Pencil, Save, X, Check,
   Phone, Hash, CalendarDays, Briefcase, Camera, BadgeCheck, AlertTriangle, Upload, Trash2
@@ -272,7 +273,7 @@ export default function Profile() {
           <div className="relative shrink-0">
             <div className="flex items-center justify-center w-28 h-28 overflow-hidden rounded-full bg-white/20 backdrop-blur-sm ring-4 ring-white/30">
               {data.foto ? (
-                <img src={assetUrl(data.foto)} alt={nama} className="object-cover w-full h-full" />
+                <img src={avatarUrl(data.foto, 112)} alt={nama} className="object-cover w-full h-full" />
               ) : (
                 <span className="text-3xl font-black text-white">{inisial}</span>
               )}
@@ -462,7 +463,7 @@ export default function Profile() {
               </div>
               <button
                 onClick={() => { setEmailMsg(''); setEmailErr(''); setEmailInput(emailAktif || ''); setIsEditingEmail(true); }}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 font-bold text-white transition rounded-lg bg-amber-400 hover:bg-amber-500 active:scale-95"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 font-bold text-gray-900 transition rounded-lg bg-amber-400 hover:bg-amber-500 active:scale-95"
               >
                 <Pencil className="w-4 h-4" /> Ubah Email
               </button>
@@ -495,7 +496,7 @@ export default function Profile() {
                 <button
                   type="submit"
                   disabled={savingEmail}
-                  className="inline-flex items-center gap-2 px-4 py-2 font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 px-4 py-2 font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
                 >
                   {savingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Simpan</>}
                 </button>
@@ -582,7 +583,7 @@ export default function Profile() {
             <button
               type="submit"
               disabled={savingPassword}
-              className="inline-flex items-center gap-2 px-5 py-2.5 font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-5 py-2.5 font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
             >
               {savingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Simpan Password Baru'}
             </button>

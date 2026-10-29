@@ -376,7 +376,7 @@ export default function Tickets() {
           {isMahasiswa && (
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 font-bold text-white transition-all rounded-lg bg-amber-400 hover:bg-amber-500 active:scale-95"
+              className="flex items-center gap-2 px-4 py-2 font-bold text-gray-900 transition-all rounded-lg bg-amber-400 hover:bg-amber-500 active:scale-95"
             >
               <Plus className="w-4 h-4" /> Buat Tiket Baru
             </button>
@@ -663,7 +663,7 @@ export default function Tickets() {
                             />
                             <div className="flex gap-2 md:flex-col">
                               <button onClick={() => { setReplyingTo(null); setReplyContent(''); }} className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
-                              <button onClick={() => handleSubmitReply(ticket.id)} className="px-3 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500">Kirim</button>
+                              <button onClick={() => handleSubmitReply(ticket.id)} className="px-3 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500">Kirim</button>
                             </div>
                           </div>
                         </div>
@@ -767,7 +767,7 @@ export default function Tickets() {
 
               <div className="flex justify-end gap-3 pt-5 mt-6 border-t border-gray-100 dark:border-gray-800">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 font-bold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">Batal</button>
-                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-5 py-2 font-bold text-white transition-all rounded-lg bg-amber-400 hover:bg-amber-500 active:scale-95">
+                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-5 py-2 font-bold text-gray-900 transition-all rounded-lg bg-amber-400 hover:bg-amber-500 active:scale-95">
                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Kirim Tiket'}
                 </button>
               </div>
@@ -841,7 +841,7 @@ export default function Tickets() {
               <button type="button" onClick={() => setNilaiTiket(null)} className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800">
                 Batal
               </button>
-              <button type="submit" disabled={menyimpanNilai} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
+              <button type="submit" disabled={menyimpanNilai} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
                 {menyimpanNilai ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Kirim penilaian'}
               </button>
             </div>

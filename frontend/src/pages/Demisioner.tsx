@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { api, assetUrl } from '../lib/axios';
+import { api } from '../lib/axios';
+import { avatarUrl } from '../lib/gambar';
 import {
   Loader2, Code2, ArrowLeft, Award, ChevronLeft, ChevronRight, BadgeCheck, Building2, Quote
 } from 'lucide-react';
@@ -88,7 +89,7 @@ export default function Demisioner() {
               key={f.key}
               onClick={() => setFilter(f.key)}
               className={`px-4 py-2 text-sm font-bold rounded-full transition ${
-                filter === f.key ? 'bg-amber-400 text-white shadow-md' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800'
+                filter === f.key ? 'bg-amber-400 text-gray-900 shadow-md' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800'
               }`}
             >
               {f.label}
@@ -111,7 +112,7 @@ export default function Demisioner() {
                 <div className="relative flex items-center justify-center p-8 md:col-span-2 bg-gradient-to-br from-amber-400 to-orange-400">
                   {aktif.foto ? (
                     <img
-                      src={assetUrl(aktif.foto)}
+                      src={avatarUrl(aktif.foto, 192)}
                       alt={aktif.nama}
                       className="object-cover w-40 h-40 rounded-full shadow-2xl ring-4 ring-white/40 sm:w-48 sm:h-48"
                     />
@@ -157,14 +158,14 @@ export default function Demisioner() {
               <button
                 onClick={() => geser(-1)}
                 aria-label="Demisioner sebelumnya"
-                className="absolute p-2 text-gray-700 dark:text-gray-300 transition bg-white dark:bg-gray-900 rounded-full shadow-lg top-1/2 left-3 -translate-y-1/2 hover:bg-amber-400 hover:text-white"
+                className="absolute p-2 text-gray-700 dark:text-gray-300 transition bg-white dark:bg-gray-900 rounded-full shadow-lg top-1/2 left-3 -translate-y-1/2 hover:bg-amber-400 hover:text-gray-900"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <button
                 onClick={() => geser(1)}
                 aria-label="Demisioner berikutnya"
-                className="absolute p-2 text-gray-700 dark:text-gray-300 transition bg-white dark:bg-gray-900 rounded-full shadow-lg top-1/2 right-3 -translate-y-1/2 hover:bg-amber-400 hover:text-white"
+                className="absolute p-2 text-gray-700 dark:text-gray-300 transition bg-white dark:bg-gray-900 rounded-full shadow-lg top-1/2 right-3 -translate-y-1/2 hover:bg-amber-400 hover:text-gray-900"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
@@ -195,9 +196,9 @@ export default function Demisioner() {
                   }`}
                 >
                   {item.foto ? (
-                    <img src={assetUrl(item.foto)} alt={item.nama} className="object-cover w-16 h-16 mx-auto mb-3 rounded-full ring-2 ring-amber-50 dark:ring-amber-900/50" />
+                    <img src={avatarUrl(item.foto, 64)} alt={item.nama} className="object-cover w-16 h-16 mx-auto mb-3 rounded-full ring-2 ring-amber-50 dark:ring-amber-900/50" />
                   ) : (
-                    <div className="flex items-center justify-center w-16 h-16 mx-auto mb-3 text-lg font-black text-white rounded-full bg-amber-400">
+                    <div className="flex items-center justify-center w-16 h-16 mx-auto mb-3 text-lg font-black text-gray-900 rounded-full bg-amber-400">
                       {item.nama.substring(0, 2).toUpperCase()}
                     </div>
                   )}

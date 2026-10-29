@@ -148,7 +148,7 @@ export default function GalleryCommentsAdmin() {
         </div>
         <Link
           to="/gallery"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg text-amber-400 bg-amber-100 hover:bg-amber-200 dark:text-white dark:bg-amber-400 dark:hover:bg-amber-500"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold rounded-lg text-amber-400 bg-amber-100 hover:bg-amber-200 dark:text-gray-900 dark:bg-amber-400 dark:hover:bg-amber-500"
         >
           <ImageIcon className="w-4 h-4" /> Lihat Halaman Galeri
         </Link>
@@ -175,7 +175,7 @@ export default function GalleryCommentsAdmin() {
             onClick={() => setStatus(tab.value)}
             className={`px-3 py-1.5 text-sm font-bold rounded-lg transition ${
               status === tab.value
-                ? 'bg-amber-400 text-white'
+                ? 'bg-amber-400 text-gray-900'
                 : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-800 dark:hover:bg-gray-800'
             }`}
           >

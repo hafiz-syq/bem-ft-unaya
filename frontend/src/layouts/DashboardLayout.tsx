@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfileDialog } from '../contexts/ProfileDialogContext';
-import { api, assetUrl } from '../lib/axios';
+import { api } from '../lib/axios';
+import { avatarUrl } from '../lib/gambar';
 import { ROLE_LABEL, ROLE_SUPERADMIN, isAdminRole, isStaff } from '../lib/roles';
 import ThemeToggle from '../components/ThemeToggle';
 import SeasonalBadge from '../components/SeasonalBadge';
@@ -238,7 +239,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 to={item.path}
                 title={sidebarTutup ? item.name : undefined}
                 aria-label={item.name}
-                className={`flex items-center gap-3 rounded-xl text-sm font-bold transition duration-200 ${sidebarTutup ? 'justify-center px-2 py-3' : 'px-4 py-3'} ${isActive ? 'bg-amber-400 text-white shadow-md dark:bg-amber-500' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'}`}
+                className={`flex items-center gap-3 rounded-xl text-sm font-bold transition duration-200 ${sidebarTutup ? 'justify-center px-2 py-3' : 'px-4 py-3'} ${isActive ? 'bg-amber-400 text-gray-900 shadow-md dark:bg-amber-500' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'}`}
               >
                 <Icon className="w-5 h-5 shrink-0" />
                 {!sidebarTutup && <span className="truncate">{item.name}</span>}
@@ -272,10 +273,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="sticky top-0 z-50 flex items-center justify-between w-full px-3 py-3 bg-white border-b border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800 sm:px-4 md:px-6">
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
+              type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label={isMobileMenuOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
+              aria-expanded={isMobileMenuOpen}
               className="relative z-50 inline-flex items-center justify-center text-gray-700 transition rounded-lg w-9 h-9 sm:w-10 sm:h-10 md:hidden hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800 shrink-0"
             >
-              <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
+              <Menu className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />
             </button>
             <h2 className="hidden text-lg font-bold text-gray-800 capitalize truncate dark:text-gray-100 sm:block">
               {location.pathname.replace('/', '').replace('-', ' ')}
@@ -283,12 +287,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {/* Tombol mobile: Kembali + Keluar */}
             <div className="flex items-center gap-1 sm:gap-2 md:hidden">
-              <Link to="/" className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-2 text-xs sm:text-sm font-bold text-gray-600 rounded-lg hover:bg-gray-100 transition shrink-0 dark:text-gray-300 dark:hover:bg-gray-800">
-                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h18M15 6l-6 6 6 6"/></svg>
+              {/* Label teks disembunyikan di layar sangat kecil, jadi nama
+                  aksesibel diberikan eksplisit (ikon saja tidak terbaca). */}
+              <Link to="/" aria-label="Kembali ke beranda" title="Kembali ke beranda" className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-2 text-xs sm:text-sm font-bold text-gray-600 rounded-lg hover:bg-gray-100 transition shrink-0 dark:text-gray-300 dark:hover:bg-gray-800">
+                <svg aria-hidden="true" className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h18M15 6l-6 6 6 6"/></svg>
                 <span className="hidden sm:inline-block">Kembali</span>
               </Link>
-              <button onClick={handleLogout} className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-2 text-xs sm:text-sm font-bold text-red-600 rounded-lg hover:bg-red-50 transition shrink-0 dark:text-red-400 dark:hover:bg-red-950/60">
-                <LogOut className="w-4 h-4 shrink-0" />
+              <button type="button" onClick={handleLogout} aria-label="Keluar dari akun" title="Keluar dari akun" className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-2 text-xs sm:text-sm font-bold text-red-600 rounded-lg hover:bg-red-50 transition shrink-0 dark:text-red-400 dark:hover:bg-red-950/60">
+                <LogOut className="w-4 h-4 shrink-0" aria-hidden="true" />
                 <span className="hidden sm:inline-block">Keluar</span>
               </button>
             </div>
@@ -359,12 +365,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 >
                   {user?.foto ? (
                     <img
-                      src={assetUrl(user.foto)}
+                      src={avatarUrl(user.foto, 36)}
                       alt={displayName}
                       className="object-cover w-8 h-8 rounded-full shadow-md ring-2 ring-amber-100 dark:ring-amber-900/70 sm:w-9 sm:h-9"
                     />
                   ) : (
-                    <span className="flex items-center justify-center w-8 h-8 text-xs font-bold text-white rounded-full shadow-md bg-amber-400 sm:w-9 sm:h-9 sm:text-base">
+                    <span className="flex items-center justify-center w-8 h-8 text-xs font-bold text-gray-900 rounded-full shadow-md bg-amber-400 sm:w-9 sm:h-9 sm:text-base">
                       {initial}
                     </span>
                   )}
@@ -400,7 +406,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     key={item.path}
                     to={item.path}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-colors ${isActive ? 'bg-amber-400 text-white dark:bg-amber-500' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'}`}
+                    className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-colors ${isActive ? 'bg-amber-400 text-gray-900 dark:bg-amber-500' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'}`}
                   >
                     <Icon className="w-5 h-5 shrink-0" /> {item.name}
                   </Link>

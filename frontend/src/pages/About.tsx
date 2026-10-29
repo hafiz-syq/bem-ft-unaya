@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { api, assetUrl } from '../lib/axios';
+import { api } from '../lib/axios';
+import { avatarUrl } from '../lib/gambar';
 import {
   Users, Loader2, Code2, ArrowLeft, Building2, X, Hash, GraduationCap,
   BookOpen, CalendarDays, Briefcase, ShieldCheck, Phone
@@ -78,7 +79,7 @@ export default function About() {
     <div className="min-h-screen font-sans bg-gray-50 dark:bg-gray-950">
       <nav className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
         <Link to="/" className="flex items-center gap-3 group">
-          <div className="flex items-center justify-center w-10 h-10 transition-transform rounded-lg shadow-lg bg-amber-400 group-hover:scale-95"><Code2 className="w-6 h-6 text-white" /></div>
+          <div className="flex items-center justify-center w-10 h-10 transition-transform rounded-lg shadow-lg bg-amber-400 group-hover:scale-95"><Code2 className="w-6 h-6 text-gray-900" /></div>
           <div><h1 className="text-xl font-black text-gray-900 dark:text-gray-100">BEM FT UNAYA</h1><p className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase">Portal Resmi</p></div>
         </Link>
         <div className="flex items-center gap-4">
@@ -155,9 +156,9 @@ export default function About() {
                             })}
                             className="p-6 text-center transition-all border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 rounded-2xl hover:-translate-y-1 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-amber-300"
                           >
-                            <div className="flex items-center justify-center w-20 h-20 mx-auto mb-4 overflow-hidden text-2xl font-black text-white rounded-full shadow-lg bg-amber-400 ring-4 ring-amber-50 dark:ring-amber-900/50">
+                            <div className="flex items-center justify-center w-20 h-20 mx-auto mb-4 overflow-hidden text-2xl font-black text-gray-900 rounded-full shadow-lg bg-amber-400 ring-4 ring-amber-50 dark:ring-amber-900/50">
                               {activeUser.foto ? (
-                                <img src={assetUrl(activeUser.foto)} alt={nama} className="object-cover w-full h-full" />
+                                <img src={avatarUrl(activeUser.foto, 80)} alt={nama} className="object-cover w-full h-full" />
                               ) : (
                                 nama.substring(0, 2).toUpperCase()
                               )}
@@ -188,7 +189,7 @@ export default function About() {
             <div className="flex flex-col items-center px-8 py-10 text-center text-white bg-gradient-to-br from-amber-400 to-orange-400">
               <div className="flex items-center justify-center w-28 h-28 mb-4 overflow-hidden text-3xl font-black text-amber-500 bg-white dark:bg-gray-900 rounded-full shadow-xl ring-4 ring-white/40">
                 {kartu.foto ? (
-                  <img src={assetUrl(kartu.foto)} alt={kartu.nama} className="object-cover w-full h-full" />
+                  <img src={avatarUrl(kartu.foto, 112)} alt={kartu.nama} className="object-cover w-full h-full" />
                 ) : (
                   kartu.nama.substring(0, 2).toUpperCase()
                 )}

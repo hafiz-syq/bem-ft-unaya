@@ -110,7 +110,7 @@ export default function Faq() {
           <div className="flex items-center gap-2">
             <button
               onClick={openCreate}
-              className="flex items-center justify-center gap-2 px-4 py-2 font-bold text-white transition rounded-lg bg-amber-400 hover:bg-amber-500 active:scale-95"
+              className="flex items-center justify-center gap-2 px-4 py-2 font-bold text-gray-900 transition rounded-lg bg-amber-400 hover:bg-amber-500 active:scale-95"
             >
               <Plus className="w-4 h-4" /> Tambah FAQ
             </button>
@@ -225,7 +225,7 @@ export default function Faq() {
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
                 <button type="button" onClick={() => setIsFormOpen(false)} className="px-4 py-2 font-bold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">Batal</button>
-                <button type="submit" disabled={submitting} className="flex items-center gap-2 px-5 py-2 font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-60">
+                <button type="submit" disabled={submitting} className="flex items-center gap-2 px-5 py-2 font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-60">
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Simpan</>}
                 </button>
               </div>

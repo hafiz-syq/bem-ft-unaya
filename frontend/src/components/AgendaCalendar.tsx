@@ -249,7 +249,7 @@ export default function AgendaCalendar() {
                     terpilih
                       ? 'border-amber-400 bg-amber-50/60 dark:bg-amber-950/30'
                       : 'border-gray-100 dark:border-gray-800'
-                  } ${item.dalamBulan ? '' : 'opacity-45'}`}
+                  }`}
                 >
                   <button
                     type="button"
@@ -260,8 +260,13 @@ export default function AgendaCalendar() {
                     aria-pressed={terpilih}
                     className={`flex items-center justify-center w-6 h-6 text-xs font-bold rounded-full transition ${
                       iniHariIni
-                        ? 'bg-amber-500 text-white'
-                        : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
+                        ? 'bg-amber-700 text-white dark:bg-amber-400 dark:text-gray-950'
+                        : item.dalamBulan
+                          ? 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'
+                          // Tanggal di luar bulan aktif tetap harus terbaca: cukup
+                          // diredupkan warnanya, bukan opacity seluruh sel (yang
+                          // menurunkan kontras teks di bawah batas WCAG).
+                          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
                     }`}
                   >
                     {item.hari}

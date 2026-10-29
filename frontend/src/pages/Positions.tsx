@@ -178,7 +178,7 @@ export default function Positions() {
                     <button onClick={bukaSlotBaru} className="flex items-center gap-2 px-4 py-2 font-medium text-gray-700 dark:text-gray-300 transition bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
                         <Building2 className="w-4 h-4" /> Buat Jabatan Baru
                     </button>
-                    <button onClick={() => setIsAssignModalOpen(true)} className="flex items-center gap-2 px-4 py-2 font-medium text-white transition rounded-lg bg-amber-400 hover:bg-amber-500">
+                    <button onClick={() => setIsAssignModalOpen(true)} className="flex items-center gap-2 px-4 py-2 font-medium text-gray-900 transition rounded-lg bg-amber-400 hover:bg-amber-500">
                         <ShieldCheck className="w-4 h-4" /> Angkat Pengurus
                     </button>
                 </div>
@@ -301,7 +301,7 @@ export default function Positions() {
                             </div>
                             <div className="flex justify-end gap-3 pt-2">
                                 <button type="button" onClick={tutupSlotModal} className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
-                                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
+                                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
                                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : slotDiedit ? 'Simpan Perubahan' : 'Simpan Jabatan'}
                                 </button>
                             </div>
@@ -373,7 +373,7 @@ export default function Positions() {
                             </div>
                             <div className="flex justify-end gap-3 pt-2">
                                 <button type="button" onClick={() => setIsAssignModalOpen(false)} className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
-                                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 text-white rounded-lg bg-amber-400 hover:bg-amber-500">
+                                <button type="submit" disabled={isSubmitting} className="flex items-center gap-2 px-4 py-2 text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500">
                                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Angkat Pengurus'}
                                 </button>
                             </div>

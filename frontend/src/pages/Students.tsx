@@ -734,7 +734,7 @@ export default function Students() {
               className="w-full py-2 pl-9 pr-3 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700"
             />
           </div>
-          <button type="submit" className="px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500">
+          <button type="submit" className="px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500">
             Cari
           </button>
         </form>
@@ -830,7 +830,7 @@ export default function Students() {
             </div>
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium text-white transition rounded-lg bg-amber-400 hover:bg-amber-500"
+              className="px-4 py-2 text-sm font-medium text-gray-900 transition rounded-lg bg-amber-400 hover:bg-amber-500"
             >
               Cari
             </button>
@@ -848,7 +848,7 @@ export default function Students() {
               <button
                 type="button"
                 onClick={bukaTambah}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white transition rounded-lg bg-amber-400 hover:bg-amber-500"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 transition rounded-lg bg-amber-400 hover:bg-amber-500"
               >
                 <UserPlus className="w-4 h-4" /> Tambah
               </button>
@@ -1388,7 +1388,7 @@ export default function Students() {
               <button
                 type="submit"
                 disabled={menyimpanEdit}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
               >
                 {menyimpanEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Simpan</>}
               </button>
@@ -1503,7 +1503,7 @@ export default function Students() {
               <button
                 type="submit"
                 disabled={menyimpanKelola}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
               >
                 {menyimpanKelola ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-4 h-4" /> Simpan</>}
               </button>
@@ -1733,7 +1733,7 @@ export default function Students() {
               <button
                 type="submit"
                 disabled={menyimpanTambah}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
               >
                 {menyimpanTambah && <Loader2 className="w-4 h-4 animate-spin" />}
                 Simpan Akun
@@ -1788,7 +1788,7 @@ export default function Students() {
                   type="button"
                   onClick={pratinjauImpor}
                   disabled={!berkas || memuatPratinjau || menyimpanImpor}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
                 >
                   {memuatPratinjau ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                   Pratinjau PDF
