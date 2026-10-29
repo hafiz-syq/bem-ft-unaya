@@ -23,3 +23,6 @@ backups/
 *.sql.zip
 
 # Berkas unggahan pengguna (foto, lampiran tiket) tidak boleh masuk repo.
+# Hanya penanda folder yang dilacak supaya direktori tetap ada setelah clone.
+backend/uploads/*
+!backend/uploads/.gitkeep
