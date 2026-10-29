@@ -7,7 +7,7 @@ Aplikasi portal BEM-FT UNAYA: backend REST API (Express + Prisma) dan frontend R
 
 ## Prasyarat
 
-- Node.js 20.9+ (disarankan 22)
+- Node.js 22+ (disarankan 24; lihat `.nvmrc`)
 - Database sesuai konfigurasi Prisma di `backend/prisma` (lihat `backend/.env`)
 
 ## Menjalankan Backend
@@ -67,7 +67,7 @@ Frontend memanggil API backend; pastikan URL API di konfigurasi frontend (`.env`
 Aplikasi ini adalah PWA: halaman dapat dibuka kembali saat jaringan putus dan perubahan tulis yang dibuat saat offline dikirim otomatis ketika internet kembali.
 
 - **Notifikasi perangkat (Web Push).** Aktifkan lewat ikon lonceng di dashboard → *Aktifkan notifikasi browser*. Server membuat pasangan kunci VAPID sendiri saat pertama dipakai dan menyimpannya di tabel `SiteSetting` (kunci privat tidak pernah dikirim ke browser; endpoint publik `/api/cms/settings` hanya mengembalikan `visi` & `misi`). Isi `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` di environment hanya bila ingin memakai kunci sendiri. Di iPhone/iPad, Web Push baru berfungsi setelah aplikasi ditambahkan ke layar utama.
-- **Cache offline.** Service worker menyimpan kerangka aplikasi, aset ber-hash (daftar dibuat otomatis oleh plugin Vite saat build), data GET API terakhir, dan gambar galeri. Saat offline, dashboard/tiket/pengumuman tetap terbaca dari data terakhir.
+- **Cache offline.** Service worker menyimpan kerangka aplikasi, aset ber-hash (daftar dibuat otomatis oleh plugin Vite saat build), data GET API terakhir, gambar galeri, dan foto halaman utama. Foto fakultas disimpan sejak service worker terpasang, sedangkan gambar dari API/CMS (mis. Cloudinary) dikirim halaman setelah tampil agar ikut tersimpan. Saat offline, dashboard/tiket/pengumuman tetap terbaca dari data terakhir.
 - **Antrean tulis.** Aksi POST/PUT/PATCH/DELETE (mis. tandai notifikasi dibaca, kirim tiket, komentar) disimpan di IndexedDB bila jaringan gagal, lalu diputar ulang otomatis saat online — termasuk lewat Background Sync bila tab sudah ditutup. Unggahan berkas, login, obrolan live, dan endpoint status online sengaja tidak diantrekan.
 - **Keamanan antrean.** Antrean terikat pada akun; logout atau berganti akun menghapus antrean dan cache data agar tidak terkirim memakai sesi pengguna lain.
 - **Menguji secara lokal.** Service worker hanya didaftarkan pada build produksi, jadi pakai `npm run build && npm run preview` (bukan `npm run dev`). `vite preview` sudah meneruskan `/api` ke backend lokal.
@@ -150,16 +150,19 @@ mysql -u root -N -e "SELECT COUNT(*) FROM user;" bem_ft_unaya_uji_pulih
 
 Uji pemulihan 21 Okt 2026 memakai dump `20261020_021725` (skema 25 tabel, tanpa `CREATE DATABASE`, jadi aman diimpor ke database uji): impor selesai dalam ±1 detik dan tabel `user` berisi **377 baris di kedua database**. Dari 377 akun, 373 baris identik pada kolom inti (`id`, `nim`, `password_hash`, `role`, `email`); 4 baris berbeda karena memang diubah setelah backup diambil. Tabel `agenda`, `auditlog`, dan `position` juga lebih banyak di database asli — data yang bertambah setelah 02:17, bukan akibat restore. Hapus database uji dengan `DROP DATABASE bem_ft_unaya_uji_pulih;` bila sudah selesai.
 
-## Kunci Satu Perangkat
+## Batas Perangkat & Sesi
 
-Setiap akun hanya boleh aktif di **satu perangkat** pada satu waktu.
+Setiap akun boleh aktif di **beberapa perangkat** — bawaan **10** (HP, tablet, laptop, dan perangkat lain). Batas dapat diturunkan admin per akun antara 1–10.
 
-- Login pertama (setelah migrasi ini dipasang) otomatis mengikat akun ke browser/perangkat yang dipakai. ID perangkat dibuat acak oleh frontend dan disimpan di `localStorage`, lalu dikirim lewat header `X-Device-Id`.
-- Login dari perangkat lain ditolak dengan kode `PERANGKAT_TERKUNCI`, dan percobaannya dicatat (`pendingDevice`) agar admin melihat perangkat mana yang ingin dipakai.
+- Login pertama otomatis mengikat akun ke browser/perangkat yang dipakai. ID perangkat dibuat acak oleh frontend dan disimpan di `localStorage`, lalu dikirim lewat header `X-Device-Id`.
+- Perangkat ke-2 dan seterusnya dicatat di tabel `UserDevice`; perangkat utama tetap di kolom `User.deviceId` agar data lama tidak perlu dimigrasikan.
+- Bila jumlah perangkat terpakai sudah mencapai batas akun, login dari perangkat baru ditolak dengan kode `PERANGKAT_TERKUNCI`, dan percobaannya dicatat (`pendingDevice`) agar admin melihat perangkat mana yang ingin dipakai.
 - **ADMIN** dan **SUPERADMIN** membuka menu **Perangkat & Sesi** untuk:
-  - **Izinkan perangkat baru** — memindahkan akun ke perangkat yang terakhir mencoba login. Perangkat lama langsung keluar.
+  - **Izinkan perangkat baru** — menambahkan perangkat yang terakhir mencoba login bila batas masih tersisa; bila batas sudah penuh, akun dipindahkan ke perangkat itu dan perangkat lama langsung keluar.
   - **Tolak percobaan** — mengabaikan percobaan tanpa mengganggu perangkat lama.
-  - **Lepas kunci** — membebaskan akun; perangkat pertama yang dipakai setelahnya akan mengunci lagi. Cocok bila perangkat lama dijual/rusak dan pengguna belum mencoba login dari perangkat baru.
+  - **Putuskan** — mengeluarkan satu perangkat saja dari riwayat perangkat akun.
+  - **Atur batas** — mengubah jumlah perangkat yang boleh aktif bersamaan (1–10). Menurunkan batas tidak memutus perangkat yang sudah terdaftar.
+  - **Lepas kunci** — membebaskan akun; perangkat pertama yang dipakai setelahnya akan mengikat lagi. Cocok bila perangkat lama dijual/rusak dan pengguna belum mencoba login dari perangkat baru.
 - Setiap izinkan/lepas menaikkan `sessionVersion`, sehingga cookie lama langsung tidak sah tanpa menunggu token kedaluwarsa.
 - ADMIN tidak dapat mengelola perangkat akun ADMIN/SUPERADMIN lain; aturan ini hanya untuk SUPERADMIN (sejalan dengan aturan pengelolaan akun yang sudah ada).
 

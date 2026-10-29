@@ -104,7 +104,6 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/students', studentExportsRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/notifikasi-perpanjangan', notifikasiPerpanjanganRoutes);
-app.use('/api/notifikasi-perpanjangan', notifikasiPerpanjanganRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/positions', positionRoutes);

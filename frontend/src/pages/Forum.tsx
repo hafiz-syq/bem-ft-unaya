@@ -100,6 +100,10 @@ export default function Forum() {
   const [galatFilter, setGalatFilter] = useState('');
 
   const ujungPesan = useRef<HTMLDivElement>(null);
+  // Nomor urut permintaan terakhir. Jawaban yang datang terlambat (pengguna
+  // sudah pindah ruang atau ada polling yang lebih baru) dibuang supaya pesan
+  // ruang A tidak pernah muncul di daftar ruang B.
+  const urutanPermintaan = useRef(0);
   // Salinan daftar pesan agar polling delta selalu tahu id pesan terakhir
   // tanpa membuat fungsi callback basi (usang) pada interval.
   const pesanRef = useRef<Pesan[]>([]);
@@ -152,10 +156,18 @@ export default function Forum() {
     const ujung = !tampilkanMemuat && !penuh ? pesanRef.current[pesanRef.current.length - 1]?.id : undefined;
 
     if (tampilkanMemuat) setMemuatPesan(true);
+
+    // Jawaban yang datang terlambat (pengguna sudah pindah ruang atau ada
+    // permintaan yang lebih baru) tidak boleh menimpa isi ruang yang dibuka.
+    const nomor = ++urutanPermintaan.current;
+    const masihAktif = () => urutanPermintaan.current === nomor;
+
     try {
       const res = await api.get(`/chat/rooms/${id}/messages`, {
         params: ujung ? { after: ujung } : undefined,
       });
+      if (!masihAktif()) return;
+
       const hasil: Pesan[] = res.data?.data ?? [];
 
       setPesan((sebelum) => {
@@ -168,14 +180,17 @@ export default function Forum() {
       setDetail(res.data?.ruang ?? null);
       setGalat('');
     } catch {
-      if (tampilkanMemuat) setGalat('Pesan ruang ini gagal dimuat.');
+      if (tampilkanMemuat && masihAktif()) setGalat('Pesan ruang ini gagal dimuat.');
     } finally {
-      if (tampilkanMemuat) setMemuatPesan(false);
+      if (tampilkanMemuat && masihAktif()) setMemuatPesan(false);
     }
   }, []);
 
   useEffect(() => {
     if (!aktifId) {
+      // Batalkan permintaan yang masih berjalan agar pesan ruang lama tidak
+      // muncul lagi setelah daftar dikosongkan.
+      urutanPermintaan.current += 1;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPesan([]);
       setDetail(null);
@@ -338,7 +353,9 @@ export default function Forum() {
     setSedangProses(id);
     try {
       await api.delete(`/chat/messages/${id}`);
-      if (aktifId) await ambilPesan(aktifId, false);
+      // Buang langsung dari layar. Polling delta hanya meminta pesan baru, jadi
+      // pesan yang dihapus tidak akan hilang sendiri dari daftar.
+      setPesan((lama) => lama.filter((p) => p.id !== id));
     } catch (err: unknown) {
       setGalat(pesanGalat(err, 'Pesan gagal dihapus.'));
     } finally {

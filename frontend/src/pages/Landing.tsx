@@ -6,12 +6,13 @@ import { useSeasonalTheme } from '../contexts/SeasonalThemeContext';
 import { LABEL_TEMA, UCAPAN_TEMA } from '../lib/tema-musiman';
 import { isMahasiswaOrAbove, targetLabel } from '../lib/roles';
 import ThemeToggle from '../components/ThemeToggle';
+import MenuProfil from '../components/MenuProfil';
 import GalleryComments from '../components/GalleryComments';
 import UserAvatar from '../components/UserAvatar';
 import LazyImage from '../components/LazyImage';
 import MediaImage from '../components/MediaImage';
 import { formatRentangTanggal, jumlahHariAgenda } from '../lib/tanggal';
-import { Send, LogIn, Code2, Users, Building, ShieldCheck, Loader2, Calendar, Newspaper, ArrowRight, MapPin, Clock, Image as ImageIcon, Landmark, X, ExternalLink, Menu, LayoutDashboard, MessageSquare, Award, ChevronLeft, ChevronRight, Megaphone, AlertCircle, Layers, CornerDownRight, Share2, Lock, MoonStar, PartyPopper, Flag } from 'lucide-react';
+import { Send, LogIn, Code2, Users, Building, ShieldCheck, Loader2, Calendar, Newspaper, ArrowRight, MapPin, Clock, Image as ImageIcon, Landmark, X, ExternalLink, Menu, MessageSquare, Award, ChevronLeft, ChevronRight, Megaphone, AlertCircle, Layers, CornerDownRight, Share2, Lock, MoonStar, PartyPopper, Flag } from 'lucide-react';
 import axios from 'axios';
 
 // Data statis hasil prerender dibaca sekali di sini; deklarasi tipe supaya
@@ -215,6 +216,12 @@ export default function Landing() {
       const res = await api.post('/public-comments', formData);
       setSuccessMsg(res.data.message);
       setFormData({ nama: '', asal_kampus: '', email: '', no_hp: '', content: '' });
+
+      // Saat offline, pesan disimpan di antrean perangkat (respons 202). Jangan
+      // memuat ulang daftar komentar sekarang: permintaan itu bisa gagal dan
+      // menampilkan pesan error padahal pesan sudah tercatat untuk dikirim.
+      if (res.data?.queued) return;
+
       const resComments = await api.get('/public-comments');
       setComments(resComments.data.data.slice(0, 6));
     } catch (error) {
@@ -271,20 +278,18 @@ export default function Landing() {
         </div>
 
         {/* Tombol Tema + Aksi Desktop. Tema sengaja di luar blok `hidden lg:flex`
-            supaya pengunjung ponsel tetap bisa mengganti tema. */}
+            supaya pengunjung ponsel tetap bisa mengganti tema. Setelah login,
+            avatar akun menggantikan tombol Ke Dashboard di semua ukuran layar. */}
         <div className="flex items-center gap-2 shrink-0">
           <ThemeToggle />
-          <div className="items-center hidden lg:flex">
-          {user ? (
-            <Link to="/dashboard" className="flex items-center gap-2 px-5 py-2.5 bg-amber-400 text-white font-bold rounded-lg hover:bg-amber-500 hover:-translate-y-0.5 active:scale-95 transition-all">
-              <LayoutDashboard className="w-4 h-4" /> Ke Dashboard
-            </Link>
-          ) : (
-            <Link to="/login" className="flex items-center gap-2 px-5 py-2.5 bg-amber-400 text-white font-bold rounded-lg hover:bg-amber-500 hover:-translate-y-0.5 active:scale-95 transition-all">
-              <LogIn className="w-4 h-4" /> Masuk Portal
-            </Link>
+          {user && <MenuProfil />}
+          {!user && (
+            <div className="items-center hidden lg:flex">
+              <Link to="/login" className="flex items-center gap-2 px-5 py-2.5 bg-amber-400 text-white font-bold rounded-lg hover:bg-amber-500 hover:-translate-y-0.5 active:scale-95 transition-all">
+                <LogIn className="w-4 h-4" /> Masuk Portal
+              </Link>
+            </div>
           )}
-          </div>
         </div>
 
         {/* Tombol Burger Mobile */}
@@ -331,11 +336,7 @@ export default function Landing() {
                 <Megaphone className="w-5 h-5" /> Aspirasi &amp; Keluhan
               </a>
               <div className="my-3 border-t border-gray-100 dark:border-gray-800" />
-              {user ? (
-                <Link to="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center justify-center gap-2 py-3 font-bold text-white transition-all shadow-md bg-amber-400 rounded-xl hover:bg-amber-500 active:scale-95">
-                  <LayoutDashboard className="w-5 h-5"/> Ke Dashboard
-                </Link>
-              ) : (
+              {!user && (
                 <Link to="/login" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center justify-center gap-2 py-3 font-bold text-white transition-all shadow-md rounded-xl bg-amber-400 hover:bg-amber-500 active:scale-95">
                   <LogIn className="w-5 h-5"/> Masuk Portal
                 </Link>

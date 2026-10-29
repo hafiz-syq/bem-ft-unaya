@@ -21,6 +21,16 @@ export const hitungTenggatSla = (createdAt: Date, priority: string | null | unde
 
 export const setTicketPriority = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    // Prioritas menentukan tenggat SLA dan merupakan alat kerja pengurus, bukan
+    // kendali pengirim. Tanpa penjagaan ini mahasiswa bisa menaikkan prioritas
+    // tiketnya sendiri lewat API. Diletakkan sebelum validasi body agar peran
+    // yang tidak berhak tidak ikut menerima petunjuk isi permintaan yang sah.
+    // Kepemilikan/akses tiket tetap diperiksa di bawah lewat canAccessTicket.
+    if (!isAdminRole(req.user.role) && !OFFICER_ROLES.includes(req.user.role)) {
+      res.status(403).json({ message: 'Hanya pengurus dan admin yang dapat mengubah prioritas tiket.' });
+      return;
+    }
+
     const priority = String(req.body?.priority || '').toUpperCase() as Prioritas;
     if (!PRIORITAS.includes(priority)) {
       res.status(400).json({ message: 'Prioritas tidak dikenali.' });

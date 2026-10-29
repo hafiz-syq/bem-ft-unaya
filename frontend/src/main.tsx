@@ -9,6 +9,7 @@ import { SeasonalThemeProvider } from './contexts/SeasonalThemeContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import VercelAnalytics from './components/VercelAnalytics';
 import { pasangPemantauKoneksi } from './lib/offline';
+import { pasangPrecacheGambar } from './lib/precache-gambar';
 import './index.css';
 // Dimuat SETELAH index.css agar aksen musiman menimpa utilitas Tailwind.
 import './tema-musiman.css';
@@ -73,8 +74,15 @@ if (
   window.isSecureContext
 ) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((error) => {
-      console.warn('Service worker tidak terdaftar:', error);
-    });
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then(() =>
+        // Setelah aktif, minta gambar yang sedang tampil ikut disimpan supaya
+        // halaman utama tidak kosong bila pengunjung langsung offline.
+        navigator.serviceWorker.ready.then(() => pasangPrecacheGambar())
+      )
+      .catch((error) => {
+        console.warn('Service worker tidak terdaftar:', error);
+      });
   });
 }

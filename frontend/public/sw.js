@@ -10,7 +10,7 @@
  * Permintaan tulis (POST/PUT/PATCH/DELETE) tidak pernah di-cache; antreannya
  * ditangani aplikasi (lihat src/lib/offline.ts).
  */
-const VERSI = 'v3';
+const VERSI = 'v4';
 const CACHE_SHELL = `bem-ft-shell-${VERSI}`;
 const CACHE_DATA = `bem-ft-data-${VERSI}`;
 const CACHE_GAMBAR = `bem-ft-gambar-${VERSI}`;
@@ -23,6 +23,11 @@ const SHELL_DASAR = [
   '/icon-192.png',
   '/icon-512.png',
   '/favicon-64.png',
+  // Foto halaman utama. Disimpan sejak pemasangan supaya bagian sejarah
+  // tidak kosong saat pengunjung langsung membuka aplikasi dalam mode offline.
+  '/fakultas-teknik-blur.jpg',
+  '/fakultas-teknik-480.webp',
+  '/fakultas-teknik-900.webp',
 ];
 
 // Endpoint yang tidak boleh disimpan di perangkat: sesi, status online,
@@ -166,7 +171,7 @@ async function ambilAset(event) {
       }
       return respons;
     })
-    .catch(() => tersimpan);
+    .catch(() => tersimpan || Response.error());
 
   return tersimpan || dariJaringan;
 }
@@ -302,7 +307,44 @@ self.addEventListener('message', (event) => {
   if (tipe === 'SINKRON_ANTREAN') {
     event.waitUntil(sinkronkanAntrean());
   }
+  if (tipe === 'PRACACHE_GAMBAR') {
+    const daftar = Array.isArray(event.data?.urls) ? event.data.urls : [];
+    event.waitUntil(simpanGambar(daftar));
+  }
 });
+
+/**
+ * Menyimpan gambar yang sedang tampil di halaman (termasuk foto Cloudinary)
+ * segera setelah servis pekerja terpasang. Halaman mengirim daftar URL-nya
+ * sendiri karena aset dari API/CMS tidak dapat diketahui saat build.
+ */
+async function simpanGambar(daftar) {
+  const cache = await caches.open(CACHE_GAMBAR);
+
+  await Promise.all(
+    daftar.map(async (nilai) => {
+      try {
+        const url = new URL(String(nilai), self.location.origin);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+
+        const request = new Request(url.href, {
+          mode: url.origin === self.location.origin ? 'same-origin' : 'no-cors',
+        });
+
+        // Lewati gambar yang sudah tersimpan di cache mana pun (mis. foto
+        // landing dari daftar precache) agar tidak tersimpan dua kali.
+        if (await caches.match(request)) return;
+
+        const respons = await fetch(request);
+        if (respons.ok || respons.type === 'opaque') await cache.put(request, respons);
+      } catch {
+        // Satu gambar gagal disimpan tidak boleh menghentikan yang lain.
+      }
+    })
+  );
+
+  void batasiCache(cache, 80);
+}
 
 // --- Sinkronisasi antrean offline --------------------------------------
 

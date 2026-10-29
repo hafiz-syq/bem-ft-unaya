@@ -261,7 +261,8 @@ export const deleteRoom = async (req: any, res: Response, next: NextFunction): P
  * GET /api/chat/rooms/:id/messages — pesan sebuah ruang.
  *
  * Mendukung dua mode:
- * - Tanpa parameter: seluruh pesan (dipakai saat pertama membuka ruang).
+ * - Tanpa parameter: 200 pesan terbaru, berurutan dari lama ke baru (dipakai
+ *   saat pertama membuka ruang dan saat sinkronisasi penuh berkala).
  * - `?after=<id pesan terakhir yang dilihat klien>`: hanya pesan dengan waktu
  *   muat >= pesan itu. Dipakai polling cepat agar obrolan terasa live tanpa
  *   mengunduh ulang seluruh riwayat tiap beberapa detik. Klien menyaring
@@ -304,15 +305,25 @@ export const getMessages = async (req: any, res: Response, next: NextFunction): 
       if (batas) filterWaktu = { createdAt: { gte: batas.createdAt } };
     }
 
+    // Tanpa batas waktu berarti memuat riwayat penuh (muat awal atau
+    // sinkronisasi berkala). Ambil 200 pesan TERBARU, bukan yang terlama:
+    // ruang yang lebih panjang dari 200 pesan tidak boleh kembali menampilkan
+    // percakapan lama setiap kali sinkronisasi penuh berjalan.
+    const memuatPenuh = !filterWaktu.createdAt;
+
     const [pesan, kata] = await Promise.all([
       prisma.chatMessage.findMany({
         where: { roomId: id, ...filterWaktu },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: memuatPenuh ? 'desc' : 'asc' },
         take: 200,
         include: { author: { select: penulisSelect } },
       }),
       bacaKataTerlarang(),
     ]);
+
+    // Kueri di atas menurun untuk memilih pesan terakhir; balik agar respons
+    // tetap berurutan dari lama ke baru seperti yang diharapkan klien.
+    if (memuatPenuh) pesan.reverse();
 
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({

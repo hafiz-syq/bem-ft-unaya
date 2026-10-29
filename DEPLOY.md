@@ -34,7 +34,7 @@ API tetap butuh runtime Node.
 
 - Domain yang sudah menunjuk ke Hostinger.
 - SSL gratis Hostinger aktif (Status: Active).
-- Node.js **22** di hPanel (minimal 20.9; sharp 0.35 tidak jalan di Node 18).
+- Node.js **22** di hPanel (minimal 22; Node 20 sudah EOL sejak April 2026 dan Vercel berhenti mendukungnya 1 Oktober 2026).
 - Akses SSH (hPanel → Advanced → SSH Access) atau Terminal hPanel.
 - Database MySQL kosong dari hPanel.
 - Dump terbaru dari `backups/` (dump berisi 25 tabel + data, tanpa
@@ -105,7 +105,7 @@ disalin ke sini, bukan ke folder aplikasi.
 
 ```bash
 cd ~/domains/domain-anda.com/app/backend
-node -v                 # harus v20.9+; idealnya v22.x
+node -v                 # harus v22+; idealnya v22.x atau v24.x
 npm ci --include=dev    # devDependencies dibutuhkan untuk tsc & Prisma CLI
 npx prisma generate
 npm run build
@@ -135,7 +135,7 @@ hPanel → **Advanced → Node.js → Create application**:
 
 | Isian | Nilai |
 | --- | --- |
-| Node.js version | **22** (atau versi tertinggi yang tersedia, minimal 20.9) |
+| Node.js version | **22** atau **24** (minimal 22) |
 | Application root | `domains/domain-anda.com/app/backend` (relatif terhadap home; cocokkan dengan File Manager) |
 | Application URL | `domain-anda.com` (dan `www` bila dipakai) |
 | Application startup file | `server.js` |
@@ -344,7 +344,7 @@ Jangan menaruh `CRON_SECRET` di repository atau screenshot.
 
 | Gejala | Penyebab umum | Tindakan |
 | --- | --- | --- |
-| 503 / Application could not be started | Startup file salah, `dist` belum dibuild, atau OOM | Baca Passenger log; jalankan build; pilih Node 22; kurangi proses lain |
+| 503 / Application could not be started | Startup file salah, `dist` belum dibuild, atau OOM | Baca Passenger log; jalankan build; pilih Node 22/24; kurangi proses lain |
 | `Cannot find module 'express'` | `npm ci` belum jalan / app root salah | Pastikan app root menunjuk folder berisi `package.json` backend |
 | `Prisma Client could not locate Query Engine` | `prisma generate` dibuat di OS lain | Jalankan `npx prisma generate` di server, lalu restart |
 | `libssl.so` / `GLIBC` error saat Prisma | Target engine tidak cocok | Hapus `node_modules`, install ulang di server, generate ulang |

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { api, API_ORIGIN } from '../lib/axios';
+import { api, assetUrl } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import UserAvatar from '../components/UserAvatar';
 import {
@@ -490,7 +490,7 @@ export default function Tickets() {
                       <p className="flex items-center gap-1 text-xs font-bold text-gray-500 dark:text-gray-400"><Paperclip className="w-3 h-3" /> Lampiran:</p>
                       {ticket.attachments.map(att => {
                         const isImage = att.mimeType.includes('image');
-                        const fileUrl = `${API_ORIGIN}${att.url}`;
+                        const fileUrl = assetUrl(att.url);
                         return (
                           <a key={att.id} href={fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/60 text-amber-500 text-xs font-bold rounded-lg border border-amber-100 dark:border-amber-900/60 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition">
                             {isImage ? <ImageIcon className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
