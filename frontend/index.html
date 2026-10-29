@@ -10,15 +10,19 @@
   <link rel="dns-prefetch" href="https://res.cloudinary.com" />
   <link rel="preconnect" href="https://www.googletagmanager.com" />
 
-  <!-- Google tag (gtag.js) — dimuat saat peramban menganggur supaya 163 KB
-       skrip pihak ketiga tidak menahan render halaman pertama. -->
+  <!-- Google tag (gtag.js) — 177 KB skrip pihak ketiga ini baru dimuat setelah
+       pengunjung berinteraksi (atau 30 detik kemudian), supaya tidak ikut
+       diunduh dan diurai saat halaman pertama kali dibuka di jaringan lambat.
+       Pengunjung yang benar-benar membaca tetap terukur, hanya tanpa
+       menahan render. -->
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag() { dataLayer.push(arguments); }
     (function () {
+      var sudah = false;
       var muat = function () {
-        if (window.__gtagDimuat) return;
-        window.__gtagDimuat = true;
+        if (sudah) return;
+        sudah = true;
         var skrip = document.createElement('script');
         skrip.async = true;
         skrip.src = 'https://www.googletagmanager.com/gtag/js?id=G-P2BN6ZKWHF';
@@ -26,8 +30,13 @@
         gtag('js', new Date());
         gtag('config', 'G-P2BN6ZKWHF');
       };
-      if ('requestIdleCallback' in window) requestIdleCallback(muat, { timeout: 3500 });
-      else setTimeout(muat, 3500);
+      ['pointerdown', 'keydown', 'touchstart', 'scroll'].forEach(function (peristiwa) {
+        window.addEventListener(peristiwa, muat, { once: true, passive: true });
+      });
+      // Cadangan untuk pembaca pasif: tetap terukur setelah 30 detik, jauh
+      // setelah halaman selesai dimuat.
+      setTimeout(muat, 30000);
+      window.__muatAnalitik = muat;
     })();
   </script>
 
