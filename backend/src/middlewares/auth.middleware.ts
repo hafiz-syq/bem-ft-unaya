@@ -55,6 +55,21 @@ export const requireAuth = async (req: any, res: Response, next: NextFunction): 
       }
     }
 
+    // AKUN LOGIN PERTAMA: passwordnya masih NIM yang mudah ditebak oleh siapa
+    // pun yang tahu nomor induknya. Sampai pengguna menyelesaikan pengaturan
+    // pertama (mengganti password di /api/auth/first-login), tolak semua
+    // endpoint lain supaya sesi itu tidak bisa dipakai melewati halaman ganti.
+    if (
+      decoded.first_login === true &&
+      !String(req.originalUrl || req.url).startsWith('/api/auth/first-login')
+    ) {
+      res.status(403).json({
+        code: 'FIRST_LOGIN',
+        message: 'Selesaikan pengaturan login pertama Anda terlebih dahulu.',
+      });
+      return;
+    }
+
     // Perangkat diperiksa setiap permintaan supaya membuka kunci perangkat
     // langsung memutus sesi lama, tanpa menunggu token kedaluwarsa (1 hari).
     const alasanPerangkat = periksaSesiPerangkat(

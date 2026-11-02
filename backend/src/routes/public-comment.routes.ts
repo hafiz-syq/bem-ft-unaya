@@ -28,6 +28,16 @@ const batasLaporan = rateLimit({
   message: { message: 'Terlalu banyak laporan dari perangkat ini. Coba lagi nanti.' },
 });
 
+// Pengiriman komentar tamu juga dibatasi per IP: tanpa ini siapa pun bisa
+// membanjiri antrean moderasi (dan menyimpan teks sampah di database).
+const batasKomentar = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { message: 'Terlalu banyak komentar dari perangkat ini. Coba lagi beberapa menit lagi.' },
+});
+
 const router = Router();
 
 // --- Pengurus & admin: meninjau dan membalas -----------------------------
@@ -47,8 +57,7 @@ router.delete('/manage/:id/permanent', ...pengelola, hapusKomentarPermanen);
 // --- Publik (tanpa login) ------------------------------------------------
 // Baca hanya menampilkan komentar yang sudah disetujui dan tanpa data kontak
 // pengirim; kirim pesan selalu masuk antrean tinjauan (status PENDING).
-router.get('/', getPublicComments);
-router.post('/', createComment);
+router.get('/', getPublicComments);  router.post('/', batasKomentar, createComment);
 
 // --- Endpoints tambahan untuk manajemen detail (admin/pengurus) ----------
 router.get('/:commentId/replies', ...pengelola, getRepliesForComment);

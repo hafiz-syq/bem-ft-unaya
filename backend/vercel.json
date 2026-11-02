@@ -9,11 +9,5 @@
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
-  ],
-  "crons": [
-    {
-      "path": "/api/internal/cron/ISI_CRON_SECRET",
-      "schedule": "0 21 * * *"
-    }
   ]
 }

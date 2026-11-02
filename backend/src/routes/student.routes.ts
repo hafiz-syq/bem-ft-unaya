@@ -40,8 +40,7 @@ router.post('/import/simpan', requireOfficer, requireAdmin, uploadPdfImpor.singl
 router.get('/trash', requireOfficer, requireAdmin, getTrashStudents);
 router.patch('/bulk', requireOfficer, requireAdmin, bulkStudents);
 
-// Daftar mahasiswa: pengurus, admin, dan akun mahasiswa (data terbatas).
-router.get('/', getStudents);
+// Daftar mahasiswa: pengurus, admin, dan akun mahasiswa (data terbatas).  router.get('/', requireAuth, getStudents);
 // Tambah satu akun mahasiswa secara manual (tanpa PDF), khusus ADMIN/SUPERADMIN.
 router.post('/', requireOfficer, requireAdmin, createStudent);
 // Tambah akun administrator baru, khusus SUPERADMIN.

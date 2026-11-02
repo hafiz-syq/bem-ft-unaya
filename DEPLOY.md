@@ -1,147 +1,133 @@
-# Deploy Produksi: Vercel + Aiven + Cloudinary
+# Deploy Produksi: Vercel (Services) + Aiven + Cloudinary
 
-Arsitektur produksi saat ini (menggantikan rencana lama satu-paket Hostinger —
-panduan Hostinger masih bisa dibaca pada riwayat git jika perlu):
+Arsitektur produksi aktif: **satu project Vercel dengan Vercel Services** —
+frontend Vite dan backend Express dibangun bersama dalam satu deployment,
+dengan satu domain. Database di Aiven MySQL, berkas yang harus hidup lintas
+permintaan disimpan Cloudinary. (Panduan lama satu-paket Hostinger masih bisa
+dibaca pada riwayat git bila perlu.)
 
 ```
-Frontend (Vercel, project "frontend", Vite + React)
-        │  VITE_API_URL=https://<nama>-backend.vercel.app/api
-        ▼
-Backend Express/Prisma (Vercel, project "backend", root folder backend/)
-        │  DATABASE_URL → Aiven MySQL (TLS penuh, CA proyek)
-        │  CLOUDINARY_* → Cloudinary (foto profil, galeri, lampiran, dokumen)
-        ▼
-Aiven MySQL "defaultdb" + Cloudinary
+https://<project>.vercel.app  /  domain sendiri
+  ├── /               → service "frontend" (Vite + React, frontend/)
+  ├── /api/*          → service "backend"  (Express + Prisma, backend/)
+  └── /uploads/*      → service "backend"  (berkas lama; unggahan baru → Cloudinary)
 ```
 
-Catatan arsitektur ini penting:
-
-- **Frontend dan backend adalah dua project Vercel terpisah**, sehingga
-  frontend memanggil API lintas-situs → cookie sesi wajib
-  `COOKIE_SAME_SITE=none` (lihat §4).
-- **Filesystem serverless Vercel bersifat sementara.** Semua berkas yang
-  digunakan lintasa permintaan (foto profil, galeri, cover, lampiran tiket,
-  arsip dokumen) disimpan ke Cloudinary; database hanya menyimpan URL-nya.
-  Berkas `/uploads/...` di disk hanya ada pada pengembangan lokal.
-- Semua rute backend diarahkan `vercel.json` → `api/index.js` (CommonJS yang
-  mengekspor app Express dari `dist/app.js`).
+Semuanya dideklarasikan di `vercel.json` root (`services` + `rewrites`).
+Error `[MISSING_SERVICES]` berarti berkas itu hilang/ilegal saat framework
+project sudah "services" — jangan menghapusnya.
 
 ## 1. Database Aiven
 
-1. Buat layanan MySQL di Aiven (free plan melebihi kebutuhan awal), catat
-   Service URI. Password harus di-URL-encode saat dipakai manual (`@`→`%40`).
-2. Simpan URI di pengelola sandi, bukan di repo.
-3. Jalankan migrasi dari mesin pribadi (CA Aiven sudah tersedia):
-   isi `DATABASE_URL` di `backend/.env` — runtime menambahkan CA otomatis
-   (host `*.aivencloud`), dan untuk Prisma CLI tambahkan
-   `&sslcert=backend/prisma/aiven-ca.pem`:
+1. Buat layanan MySQL di Aiven, catat Service URI (password di-URL-encode:
+   `@` → `%40`). Simpan di pengelola sandi, bukan di repo.
+2. Jalankan migrasi dari mesin pribadi (CA Aiven sudah di repo, berkas
+   `backend/prisma/aiven-ca.pem` diperlukan untuk Prisma CLI):
 
 ```bash
 cd backend
 npx prisma migrate deploy    # sampai "Database schema is up to date!"
+npx prisma migrate status    # verifikasi
 ```
 
-Verifikasi `npx prisma migrate status` lalu jalankan seed/superadmin bila
-database masih kosong (`npm run seed`, `npm run superadmin`).
+Runtime Prisma di Vercel menambahkan CA Aiven otomatis untuk host
+`*.aivencloud.com` (lihat `backend/src/lib/prisma.ts`), jadi `DATABASE_URL`
+untuk Vercel cukup:
 
-Sisipkan parameter pool ke `DATABASE_URL` untuk Vercel:
-`?connection_limit=4&pool_timeout=20` — melakukan serving paras serverless
-dengan banyak instance tanpa meledak hits nilai `max_connections` Aiven.
+```
+mysql://<user>:<PASSWORD>@<host>:<port>/defaultdb?connection_limit=4&pool_timeout=20
+```
 
-## 2. Project backend di Vercel
+`connection_limit` kecil itu penting: tiap instance serverless membuka pool
+sendiri; tanpa pembatasan, traffic meledak `max_connections` plan Aiven.
 
-New Project → Import repo → **Root Directory: `backend`**, Framework: Other.
-Config build diambil dari `backend/vercel.json`:
+## 2. Project Vercel (satu project, framework Services)
 
-- Build: `npm ci --include=dev && npx prisma generate && npm run build`
-- Semua route via `rewrites` jusqu'à `api/index.js`.
-- Cron harian: `/api/internal/cron/ISI_CRON_SECRET` pukul `21:00 UTC`
-  (≈ 04:00 WIB). **Ganti `ISI_CRON_SECRET` di baris `"crons"` dengan nilai
-  `CRON_SECRET` yang sebenarnya** — Vercel Cron tidak dapat menyetel header
-  kustom, sehingga secret dibawa lewat segmen path (`/api/internal/cron/<SECRET>`).
-
-Environment Variables (dashboard → Settings → Environment Variables, target
-Production + Preview):
+New Project → Import repo → **Root Directory: root repo** (kosong), biarkan
+Vercel membaca `vercel.json`. Isi Environment Variables (Production + Preview):
 
 | Variabel | Isi |
 | --- | --- |
 | `NODE_ENV` | `production` |
-| `DATABASE_URL` | `mysql://...aivencloud.../defaultdb?connection_limit=4&pool_timeout=20` |
+| `DATABASE_URL` | URI Aiven + `?connection_limit=4&pool_timeout=20` |
 | `JWT_SECRET` | teks acak 32–64 karakter (**beda** dengan lokal) |
-| `CRON_SECRET` | teks acak 64 karakter; harus sama dengan yang dipakai di `vercel.json` |
-| `FRONTEND_URLS` | `https://<nama>-frontend.vercel.app,https://www.domain-utama` (list, dipisah koma) |
-| `COOKIE_SAME_SITE` | `none` (wajib bila frontend & API domain berbeda) |
+| `CRON_SECRET` | teks acak 64 karakter; sama dengan yang dipakai di `vercel.json` |
+| `FRONTEND_URLS` | `https://domain-utama,https://www.domain-utama` (opsional di mode satu-origin) |
 | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | dari dashboard Cloudinary |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | App Password khusus produksi |
 | `ALERT_EMAIL` | penerima email peringatan backup/galat |
 | `ADMIN_EMAIL` | penerima laporan admin |
 | `VAPID_*` (opsional) | kosong = server membuat & menyimpan kunci di tabel SiteSetting |
 
-TRUST_PROXY tidak perlu diisi: kode otomatis memercayai proxy saat `VERCEL`
-terdeteksi. `uploads` tidak perlu `UPLOAD_DIR` di Vercel (semuanya Cloudinary).
+Tidak perlu `TRUST_PROXY` (otomatis saat `VERCEL` terdeteksi), tidak perlu
+`VITE_API_URL` (frontend sudah memakai `/api`, satu origin dengan API), dan
+tidak perlu `COOKIE_SAME_SITE=none` (one origin → cookie `lax` default aman).
+
+### Cron harian
+
+`vercel.json` root memuat `"crons"` yang memanggil
+`/api/internal/cron/ISI_CRON_SECRET` pukul `21:00 UTC` (≈ 04:00 WIB) —
+**ganti `ISI_CRON_SECRET` dengan nilai `CRON_SECRET` asli** di baris itu.
+Vercel Cron tidak bisa mengirim header kustom, karena itu secret dibawa lewat
+segmen path (didukung rute cron). Job berisi: siklus akun (nonaktif 5 tahun,
+hapus 1 tahun), notifikasi perpanjangan bendahara, flush catatan CORS, purge
+trash mahasiswa, dan pengingat laporan bulanan.
 
 ### Batas yang perlu diperhatikan
 
-- **Body maksimum Vercel 4,5 MB.** Lapisan Vercel menolak permintaan lebih
-  besar sebelum masuk Express; karena itu batas unggahan efektif di produksi
-  = 4,5 MB walaupun kode membolehkan 5–10 MB (import PDF/dokumen).
-- `maxDuration` function disetel 20 detik di vercel.json; ekspor Excel besar
-  dan analisis PDF tetap diukur di deployment nyata — naikkan bila perlu
-  (paket berbayar membatasi nilai maksimum lebih tinggi).
+- **Body maksimum Vercel 4,5 MB** — ditolak oleh platform sebelum masuk
+  Express. Lampiran 5 MB / impor PDF 10 MB bisa gagal 413 di produksi;
+  anggap batas efektif 4,5 MB.
+- `maxDuration` service 20 detik (di `backend/vercel.json`, dipakai bila
+  project dibangun terpisah); ekspor Excel besar & analisis PDF diukur di
+  deployment nyata.
 
-## 3. Project frontend di Vercel
+## 3. Alternatif: dua project terpisah
 
-New Project → repo yang sama → **Root Directory: `frontend`**, Framework: Vite.
-Frontend punya `frontend/vercel.json` (SPA fallback) dan tidak perlu build
-khusus. Supply satu Environment Variable:
+Bila suatu saat backend dan frontend perlu deploy/rollback terpisah:
 
-```
-VITE_API_URL=https://<nama>-backend.vercel.app/api
-```
+1. Project backend: Root Directory `backend`, config dari
+   `backend/vercel.json` (build `npm ci --include=dev && npx prisma generate
+   && npm run build`, semua rute lewat `api/index.js`, fungsi min. 20 detik,
+   `includeFiles` engine Prisma).
+2. Project frontend: Root Directory `frontend`; Environment Variable
+   `VITE_API_URL=https://<backend>.vercel.app/api`.
+3. Backend di project terpisah: `FRONTEND_URLS` wajib memuat origin frontend,
+   dan **wajib** `COOKIE_SAME_SITE=none` (frontend & API jadi situs berbeda;
+   cookie `lax` tidak terkirim lintas situs → pengguna macet di halaman login).
 
-`frontend/.env.production` masih memuat `VITE_API_URL=/api` untuk scenario
-satu-domain lokal; environment variable Vercel menimpanya.
+## 4. Rantai cookie & CORS
 
-## 4. Rantai cookie, CORS, dan domain (wajib rapi)
-
-Bila frontend & API **domain berbeda** (situasi baku dua project Vercel):
-
-1. `COOKIE_SAME_SITE=none` di backend → cookie `SameSite=None; Secure`
-   sehingga browser mengiriminya pada permintaan lintas situs.
-2. `FRONTEND_URLS` di backend memuat origin frontend persis termasuk port &
-   tanpa garis miring di akhir — origin lain diblok CORS (dan penolakannya
-   dicatat pada audit log).
-3. Gunakan domain utama di kedua project bila sudah punya (Fair, seperti
-   `app.domain.com` & `api.domain.com`); catatan: cookie tetap butuh
-   `COOKIE_SAME_SITE=none` karena subdomain berbeda itu *situs berbeda*.
-4. Setiap perubahan domain → daftar `FRONTEND_URLS` harus diperbarui.
+- Mode satu project (aktif): frontend dan API satu origin → sesi cookie
+  `SameSite=Lax` bekerja tanpa penyetelan tambahan. Isi `FRONTEND_URLS`
+  tetap disarankan (origin lain tetap diblok dan dicatat di audit log).
+- Mode dua project: lihat item 3 di atas — pengaturan meleset di sini adalah
+  penyebab klasik "login macet di halaman login".
 
 ## 5. Verifikasi pasca deploy
 
-- `GET https://<backend>.vercel.app/api/health` → JSON `status: OK`.
-- Login dari frontend: cookie `token` muncul dengan `SameSite=None; Secure`;
-  refresh halaman — sesi tidak putus (“pengguna tak berjengkel halaman login”).
-- Unggah foto profil, galeri, lampiran tiket → URL `res.cloudinary.com`
-  tersimpan; muat ulang halaman setelah instance dingin — berkas tetap ada.
-- Arsip dokumen (DOCX/XLSX) diunggah dan diunduh kembali dengan nama asli.
-- Lihat logs Vercel: tidak ada `P1011/P1012` (DB), tidak ada galat
-  Cloudinary 401 (env Cloudinary).
-- Tunggu cron harian (atau cek log `POST /api/internal/cron/...`) — harus
-  mengembalikan angka dan tidak boleh 401.
+- `GET /api/health` (di domain yang sama) → JSON `status: OK`.
+- Login dari frontend → cookie `token` (httpOnly) muncul; refresh halaman,
+  sesi tidak putus.
+- Akun mahasiswa baru (`first_login: true`, password awal = NIM) otomatis
+  diarahkan ke halaman *Pengaturan pertama*; sampai password diganti, seluruh
+  endpoint lain menolak 403 `FIRST_LOGIN` (by design, lihat auth middleware).
+- Unggah foto profil / galeri / lampiran tiket → URL `res.cloudinary.com`
+  tersimpan, dan berkinya tetap hidup setelah instance dingin.
+- Log Vercel: tidak ada P1011/P1012 (DB), tidak ada galat Cloudinary 401.
 
-## 6. Backup (tetap berjalan di mesin pribadi)
+## 6. Backup (berjalan di mesin pribadi)
 
-Backup harian Aiven diatur di `README.md` bagian *Backup & Pemulihan
-Database* lewat `scripts/backup-database.bat` + `scripts/dump-aiven.ps1`
-(Task Scheduler jam 03:00 lokal). Karena job ini berjalan di PC, pastikan PC
-menyala minimal sesekali, atau pindahkan ke Vercel Cron + endpoint internal,
-GitHub Actions, dipikirkan bila PC tidak lagi andal.
+Backup harian Aiven diatur di README bagian *Backup & Pemulihan Database*
+lewat `scripts/backup-database.bat` + `scripts/dump-aiven.ps1` (Task
+Scheduler jam 03:00 lokal; dump TLS dengan CA proyek). Job ini menuntut PC
+menyala; bila PC tidak lagi andal, pindahkan ke Vercel Cron + endpoint
+internal atau GitHub Actions.
 
-## 7. Daftar periksa keberangkatan (go-live)
+## 7. Daftar periksa go-live
 
-- [ ] Repo sudah privat (lihat SECURITY.md) — riwayat publik lama tetap
-      memuat rahasia lama bila ada; rotasi kredensial yang sempat terlewat.
-- [ ] JWT_SECRET & CRON_SECRET produksi kuat & tak dipakai lintas lingkungan.
-- [ ] `FRONTEND_URLS` hanya origin sah; `/uploads` tidak lagi menulis disk.
-- [ ] Superadmin produksi tidak memakai password seed.
-- [ ] Email SMTP dengan App Password, bukan password utama.
+- [ ] Repo sudah privat (SECURITY.md); rotasi kredensial yang sempat bocor.
+- [ ] `JWT_SECRET` & `CRON_SECRET` produksi kuat dan berbeda dari lokal.
+- [ ] `ISI_CRON_SECRET` di `vercel.json` sudah diganti nilai sebenarnya.
+- [ ] Superadmin produksi tidak memakai password seed; SMTP pakai App Password.
+- [ ] Uji unggahan lampiran (magic bytes kini diverifikasi server).

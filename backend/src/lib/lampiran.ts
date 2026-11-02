@@ -53,6 +53,32 @@ const galatLampiran = (message: string, statusCode = 502): Error => {
   return err;
 };
 
+/**
+ * Verifikasi isi berkas dokumen dengan tanda tangan (magic bytes).
+ *
+ * Filter MIME Multer bergantung pada header dari browser dan mudah dipalsukan;
+ * karena itu isi yang nyata diperiksa di sini sebelum berkas disimpan: PDF mulai dengan
+ * `%PDF-`, format Office modern (DOCX/XLSX/PPTX) dengan tanda ZIP `PK`, dan
+ * Office lama (DOC/XLS/PPT) dengan tanda OLE `D0 CF 11 E0`.
+ */
+const pastikanIsiDokumenSah = (isi: Buffer, mimetype: string): void => {
+  const isPdf = isi.length >= 5 && isi.toString('binary', 0, 5) === '%PDF-';
+  const isZip =
+    isi.length >= 4 && isi[0] === 0x50 && isi[1] === 0x4b && (isi[2] === 0x03 || isi[2] === 0x05 || isi[2] === 0x07);
+  const isOle =
+    isi.length >= 8 &&
+    isi[0] === 0xd0 && isi[1] === 0xcf && isi[2] === 0x11 && isi[3] === 0xe0 &&
+    isi[4] === 0xa1 && isi[5] === 0xb1 && isi[6] === 0x1a && isi[7] === 0xe1;
+
+  const sah = mimetype === 'application/pdf' ? isPdf : isZip || isOle || isPdf;
+  if (!sah) {
+    throw galatLampiran(
+      'Isi berkas tidak cocok dengan formatnya. Pastikan PDF/DOC/XLS/PPT berasal dari berkas asli, bukan berkas yang diganti namanya.',
+      400
+    );
+  }
+};
+
 /** Membaca isi unggahan dari memori (Vercel) maupun dari disk (multer disk). */
 const bacaIsiFile = async (file: Express.Multer.File): Promise<Buffer | null> => {
   const isi = file.buffer ?? (file.path ? await fs.promises.readFile(file.path) : null);
@@ -106,6 +132,7 @@ export const simpanLampiran = async (file: Express.Multer.File): Promise<HasilLa
 
   // PDF dan berkas lain disimpan apa adanya (resource raw). Ekstensi
   // aslinya dipertahankan supaya unduhan memilik nama yang benar.
+  pastikanIsiDokumenSah(isi, file.mimetype || 'application/pdf');
   const ekstensi = path.extname(nama) || '.pdf';
   nama = `TICKET-${unik()}${ekstensi}`;
   if (cloudinarySiap()) {
@@ -123,6 +150,7 @@ export const simpanDokumenArsip = async (file: Express.Multer.File): Promise<Has
   const isi = await bacaIsiFile(file);
   if (!isi) throw galatLampiran('Berkas dokumen tidak terbaca. Silakan pilih ulang berkasnya.', 400);
 
+  pastikanIsiDokumenSah(isi, file.mimetype || 'application/pdf');
   const ekstensi = (path.extname(file.originalname || '') || '.pdf').toLowerCase();
   const nama = `DOKUMEN-${unik()}${ekstensi}`;
   if (cloudinarySiap()) {
