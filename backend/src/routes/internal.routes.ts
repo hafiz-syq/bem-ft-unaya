@@ -32,7 +32,11 @@ const secretSama = (diberikan: string | undefined, diharapkan: string): boolean 
 // Secret boleh dibawa tiga cara: header x-cron-secret (GitHub Actions/curl),
 // query ?secret=..., atau segmen path /cron/<secret> (Vercel Cron tidak dapat
 // menyetel header kustom; konfigurasinya: "path": "/api/internal/cron/<SECRET>").
-router.post(['/cron', '/cron/:kunciCron'], async (req: Request, res: Response) => {
+// Didaftarkan sebagai dua rute berbeda dengan nama segmen eksplisit supaya
+// pemeriksa kelengkapan di src/tests/uji-akses-rute.ts (yang memindai sumber
+// berkas dan membaca segmen pertama setiap pemanggilan pendaftaran rute)
+// tetap mengenali keduanya. Jangan gabungkan keduanya dalam satu larik path.
+const jalankanCron = async (req: Request, res: Response): Promise<void> => {
   const secret = (process.env.CRON_SECRET || '').trim();
   const kunciParam = req.params.kunciCron;
   const dibawa =
@@ -107,6 +111,10 @@ router.post(['/cron', '/cron/:kunciCron'], async (req: Request, res: Response) =
     pengingatLaporan,
     dijalankanPada: new Date().toISOString(),
   });
-});
+};
+
+router.post('/cron', jalankanCron);
+// Varian segmen path untuk Vercel Cron (secret disuntik dari vercel.json).
+router.post('/cron/:kunciCron', jalankanCron);
 
 export default router;

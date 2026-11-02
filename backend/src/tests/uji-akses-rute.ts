@@ -711,6 +711,13 @@ const BARIS: Baris[] = [
     amanDiuji: true,
     catatan: 'tanpa header X-Cron-Secret selalu 401; endpoint tidak menyentuh database',
   },
+  {
+    metode: 'POST',
+    jalur: '/internal/cron/:kunciCron',
+    harapan: { tamu: 401 },
+    amanDiuji: true,
+    catatan: 'varian segmen path (dipakai Vercel Cron); secret salah selalu 401 sebelum menyentuh database',
+  },
   { metode: 'GET', jalur: '/health', harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' } },
 ];
 
