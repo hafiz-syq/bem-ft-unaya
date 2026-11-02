@@ -32,6 +32,9 @@ backups/
 # Prisma di backend/prisma/migrations tetap bisa ditambahkan ke repo.
 /*.sql
 
+# Folder setelan lokal Vercel CLI (simpan di mesin, bukan repo).
+.vercel/
+
 # Berkas unggahan pengguna (foto, lampiran tiket) tidak boleh masuk repo.
 # Hanya penanda folder yang dilacak supaya direktori tetap ada setelah clone.
 backend/uploads/*

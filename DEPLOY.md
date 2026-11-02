@@ -86,10 +86,15 @@ trash mahasiswa, dan pengingat laporan bulanan.
 
 Bila suatu saat backend dan frontend perlu deploy/rollback terpisah:
 
-1. Project backend: Root Directory `backend`, config dari
-   `backend/vercel.json` (build `npm ci --include=dev && npx prisma generate
-   && npm run build`, semua rute lewat `api/index.js`, fungsi min. 20 detik,
-   `includeFiles` engine Prisma).
+1. Project backend: Root Directory `backend`. Berkas `backend/vercel.json`
+   sengaja dihapus karena di mode services default ia justru mengganggu
+   (rewrites service-local yang menurut perintah ke fungsi yang tidak pernah
+   dibuat → `FUNCTION_INVOCATION_FAILED`). Bila benar-benar memakai mode ini,
+   tambahkan vercel.json di project backend berisi: build
+   `npm ci --include=dev && npx prisma generate && npm run build`, upelan
+   `rewrites` `/(.*)` → `/api/index` (masuk `backend/api/index.js`), serta
+   `functions` (maxDuration & `includeFiles` engine Prisma) — apt hanya pada
+   project backend yang berdiri sendiri.
 2. Project frontend: Root Directory `frontend`; Environment Variable
    `VITE_API_URL=https://<backend>.vercel.app/api`.
 3. Backend di project terpisah: `FRONTEND_URLS` wajib memuat origin frontend,
