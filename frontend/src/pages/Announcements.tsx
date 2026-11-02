@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { isAxiosError } from 'axios';
 import { api } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdminRole, ROLE_LABEL } from '../lib/roles';
@@ -72,8 +73,8 @@ export default function Announcements() {
         const org = await api.get('/organizations');
         setOrganisasi(org.data.data || []);
       }
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Gagal memuat pengumuman.');
+    } catch (err) {
+      setError(isAxiosError(err) ? err.response?.data?.message || 'Gagal memuat pengumuman.' : 'Gagal memuat pengumuman.');
     } finally {
       setLoading(false);
     }
@@ -153,8 +154,9 @@ export default function Announcements() {
       setEditingId(null);
       setForm((f) => ({ ...f, title: '', content: '' }));
       await muat();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || (editingId ? 'Gagal mengubah pengumuman.' : 'Gagal membuat pengumuman.'));
+    } catch (err) {
+      const bawaan = editingId ? 'Gagal mengubah pengumuman.' : 'Gagal membuat pengumuman.';
+      setError(isAxiosError(err) ? err.response?.data?.message || bawaan : bawaan);
     } finally {
       setMenyimpan(false);
     }
@@ -167,8 +169,8 @@ export default function Announcements() {
       const res = await api.delete(`/announcements/${p.id}`);
       setNotice(res.data.message);
       setDaftar((lama) => lama.filter((x) => x.id !== p.id));
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Gagal menghapus pengumuman.');
+    } catch (err) {
+      setError(isAxiosError(err) ? err.response?.data?.message || 'Gagal menghapus pengumuman.' : 'Gagal menghapus pengumuman.');
     } finally {
       setBusyId(null);
     }

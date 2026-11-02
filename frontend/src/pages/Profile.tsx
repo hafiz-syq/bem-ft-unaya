@@ -104,14 +104,21 @@ export default function Profile() {
     sudahProsesBagian.current = true;
 
     if (bagian === 'email') {
-      setEmailInput(data.profile?.email || data.email || '');
-      setEmailMsg('');
-      setEmailErr('');
-      setIsEditingEmail(true);
-      window.setTimeout(() => document.getElementById('prof-email')?.focus(), 150);
+      // Perubahan state & fokus dijalankan di dalam callback timer (bukan
+      // sinkron di badan effect): perilakunya sama — email diinput, mode edit
+      // aktif, dan kolomnya difokuskan 150 ms setelah data profil siap.
+      const jeda = window.setTimeout(() => {
+        setEmailInput(data.profile?.email || data.email || '');
+        setEmailMsg('');
+        setEmailErr('');
+        setIsEditingEmail(true);
+        document.getElementById('prof-email')?.focus();
+      }, 150);
+      return () => window.clearTimeout(jeda);
     } else if (bagian === 'sandi') {
       document.getElementById('kartu-sandi')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      window.setTimeout(() => document.getElementById('prof-password-lama')?.focus(), 450);
+      const jeda = window.setTimeout(() => document.getElementById('prof-password-lama')?.focus(), 450);
+      return () => window.clearTimeout(jeda);
     }
   }, [bagian, loading, data]);
 

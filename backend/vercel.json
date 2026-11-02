@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm ci --include=dev && npx prisma generate && npm run build",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 20,
+      "includeFiles": ["node_modules/.prisma/**", "node_modules/@prisma/client/**"]
+    }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index" }
+  ],
+  "crons": [
+    {
+      "path": "/api/internal/cron/ISI_CRON_SECRET",
+      "schedule": "0 21 * * *"
+    }
+  ]
+}

@@ -1,8 +1,6 @@
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
 import sharp from 'sharp';
-import { pastikanFolderUploads } from '../lib/uploads';
 
 // Satu sumber kebenaran untuk batas ukuran unggahan.
 // app.ts memakainya juga agar pesan error ukuran file selalu sinkron dengan konfigurasi di sini.
@@ -21,21 +19,22 @@ const uploadError = (message: string): Error => {
   return err;
 };
 
-// Konfigurasi penyimpanan
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, pastikanFolderUploads());
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, 'TICKET-' + uniqueSuffix + ext);
-  }
-});
+// Semua unggahan sekarang ditahan di memori.
+//
+// Dulu lampiran/cover/dokumen ditulis ke disk lewat multer.diskStorage, tetapi
+// di Vercel filesystem serverless bersifat sementara: berkas di /tmp hilang
+// saat instance dingin atau deploy ulang, sehingga URL /uploads/... yang
+// tersimpan di database mengarah ke berkas yang sudah tidak ada. Berkas yang
+// benar-benar perlu disimpan permanen justru ditulis setelah middleware ini —
+// ke Cloudinary lewat lib/gambar-media.ts (galeri, cover, foto demisioner)
+// dan lib/lampiran.ts (lampiran tiket, arsip dokumen).
+//
+// Catatan batas: satu unggahan paling besar 10 MB (pdfImpor/dokumen);
+// menahan dua-tiga berkas sebesar itu di memori masih aman untuk function.
 
-// Filter tipe file: semua GAMBAR (kecuali SVG) + PDF.
-// Gambar non-WebP akan dikonversi setelah multer selesai menyimpannya.
-// SVG sengaja ditolak: berkas itu bisa memuat skrip, bukan sekadar gambar.
+// Filter tipe file untuk lampiran tiket & CMS: semua GAMBAR (kecuali SVG) + PDF.
+// Gambar non-WebP akan dikonversi setelah middleware ini. SVG sengaja ditolak:
+// berkas itu bisa memuat skrip, bukan sekadar gambar.
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const gambar = file.mimetype.startsWith('image/') && file.mimetype !== 'image/svg+xml';
   if (gambar || file.mimetype === 'application/pdf') {
@@ -45,24 +44,13 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   }
 };
 
-export const uploadAttachment = multer({ 
-  storage, 
+export const uploadAttachment = multer({
+  storage: multer.memoryStorage(),
   fileFilter,
-  limits: { fileSize: UPLOAD_LIMITS.file } // Maksimal 5 MB
+  limits: { fileSize: UPLOAD_LIMITS.file }, // Maksimal 5 MB
 });
 
-// --- Khusus foto profil (dipakai saat login pertama) ---
-const photoStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, pastikanFolderUploads());
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, 'PROFILE-' + uniqueSuffix + ext);
-  }
-});
-
+// --- Foto profil & foto demisioner (dipakai saat login pertama / jabatan) ---
 // Foto profil hanya menerima gambar (tanpa PDF). Semua format gambar yang
 // dikenali sharp (JPG, PNG, WEBP, HEIC, GIF, AVIF, TIFF) diterima.
 const photoFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
@@ -74,9 +62,9 @@ const photoFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFil
 };
 
 export const uploadPhoto = multer({
-  storage: photoStorage,
+  storage: multer.memoryStorage(),
   fileFilter: photoFileFilter,
-  limits: { fileSize: UPLOAD_LIMITS.foto } // Maksimal 2 MB
+  limits: { fileSize: UPLOAD_LIMITS.foto }, // Maksimal 2 MB
 });
 
 // Foto profil pengguna disimpan di Cloudinary, jadi isinya cukup ditahan di
@@ -86,7 +74,7 @@ export const uploadPhoto = multer({
 export const uploadFotoMemori = multer({
   storage: multer.memoryStorage(),
   fileFilter: photoFileFilter,
-  limits: { fileSize: UPLOAD_LIMITS.foto } // Maksimal 2 MB
+  limits: { fileSize: UPLOAD_LIMITS.foto }, // Maksimal 2 MB
 });
 
 // Gambar media (galeri & cover konten) ditahan di memori lalu diunggah ke
@@ -98,12 +86,13 @@ export const uploadGambarMemori = multer({
   limits: { fileSize: UPLOAD_LIMITS.file, files: 10 },
 });
 
-// ================= KONVERSI GAMBAR KE WEBP =================
+// ================= KONVERSI GAMBAR KE WEBP (dalam memori) =================
 // Semua unggahan gambar selain WebP diproses ulang menjadi WebP supaya ukuran
 // transfer lebih kecil. Foto yang sudah WebP dibiarkan apa adanya (tidak
 // dikompresi ulang) agar kualitasnya tidak turun berulang kali.
 //
 // PDF tidak disentuh: hanya lampiran tiket yang boleh PDF.
+
 const kumpulanFile = (req: any): Express.Multer.File[] => {
   const hasil: Express.Multer.File[] = [];
   if (req.file) hasil.push(req.file);
@@ -120,24 +109,11 @@ const kumpulanFile = (req: any): Express.Multer.File[] => {
   return hasil;
 };
 
-const hapusFile = async (file: Express.Multer.File): Promise<void> => {
-  if (!file?.path) return;
-  await fs.promises.unlink(file.path).catch(() => undefined);
-};
-
 const konversiSatuGambar = async (file: Express.Multer.File): Promise<void> => {
-  const folder = file.destination || path.dirname(file.path);
-  const dasar = path.parse(file.filename).name;
-  const tujuan = path.join(folder, `${dasar}.webp`);
-
-  // Bila nama berkas sudah berakhiran .webp tetapi isinya bukan WebP, jangan
-  // menulis ke berkas yang sedang dibaca sharp. Pakai berkas sementara dulu.
-  const sementara = path.resolve(tujuan) === path.resolve(file.path)
-    ? path.join(folder, `${dasar}.konversi.webp`)
-    : tujuan;
+  if (!file.buffer?.length) return;
 
   try {
-    await sharp(file.path, {
+    const webp = await sharp(file.buffer, {
       failOn: 'none',
       // Batasi piksel agar berkas kecil yang "meledak" saat didekode tidak
       // menghabiskan memori server. 60 MP masih cukup untuk foto kamera HP.
@@ -145,28 +121,16 @@ const konversiSatuGambar = async (file: Express.Multer.File): Promise<void> => {
     })
       .rotate() // menghormati orientasi EXIF dari kamera HP
       .webp({ quality: 82, effort: 4 })
-      .toFile(sementara);
+      .toBuffer();
 
-    if (sementara !== tujuan) {
-      await fs.promises.rename(sementara, tujuan);
-    }
-
-    if (path.resolve(tujuan) !== path.resolve(file.path)) {
-      await fs.promises.unlink(file.path).catch(() => undefined);
-    }
-
-    const stat = await fs.promises.stat(tujuan);
-    file.path = tujuan;
-    file.filename = path.basename(tujuan);
-    file.destination = folder;
+    file.buffer = webp;
     file.mimetype = 'image/webp';
-    file.size = stat.size;
-    file.originalname = `${path.parse(file.originalname).name}.webp`;
+    file.size = webp.length;
+    file.originalname = `${path.parse(file.originalname || 'gambar').name}.webp`;
   } catch {
-    // Bersihkan berkas sementara/target yang mungkin sudah setengah tertulis.
-    await fs.promises.unlink(sementara).catch(() => undefined);
-    if (sementara !== tujuan) await fs.promises.unlink(tujuan).catch(() => undefined);
-    throw uploadError(`Gambar "${file.originalname}" tidak dapat diproses. Gunakan JPG, PNG, WEBP, HEIC, atau format gambar lain (bukan SVG).`);
+    throw uploadError(
+      `Gambar "${file.originalname}" tidak dapat diproses. Gunakan JPG, PNG, WEBP, HEIC, atau format gambar lain (bukan SVG).`
+    );
   }
 };
 
@@ -174,21 +138,18 @@ export const konversiGambarKeWebp = async (req: any, res: any, next: any): Promi
   const files = kumpulanFile(req);
 
   for (const file of files) {
-    if (!file.path) continue;
     if (!file.mimetype?.startsWith('image/')) continue;
 
     // Lewati hanya bila isi DAN ekstensinya benar-benar WebP. Berkas WebP yang
     // diunggah dengan nama .jpg tetap dinormalkan agar Content-Type saat
     // disajikan tidak menyesatkan browser.
-    const sudahWebp = file.mimetype === 'image/webp' && path.extname(file.filename).toLowerCase() === '.webp';
+    const sudahWebp =
+      file.mimetype === 'image/webp' && path.extname(file.originalname || '').toLowerCase() === '.webp';
     if (sudahWebp) continue;
 
     try {
       await konversiSatuGambar(file);
     } catch (error) {
-      // Jangan tinggalkan sebagian berkas di folder unggahan bila satu gambar
-      // gagal diproses: pengguna harus mengulang seluruh unggahan.
-      await Promise.all(files.map(hapusFile));
       next(error);
       return;
     }
@@ -228,23 +189,12 @@ export const uploadPdfImpor = multer({
   // Nama field "file" dipakai agar pesan batas ukuran di app.ts menyebut angka
   // dari UPLOAD_LIMITS. Impor PDF punya batas sendiri (pdfImpor) karena daftar
   // mahasiswa satu angkatan bisa lebih besar dari lampiran biasa.
-  limits: { fileSize: UPLOAD_LIMITS.pdfImpor, files: 1 }
+  limits: { fileSize: UPLOAD_LIMITS.pdfImpor, files: 1 },
 });
 
 // --- Arsip surat & proposal ------------------------------------------------
-// Berkas disimpan di folder unggahan yang sama dengan lampiran lain. Format
-// dokumen kantor yang umum diterima; SVG dan berkas executable ditolak.
-const dokumenStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, pastikanFolderUploads());
-  },
-  filename: function (req, file, cb) {
-    const unik = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname || '').toLowerCase();
-    cb(null, 'DOKUMEN-' + unik + ext);
-  },
-});
-
+// PDF/DOC/DOCX/XLS/XLSX/PPT/PPTX ditahan di memori lalu disimpan ke Cloudinary
+// oleh controller (lib/lampiran.ts). SVG dan berkas executable ditolak.
 const dokumenFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const izin = [
     'application/pdf',
@@ -260,7 +210,7 @@ const dokumenFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileF
 };
 
 export const uploadDokumen = multer({
-  storage: dokumenStorage,
+  storage: multer.memoryStorage(),
   fileFilter: dokumenFileFilter,
   limits: { fileSize: UPLOAD_LIMITS.dokumen, files: 1 },
 });

@@ -29,13 +29,19 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [online, setOnline] = useState<Set<string>>(new Set());
   const [siap, setSiap] = useState(false);
-
-  useEffect(() => {
+  // Reset status saat pengguna keluar: diproses saat render (pola resmi untuk
+  // menyesuaikan state bila prop berubah), bukan di dalam useEffect.
+  const [penggunaLalu, setPenggunaLalu] = useState(user);
+  if (user !== penggunaLalu) {
+    setPenggunaLalu(user);
     if (!user) {
       setOnline(new Set());
       setSiap(false);
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (!user) return;
 
     let aktif = true;
 

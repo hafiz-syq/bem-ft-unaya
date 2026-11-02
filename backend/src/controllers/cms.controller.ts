@@ -62,7 +62,9 @@ export const createContent = async (req: any, res: Response, next: NextFunction)
       res.status(400).json({ message: 'Semua kolom wajib diisi.' }); return;
     }
 
-    const imagePath = gambarBaru ? `/uploads/${gambarBaru.filename}` : null;
+    // Gambar disimpan ke penyimpanan awan sebelum konten dibuat supaya
+    // kegagalan penyimpanan tidak meninggalkan konten tanpa gambarnya.
+    const imagePath = gambarBaru ? await simpanGambarMedia(gambarBaru, 'bem-ft-unaya/cms') : null;
 
     const newContent = await prisma.content.create({
       data: { type, title, content, image: imagePath, authorId: req.user.id }
@@ -88,10 +90,16 @@ export const updateContent = async (req: any, res: Response, next: NextFunction)
     if (type) data.type = type;
     if (title !== undefined) data.title = title;
     if (content !== undefined) data.content = content;
-    if (gambarBaru) data.image = `/uploads/${gambarBaru.filename}`;
+    if (gambarBaru) data.image = await simpanGambarMedia(gambarBaru, 'bem-ft-unaya/cms');
     if (req.body.removeImage === 'true') data.image = null;
 
     const updated = await prisma.content.update({ where: { id }, data });
+
+    // Gambar lama dibuang setelah pembaruan sukses (best effort), entah karena
+    // diganti gambar baru ataupun kosong eksplisit lewat removeImage.
+    if (lama.image && data.image !== undefined && data.image !== lama.image) {
+      void hapusGambarMedia(lama.image);
+    }
 
     await logActivity(req.user.id, 'UPDATE_CONTENT', 'Content', `Memperbarui konten "${updated.title}"`, id);
 
@@ -103,6 +111,7 @@ export const deleteContent = async (req: any, res: Response, next: NextFunction)
   try {
     const lama = await prisma.content.findUnique({ where: { id: req.params.id } });
     await prisma.content.delete({ where: { id: req.params.id } });
+    if (lama?.image) void hapusGambarMedia(lama.image);
     await logActivity(
       req.user.id,
       'DELETE_CONTENT',

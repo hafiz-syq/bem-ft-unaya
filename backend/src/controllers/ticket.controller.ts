@@ -1,9 +1,7 @@
 import { Response, NextFunction } from 'express';
-import fs from 'fs';
-import path from 'path';
 import ExcelJS from 'exceljs';
 import prisma from '../lib/prisma';
-import { folderUploads } from '../lib/uploads';
+import { hapusLampiran, simpanLampiran, type HasilLampiran } from '../lib/lampiran';
 import { logActivity } from '../services/audit.service';
 import { sendEmailNotification, generateTicketNotificationEmail } from '../services/email.service';
 import { kirimPushKeBanyak, kirimPushKePengguna } from '../services/push.service';
@@ -76,6 +74,10 @@ export const createTicket = async (req: any, res: Response, next: NextFunction):
       targetOrganization = dipilih;
     }
 
+    // Berkas disimpan ke penyimpanan awan SEBELUM tiket dibuat supaya kegagalan
+    // penyimpanan tidak meninggalkan tiket yang menjanjikan lampiran tak ada.
+    const lampiranBaru: HasilLampiran | null = file ? await simpanLampiran(file) : null;
+
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const randomCode = Math.floor(1000 + Math.random() * 9000);
     const ticket_no = `TKT-${dateStr}-${randomCode}`;
@@ -96,14 +98,14 @@ export const createTicket = async (req: any, res: Response, next: NextFunction):
       },
     });
 
-    if (file) {
+    if (lampiranBaru) {
       await prisma.attachment.create({
         data: {
           ticketId: newTicket.id,
-          filename: file.filename,
-          url: `/uploads/${file.filename}`,
-          mimeType: file.mimetype,
-          size: file.size,
+          filename: lampiranBaru.filename,
+          url: lampiranBaru.url,
+          mimeType: lampiranBaru.mimeType,
+          size: lampiranBaru.size,
         },
       });
     }
@@ -547,7 +549,7 @@ export const deleteTicket = async (req: any, res: Response, next: NextFunction):
       where: { id },
       include: {
         assignments: { where: { isActive: true } },
-        attachments: { select: { id: true, filename: true } },
+        attachments: { select: { id: true, url: true } },
       },
     });
     if (!ticket) { res.status(404).json({ message: 'Tiket tidak ditemukan.' }); return; }
@@ -568,13 +570,7 @@ export const deleteTicket = async (req: any, res: Response, next: NextFunction):
 
     // Berkas lampiran dihapus setelah transaksi sukses, dengan best effort:
     // kegagalan menghapus berkas tidak boleh membatalkan penghapusan data.
-    await Promise.all(
-      ticket.attachments.map((lampiran) =>
-        fs.promises
-          .unlink(path.join(folderUploads(), path.basename(lampiran.filename)))
-          .catch(() => undefined)
-      )
-    );
+    await Promise.all(ticket.attachments.map((lampiran) => hapusLampiran(lampiran.url)));
 
     await logActivity(
       req.user.id,

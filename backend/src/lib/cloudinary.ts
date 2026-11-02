@@ -47,15 +47,25 @@ export interface HasilUnggah {
 }
 
 /**
- * Mengunggah buffer gambar ke Cloudinary.
+ * Mengunggah buffer ke Cloudinary.
  *
  * Buffer dipakai (bukan path berkas) supaya fungsi ini bekerja sama saja di
  * server biasa maupun di Vercel, tanpa perlu menulis apa pun ke disk.
+ *
+ * resourceType 'image' (default) untuk gambar yang diolah Cloudinary;
+ * 'raw' untuk berkas arbitrer (PDF, DOCX, XLSX, PPTX) yang cukup disimpan
+ * dan disajikan apa adanya.
  */
 export const unggahKeCloudinary = (
   buffer: Buffer,
-  opsi: { folder: string; publicId?: string; format?: string }
+  opsi: {
+    folder: string;
+    publicId?: string;
+    format?: string;
+    resourceType?: 'image' | 'raw';
+  }
 ): Promise<HasilUnggah> => {
+  const resourceType = opsi.resourceType ?? 'image';
   if (!cloudinarySiap()) {
     throw galatPenyimpanan(
       'Penyimpanan gambar (Cloudinary) belum dikonfigurasi di server. Hubungi admin.',
@@ -70,10 +80,11 @@ export const unggahKeCloudinary = (
       {
         folder: opsi.folder,
         public_id: opsi.publicId,
-        // AVIF dipakai sebagai format baku media yang diunggah ke sini.
-        format: opsi.format ?? 'avif',
-        quality: 'auto',
-        resource_type: 'image',
+        // Format baku media gambar = AVIF. Berkas raw tidak diberi format
+        // supaya Cloudinary menyimpannya apa adanya (ekstensi mengikuti nama).
+        format: resourceType === 'image' ? opsi.format ?? 'avif' : undefined,
+        quality: resourceType === 'image' ? 'auto' : undefined,
+        resource_type: resourceType,
         overwrite: false,
       },
       (error, result) => {
@@ -99,46 +110,54 @@ export const unggahKeCloudinary = (
 };
 
 /**
- * Mengambil public_id dari URL Cloudinary.
+ * Mengambil public_id dan jenis resource dari URL Cloudinary.
  *
- * Contoh: https://res.cloudinary.com/<cloud>/image/upload/v1729/profiles/FOTO.webp
- *   -> "profiles/FOTO"
+ * Gambar: https://res.cloudinary.com/<cloud>/image/upload/v1729/profiles/FOTO.webp
+ *   -> { tipe: 'image', publicId: 'profiles/FOTO' }
+ *   Query, segmen versi (`v123`), transformasi dan ekstensi dibuang karena
+ *   `uploader.destroy` mengenali berkas gambar dari public_id tanpa ekstensi.
  *
- * Query string, segmen versi (`v123`) dan ekstensi dibuang karena
- * `uploader.destroy` mengenali berkas dari public_id tanpa ekstensi.
+ * Berkas raw: https://res.cloudinary.com/<cloud>/raw/upload/v1729/documents/KAJT.pdf
+ *   -> { tipe: 'raw', publicId: 'documents/KAJT.pdf' }
+ *   Ekstensi ikut dipertahankan karena pada resource_type raw nama berkas
+ *   adalah bagian dari public_id.
  */
-export const ambilPublicId = (url: string): string | null => {
-  if (!url) return null;
+export const ambilReferensiAwan = (
+  url: string
+): { tipe: 'image' | 'raw'; publicId: string | null } => {
+  if (!url) return { tipe: 'image', publicId: null };
 
   const tanpaQuery = url.split('?')[0];
-  const penanda = '/image/upload/';
+  const tipe: 'image' | 'raw' = tanpaQuery.includes('/raw/upload/') ? 'raw' : 'image';
+  const penanda = tipe === 'raw' ? '/raw/upload/' : '/image/upload/';
   const posisi = tanpaQuery.indexOf(penanda);
-  if (posisi === -1) return null;
+  if (posisi === -1) return { tipe, publicId: null };
 
-  const sisa = tanpaQuery
+  let sisa = tanpaQuery
     .slice(posisi + penanda.length)
     .replace(/^v\d+\//, '') // segmen versi
     .replace(/^[a-z]{1,3}_[^/]+\//i, ''); // transformasi (mis. c_fill,w_200)
 
-  const tanpaEkstensi = sisa.replace(/\.[a-zA-Z0-9]+$/, '');
-  return tanpaEkstensi ? decodeURIComponent(tanpaEkstensi) : null;
+  if (tipe === 'image') sisa = sisa.replace(/\.[a-zA-Z0-9]+$/, '');
+  return { tipe, publicId: sisa ? decodeURIComponent(sisa) : null };
 };
 
 /**
- * Menghapus gambar dari Cloudinary berdasarkan URL yang tersimpan di database.
- * Kegagalan diabaikan (hanya dicatat) supaya data pengguna tetap bisa diubah
- * walaupun penyimpanan awan sedang bermasalah.
+ * Menghapus berkas dari Cloudinary berdasarkan URL yang tersimpan di database.
+ * Jenis resource dibaca dari URL supaya gambar maupun berkas raw dibersihkan
+ * dengan benar. Kegagalan diabaikan (hanya dicatat) supaya data pengguna tetap
+ * bisa diubah walaupun penyimpanan awan sedang bermasalah.
  */
 export const hapusDariCloudinary = async (url: string): Promise<void> => {
   if (!cloudinarySiap()) return;
 
-  const publicId = ambilPublicId(url);
+  const { tipe, publicId } = ambilReferensiAwan(url);
   if (!publicId) return;
 
   terapkanKonfigurasi();
 
   try {
-    await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+    await cloudinary.uploader.destroy(publicId, { resource_type: tipe });
   } catch (error: any) {
     console.error('[cloudinary] hapus gagal:', error?.message || error);
   }

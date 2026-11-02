@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
+import { hapusGambarMedia, simpanGambarMedia } from '../lib/gambar-media';
 
 /**
  * Riwayat demisioner (pengurus lama) DPM & BEM Teknik.
@@ -29,7 +30,7 @@ export const createDemisioner = async (req: any, res: Response, next: NextFuncti
       return;
     }
 
-    const foto = req.file ? `/uploads/${req.file.filename}` : null;
+    const foto = req.file ? await simpanGambarMedia(req.file, 'bem-ft-unaya/demisioner') : null;
 
     const baru = await prisma.demisioner.create({
       data: {
@@ -59,7 +60,7 @@ export const updateDemisioner = async (req: any, res: Response, next: NextFuncti
     const lama = await prisma.demisioner.findUnique({ where: { id } });
     if (!lama) { res.status(404).json({ message: 'Data demisioner tidak ditemukan.' }); return; }
 
-    const foto = req.file ? `/uploads/${req.file.filename}` : undefined;
+    const foto = req.file ? await simpanGambarMedia(req.file, 'bem-ft-unaya/demisioner') : undefined;
 
     const updated = await prisma.demisioner.update({
       where: { id },
@@ -76,6 +77,9 @@ export const updateDemisioner = async (req: any, res: Response, next: NextFuncti
 
     await logActivity(req.user.id, 'UPDATE_DEMISIONER', 'Demisioner', `Memperbarui demisioner ${updated.nama}`, id);
 
+    // Foto lama dibuang setelah pembaruan sukses (best effort).
+    if (foto && lama.foto && lama.foto !== foto) void hapusGambarMedia(lama.foto);
+
     res.status(200).json({ message: 'Data demisioner berhasil diperbarui.', data: updated });
   } catch (error) { next(error); }
 };
@@ -84,6 +88,7 @@ export const deleteDemisioner = async (req: any, res: Response, next: NextFuncti
   try {
     const lama = await prisma.demisioner.findUnique({ where: { id: req.params.id } });
     await prisma.demisioner.delete({ where: { id: req.params.id } });
+    if (lama?.foto) void hapusGambarMedia(lama.foto);
     await logActivity(
       req.user.id, 'DELETE_DEMISIONER', 'Demisioner',
       `Menghapus demisioner ${lama?.nama ?? req.params.id}`, req.params.id

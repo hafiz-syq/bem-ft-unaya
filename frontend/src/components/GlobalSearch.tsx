@@ -62,15 +62,20 @@ export default function GlobalSearch() {
   }, [open]);
 
   useEffect(() => {
-    if (!open || q.trim().length < 2) {
-      setHasil([]);
-      setLoading(false);
-      return;
-    }
-
+    // Semua perubahan state (termasuk pembersihan) dijalankan di dalam
+    // callback timer, bukan sinkron di badan effect. Pembersihan memakai
+    // jeda 0 ms agar tetap terjadi segera setelah effect dijalankan.
+    const kosong = !open || q.trim().length < 2;
     let batal = false;
-    setLoading(true);
+
     const timer = window.setTimeout(async () => {
+      if (kosong) {
+        setHasil([]);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
       try {
         const res = await api.get('/search', { params: { q: q.trim() } });
         if (!batal) {
@@ -83,7 +88,7 @@ export default function GlobalSearch() {
       } finally {
         if (!batal) setLoading(false);
       }
-    }, 250);
+    }, kosong ? 0 : 250);
 
     return () => {
       batal = true;

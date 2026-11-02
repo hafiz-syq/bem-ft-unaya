@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { isAxiosError } from 'axios';
 import { api } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdminRole, ROLE_SUPERADMIN } from '../lib/roles';
@@ -39,8 +40,8 @@ export default function ErrorLogs() {
       const res = await api.get('/error-logs', { params: { status } });
       setData(res.data.data);
       setMeta(res.data.meta);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Gagal memuat catatan kesalahan.');
+    } catch (err) {
+      setError(isAxiosError(err) ? err.response?.data?.message || 'Gagal memuat catatan kesalahan.' : 'Gagal memuat catatan kesalahan.');
     } finally {
       setLoading(false);
     }
@@ -58,8 +59,8 @@ export default function ErrorLogs() {
       const res = await api.patch(`/error-logs/${log.id}`, { resolved: !log.resolvedAt });
       setNotice(res.data.message);
       await muat(filter);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Gagal mengubah status.');
+    } catch (err) {
+      setError(isAxiosError(err) ? err.response?.data?.message || 'Gagal mengubah status.' : 'Gagal mengubah status.');
     } finally {
       setBusyId(null);
     }
@@ -71,8 +72,8 @@ export default function ErrorLogs() {
       const res = await api.delete('/error-logs/resolved');
       setNotice(res.data.message);
       await muat(filter);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || 'Gagal membersihkan catatan.');
+    } catch (err) {
+      setError(isAxiosError(err) ? err.response?.data?.message || 'Gagal membersihkan catatan.' : 'Gagal membersihkan catatan.');
     }
   };
 

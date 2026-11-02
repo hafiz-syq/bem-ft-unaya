@@ -115,6 +115,7 @@ Backup rutin dan pemantauan query lambat (`slow_query_log`) lebih mendesak darip
 
 Backup harian dijalankan Windows Task Scheduler setiap **03:00** lewat [scripts/backup-database.bat](scripts/backup-database.bat).
 
+- **Sumber backup mengikuti `DATABASE_URL`** di `backend/.env`. Bila menunjuk `*.aivencloud.com` dan CA di `backend/prisma/aiven-ca.pem` ada, dump diambil langsung dari Aiven lewat [scripts/dump-aiven.ps1](scripts/dump-aiven.ps1) (MySQL `--ssl-mode=VERIFY_IDENTITY`, atau MariaDB `--ssl-verify-server-cert` bila klien tersedia hanya versi MariaDB). Kalau tidak, backup pakai jalur MySQL lokal seperti sebelumnya. Dump Aiven yang gagal **tidak** akan otomatis diisi dump lokal — yang boleh dipercaya tetap backup dari sumber utama; kegagalan tetap masuk log/email.
 - **Hasil:** satu berkas `backups/bem_ft_unaya_<tgl>_<jam>.zip` berisi `bem_ft_unaya_<tgl>_<jam>.sql`. Setelah arsip dipastikan berisi datanya, berkas `.sql` dihapus supaya folder `backups/` tidak cepat penuh (dump ±200 KB menjadi ±62 KB). Bila kompresi gagal, `.sql` sengaja dibiarkan agar backup tidak hilang.
 - **Jadwal terlewat:** opsi *Run task as soon as possible after a scheduled start is missed* (`StartWhenAvailable`) aktif. Bila PC mati pada 03:00, backup dijalankan begitu PC menyala. Tugas memakai `InteractiveToken`, jadi harus ada sesi pengguna yang login.
 - **Baterai:** `DisallowStartIfOnBatteries` dan `StopIfGoingOnBatteries` dimatikan, supaya laptop yang menyala tanpa charger tidak melewatkan backup.

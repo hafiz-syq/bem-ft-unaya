@@ -5,6 +5,7 @@ import path from 'path';
 import crypto from 'crypto';
 import prisma from '../lib/prisma';
 import { pastikanFolderUploads } from '../lib/uploads';
+import { cloudinarySiap, unggahKeCloudinary } from '../lib/cloudinary';
 import { logActivity } from '../services/audit.service';
 import { isAdminRole } from '../lib/ticket-access';
 import { unduh, kepala } from '../lib/http';
@@ -129,11 +130,17 @@ const downloadGambar = async (
   return { data, mimeType, originalUrl: url };
 };
 
-const konversiKeWebp = async (
-  data: Buffer,
-  mimeType: string,
-  outputPath: string
-): Promise<{ path: string; size: number; metadata: { width: number; height: number; format: string } }> => {
+/**
+ * Mengubah isi berkas gambar menjadi WebP di memori (tanpa-menulis ke disk).
+ *
+ * Dulu hasil konversi ditulis ke folder uploads lalu disajikan lewat URL
+ * /uploads/.... Di Vercel folder itu sementara: berkas hilang saat instance
+ * dingin, sehingga URL konversi bisa 404 tak lama kemudian. Sekarang hasil
+ * dikembalikan sebagai buffer lalu diunggah Cloudinary di pemanggilnya.
+ */
+const konversiWebpBuffer = async (
+  data: Buffer
+): Promise<{ buffer: Buffer; size: number; metadata: { width: number; height: number; format: string } }> => {
   let image = sharp(data, { failOn: 'none', limitInputPixels: 60_000_000 });
 
   // Dapatkan metadata untuk ditentukan apakah perlu resize
@@ -148,17 +155,16 @@ const konversiKeWebp = async (
   }
 
   // Konversi ke WebP dengan kualitas optimal
-  await image
+  const webp = await image
     .rotate() // hormati orientasi EXIF
     .webp({ quality: WEBP_QUALITY, effort: 4 })
-    .toFile(outputPath);
+    .toBuffer();
 
-  const stat = await fs.promises.stat(outputPath);
-  const hasilMetadata = await sharp(outputPath).metadata();
+  const hasilMetadata = await sharp(webp).metadata();
 
   return {
-    path: outputPath,
-    size: stat.size,
+    buffer: webp,
+    size: webp.length,
     metadata: {
       width: hasilMetadata.width || 0,
       height: hasilMetadata.height || 0,
@@ -196,20 +202,31 @@ export const konversiGambarDariUrl = async (
     // Download gambar dari URL
     const { data, mimeType, originalUrl } = await downloadGambar(url);
 
-    // Buat nama file unik
+    // Nama unik untuk berkas hasil
     const timestamp = Date.now();
     const random = crypto.randomBytes(4).toString('hex');
-    const ext = ekstensiDariMime(mimeType);
-    const filename = `CONVERTED-${timestamp}-${random}${ext}`;
-    const outputPath = path.join(pastikanFolderUploads(), filename);
 
-    // Konversi ke WebP
-    const hasil = await konversiKeWebp(data, mimeType, outputPath);
+    // Konversi ke WebP (di memori)
+    const hasil = await konversiWebpBuffer(data);
 
     // Hitung rasio kompresi
     const compressionRatio = ((1 - hasil.size / data.length) * 100).toFixed(1);
 
-    const convertedUrl = `/uploads/${path.basename(hasil.path)}`;
+    // Silahkan simpan ke Cloudinary bila tersedia; di lokal tanpa kredensial,
+    // cadangan lama (folder uploads) tetap dipakai agar fitur bisa dicoba.
+    let convertedUrl: string;
+    if (cloudinarySiap()) {
+      const { secureUrl } = await unggahKeCloudinary(hasil.buffer, {
+        folder: 'bem-ft-unaya/converted',
+        publicId: `bem-ft-unaya/converted/CONVERTED-${timestamp}-${random}`,
+        format: 'webp',
+      });
+      convertedUrl = secureUrl;
+    } else {
+      const nama = `CONVERTED-${timestamp}-${random}.webp`;
+      await fs.promises.writeFile(path.join(pastikanFolderUploads(), nama), hasil.buffer);
+      convertedUrl = `/uploads/${nama}`;
+    }
 
     await logActivity(
       req.user.id,
@@ -225,7 +242,9 @@ export const konversiGambarDariUrl = async (
       data: {
         originalUrl,
         originalMimeType: mimeType,
-        convertedPath: hasil.path,
+        // Dulu path absolut berkas di disk; hasilnya kini langsung URL awan,
+        // sehingga tidak ada path untuk dikirim.
+        convertedPath: '',
         convertedUrl,
         originalSize: data.length,
         convertedSize: hasil.size,

@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
 import { isAdminRole } from '../lib/ticket-access';
 import { kirimPushKePengguna } from '../services/push.service';
+import { hapusLampiran, simpanDokumenArsip } from '../lib/lampiran';
 import {
   bolehAksesArsip,
   bolehPilihArahSurat,
@@ -193,6 +194,10 @@ export const createDocument = async (req: any, res: Response, next: NextFunction
     }
 
     try {
+      // Berkas disimpan ke penyimpanan awan sebelum data dibuat supaya
+      // kegagalan penyimpanan tidak meninggalkan catatan arsip tanpa berkas.
+      const berkas = req.file ? await simpanDokumenArsip(req.file) : null;
+
       const data = await prisma.document.create({
         data: {
           type,
@@ -202,8 +207,8 @@ export const createDocument = async (req: any, res: Response, next: NextFunction
           organizationId,
           direction,
           createdById: req.user.id,
-          ...(req.file
-            ? { fileUrl: `/uploads/${req.file.filename}`, fileName: req.file.originalname }
+          ...(berkas
+            ? { fileUrl: berkas.url, fileName: req.file.originalname }
             : {}),
         },
       });
@@ -280,6 +285,7 @@ export const updateDocument = async (req: any, res: Response, next: NextFunction
       organizationId = nilai;
     }
 
+    const berkas = req.file ? await simpanDokumenArsip(req.file) : null;
     const data = await prisma.document.update({
       where: { id: lama.id },
       data: {
@@ -289,11 +295,12 @@ export const updateDocument = async (req: any, res: Response, next: NextFunction
         description,
         organizationId,
         ...(direction ? { direction } : {}),
-        ...(req.file
-          ? { fileUrl: `/uploads/${req.file.filename}`, fileName: req.file.originalname }
-          : {}),
+        ...(berkas ? { fileUrl: berkas.url, fileName: req.file.originalname } : {}),
       },
     });
+
+    // Lampiran lama dibuang setelah pembaruan sukses (best effort).
+    if (berkas && lama.fileUrl) void hapusLampiran(lama.fileUrl);
 
     await logActivity(req.user.id, 'UPDATE_DOCUMENT', 'Document', `Mengubah ${type} ${number}`, data.id);
     res.status(200).json({ message: 'Dokumen diperbarui.', data });
@@ -425,6 +432,7 @@ export const deleteDocument = async (req: any, res: Response, next: NextFunction
     }
 
     await prisma.document.delete({ where: { id: dokumen.id } });
+    if (dokumen.fileUrl) void hapusLampiran(dokumen.fileUrl);
     await logActivity(req.user.id, 'DELETE_DOCUMENT', 'Document', `Menghapus ${dokumen.type} ${dokumen.number}`, dokumen.id);
     res.status(200).json({ message: 'Dokumen dihapus dari arsip.' });
   } catch (error) {

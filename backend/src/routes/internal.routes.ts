@@ -29,9 +29,17 @@ const secretSama = (diberikan: string | undefined, diharapkan: string): boolean 
   return a.length === b.length && timingSafeEqual(a, b);
 };
 
-router.post('/cron', async (req: Request, res: Response) => {
+// Secret boleh dibawa tiga cara: header x-cron-secret (GitHub Actions/curl),
+// query ?secret=..., atau segmen path /cron/<secret> (Vercel Cron tidak dapat
+// menyetel header kustom; konfigurasinya: "path": "/api/internal/cron/<SECRET>").
+router.post(['/cron', '/cron/:kunciCron'], async (req: Request, res: Response) => {
   const secret = (process.env.CRON_SECRET || '').trim();
-  if (!secret || !secretSama(req.get('x-cron-secret'), secret)) {
+  const kunciParam = req.params.kunciCron;
+  const dibawa =
+    req.get('x-cron-secret') ||
+    (typeof kunciParam === 'string' ? kunciParam : undefined) ||
+    (typeof req.query.secret === 'string' ? req.query.secret : undefined);
+  if (!secret || !secretSama(dibawa, secret)) {
     res.status(401).json({ message: 'Kunci cron tidak sah.' });
     return;
   }

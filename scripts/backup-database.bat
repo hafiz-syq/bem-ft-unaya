@@ -42,6 +42,22 @@ set "MYSQLD_EXE=C:\laragon\bin\mysql\mysql-8.4.3-winx64\bin\mysqld.exe"
 set "MYSQL_INI=C:\laragon\bin\mysql\mysql-8.4.3-winx64\my.ini"
 set "COBA_MYSQL=12"
 
+rem ---- Sumber backup -----------------------------------------
+rem Sejak database utama pindah ke Aiven, DATABASE_URL di backend\.env
+rem menunjuk database awan. Backup mengikuti nilai itu bila ada, dan hanya jat
+rem ke MySQL lokal bila .env menunjuk ke lokal atau CA Aiven tidak ditemukan.
+set "ENV_FILE=%JALUR_APLIKASI%\backend\.env"
+set "CA_PEM=%JALUR_APLIKASI%\backend\prisma\aiven-ca.pem"
+set "SOPUR=LOKAL"
+if exist "%ENV_FILE%" powershell -NoProfile -Command "if (Select-String -LiteralPath '%ENV_FILE%' -Pattern 'DATABASE_URL=.*mysql://.*aivencloud' -Quiet) { exit 0 } else { exit 1 }" >NUL 2>NUL
+if not errorlevel 1 (
+  if exist "%CA_PEM%" (
+    set "SOPUR=AIVEN"
+  ) else (
+    echo [%date% %time%] PERINGATAN: DATABASE_URL menunjuk Aiven, tetapi CA tidak ada di %CA_PEM%. Backup memakai MySQL lokal saja.>> "%LOG%"
+  )
+)
+
 if not exist "%FOLDER_BACKUP%" mkdir "%FOLDER_BACKUP%"
 
 rem ---- Lokasi mysqldump.exe ----------------------------------
@@ -53,7 +69,7 @@ if not defined MYSQLDUMP_EXE (
     "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqldump.exe"
     "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqldump.exe"
     "C:\xampp\mysql\bin\mysqldump.exe"
-  ) do if exist %%D set "MYSQLDUMP_EXE=%%~D"
+  ) do if exist %%D if not defined MYSQLDUMP_EXE set "MYSQLDUMP_EXE=%%~D"
 )
 if not defined MYSQLDUMP_EXE (
   echo [%date% %time%] GALAT: mysqldump.exe tidak ditemukan. Setel variabel MYSQLDUMP_EXE atau perbarui daftar kandidat.>> "%LOG%"
@@ -66,17 +82,22 @@ rem mysqldump memerlukan DLL-nya. Distribusi MySQL hasil pangkas (mis. Laragon
 rem lite) tidak menyertakan lib\plugin, sehingga dump gagal dengan galat 1156.
 rem DLL itu biasanya masih ada di folder plugin HeidiSQL — arahkan ke sana.
 set "ARG_PLUGIN="
+set "DIRPLUGIN="
 if exist "C:\laragon\bin\heidisql\plugins\caching_sha2_password.dll" (
-  set "ARG_PLUGIN=--plugin-dir=C:\laragon\bin\heidisql\plugins"
+  set "DIRPLUGIN=C:\laragon\bin\heidisql\plugins"
 ) else if exist "C:\Program Files\MySQL\MySQL Server 8.4\lib\plugin\caching_sha2_password.dll" (
-  set "ARG_PLUGIN=--plugin-dir=C:\Program Files\MySQL\MySQL Server 8.4\lib\plugin"
+  set "DIRPLUGIN=C:\Program Files\MySQL\MySQL Server 8.4\lib\plugin"
 ) else if exist "C:\Program Files\MySQL\MySQL Server 8.0\lib\plugin\caching_sha2_password.dll" (
-  set "ARG_PLUGIN=--plugin-dir=C:\Program Files\MySQL\MySQL Server 8.0\lib\plugin"
+  set "DIRPLUGIN=C:\Program Files\MySQL\MySQL Server 8.0\lib\plugin"
 )
+if defined DIRPLUGIN set "ARG_PLUGIN=--plugin-dir=%DIRPLUGIN%"
 
-rem ---- Pastikan database menerima koneksi --------------------
+rem ---- Pastikan database menerima koneksi (hanya untuk mode lokal) ----
+if /I "%SOPUR%"=="AIVEN" goto :mulai_waktu
 call :pastikan_mysql
 if errorlevel 1 goto :gagal
+
+:mulai_waktu
 
 rem ---- Penanda waktu (aman dari format tanggal lokal) ---------
 for /f %%t in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set "STAMP=%%t"
@@ -87,7 +108,15 @@ set "ZIP=%FOLDER_BACKUP%\%DB_NAME%_%STAMP%.zip"
 set "UKURAN=0"
 set "UKURAN_ZIP=0"
 
-rem ---- Dump database ------------------------------------------
+rem ---- Dump database -----------------------------------------
+rem Mode AIVEN: mysqldump ke database awan lewat TLS (lihat dump-aiven.ps1).
+if /I "%SOPUR%"=="AIVEN" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%JALUR_APLIKASI%\scripts\dump-aiven.ps1" -MysqldumpExe "%MYSQLDUMP_EXE%" -PluginDir "%DIRPLUGIN%" -EnvFile "%ENV_FILE%" -CaPem "%CA_PEM%" -Target "%TARGET%" >>"%LOG%" 2>&1
+  if errorlevel 1 goto :gagal
+  goto :validasi
+)
+
+rem Mode LOKAL:
 rem --single-transaction memakai InnoDB agar dump tidak mengunci tabel dan
 rem tetap konsisten meski aplikasi sedang dipakai. Tanda --- berurutan itu
 rem membaca database dalam satu moment yang sama.
@@ -95,6 +124,7 @@ rem membaca database dalam satu moment yang sama.
 
 if errorlevel 1 goto :gagal
 
+:validasi
 rem ---- Validasi hasil -----------------------------------------
 rem Dump sehat minimal harus > 1 KB (database kosong pun lebih besar dari itu
 rem karena memuat DDL seluruh tabel).

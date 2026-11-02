@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { CheckCircle2, Loader2, RefreshCw, WifiOff } from 'lucide-react';
 import {
   EVENT_ANTREAN,
@@ -21,28 +21,40 @@ import {
  * tidak mengganggu tata letak halaman.
  */
 export default function OfflineStatus() {
-  const [online, setOnline] = useState(true);
   const [sisa, setSisa] = useState(0);
   const [menyinkron, setMenyinkron] = useState(false);
   const [sukses, setSukses] = useState<number | null>(null);
 
-  useEffect(() => {
-    // Status awal selalu online agar markup hasil prerender tidak berbeda
-    // dengan render pertama di klien; nilai sebenarnya dibaca setelah mount.
-    setOnline(navigator.onLine);
+  // Status koneksi dibaca langsung dari sistem (navigator.onLine), bukan
+  // disimpan sebagai state React:
+  // - snapshot "server" (prerender) selalu true agar markup awal tidak berbeda
+  //   dengan render pertama di klien,
+  // - nilai asli diambil dari navigator.onLine saat klien merender dan terbaru
+  //   otomatis bila jaringan berubah.
+  const online = useSyncExternalStore(
+    (beriSinyal) => {
+      window.addEventListener('online', beriSinyal);
+      window.addEventListener('offline', beriSinyal);
+      return () => {
+        window.removeEventListener('online', beriSinyal);
+        window.removeEventListener('offline', beriSinyal);
+      };
+    },
+    () => navigator.onLine,
+    () => true,
+  );
 
+  useEffect(() => {
     const perbaruiJumlah = () => {
       void hitungAntrean().then(setSisa);
     };
 
     const saatOnline = () => {
-      setOnline(true);
       setMenyinkron(true);
       void prosesAntrean().finally(() => setMenyinkron(false));
     };
 
     const saatOffline = () => {
-      setOnline(false);
       perbaruiJumlah();
     };
 
