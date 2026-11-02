@@ -10,7 +10,8 @@ import { Role } from '@prisma/client';
  *
  *   1. Tanpa login            -> GET /students        = 401, /students/export = 401
  *   2. Pengurus biasa         -> GET /students        = 200, /students/export = 403
- *   3. Mahasiswa              -> GET /students        = 403, /students/export = 403
+ *   3. Mahasiswa              -> GET /students        = 200 direktori hanya-baca,
+ *                                /students/export = 403
  *   4. Keduanya               -> PATCH /students/:id/role = 403 (hanya admin)
  *   5. (opsional) Admin       -> GET /students/export = 200 + berkas CSV,
  *                                bila ADMIN_NIM & ADMIN_PASSWORD disetel.
@@ -150,8 +151,11 @@ async function main(): Promise<void> {
     console.log('\nMahasiswa (MAHASISWA):');
     const cookieMahasiswa = await login(NIM_MAHASISWA, SANDI_UJI);
     const daftarMahasiswa = await minta('/students?limit=1', { cookie: cookieMahasiswa });
-    periksa('GET /students', daftarMahasiswa.status, 403);
-    periksa('Balasan daftar menyebut pengurus/admin', daftarMahasiswa.body.includes('Hanya pengurus dan admin'), true);
+    // Mahasiswa login melihat DIREKTORI rekan yang aktif (data terbatas, hanya
+    // baca) — bukan 403. Isi penuh & panel pengelolaan tetap petugas/admin.
+    periksa('GET /students (direktori)', daftarMahasiswa.status, 200);
+    periksa('Direktori ditandai hanya-baca', daftarMahasiswa.body.includes('"hanyaBaca":true'), true);
+    periksa('Direktori tidak berisi kolom pelanggaran', daftarMahasiswa.body.includes('password_hash'), false);
     const eksporMahasiswa = await minta('/students/export', { cookie: cookieMahasiswa });
     periksa('GET /students/export', eksporMahasiswa.status, 403);
     periksa('Tidak ada isi CSV untuk mahasiswa', eksporMahasiswa.body.includes('Program Studi'), false);
