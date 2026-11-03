@@ -10,6 +10,7 @@ import { avatarUrl } from '../lib/gambar';
 import { ROLE_LABEL, isAdminRole, isOfficer } from '../lib/roles';
 import { usePresence } from '../contexts/PresenceContext';
 import { useAuth } from '../contexts/AuthContext';
+import FotoProfilModal from './FotoProfilModal';
 
 interface ProfilPublik {
   id: string;
@@ -46,6 +47,7 @@ export default function UserProfileDialog({ userId, onClose }: { userId: string;
   const [profil, setProfil] = useState<ProfilPublik | null>(null);
   const [memuat, setMemuat] = useState(true);
   const [galat, setGalat] = useState('');
+  const [lihatFoto, setLihatFoto] = useState(false);
   const tutupRef = useRef<HTMLButtonElement>(null);
 
   // Dialog selalu dipasang ulang untuk setiap ID (lihat `key` di provider),
@@ -121,11 +123,19 @@ export default function UserProfileDialog({ userId, onClose }: { userId: string;
             {memuat ? (
               <Loader2 className="w-6 h-6 animate-spin" />
             ) : profil?.foto ? (
-              <img
-                src={avatarUrl(profil.foto, 96)}
-                alt={profil.nama || profil.nim}
-                className="object-cover w-full h-full"
-              />
+              <button
+                type="button"
+                onClick={() => setLihatFoto(true)}
+                title="Lihat foto lebih besar"
+                aria-label="Lihat foto lebih besar"
+                className="w-full h-full transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+              >
+                <img
+                  src={avatarUrl(profil.foto, 96)}
+                  alt={profil.nama || profil.nim}
+                  className="object-cover w-full h-full"
+                />
+              </button>
             ) : (
               inisial
             )}
@@ -248,6 +258,14 @@ export default function UserProfileDialog({ userId, onClose }: { userId: string;
             </>
           ) : null}
         </div>
+
+        {lihatFoto && profil?.foto && (
+          <FotoProfilModal
+            foto={profil.foto}
+            nama={profil.nama || profil.nim}
+            onClose={() => setLihatFoto(false)}
+          />
+        )}
       </div>
     </div>
   );

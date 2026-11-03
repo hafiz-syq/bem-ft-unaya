@@ -10,6 +10,7 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { ROLE_LABEL } from '../lib/roles';
 import PasswordInput from '../components/PasswordInput';
+import FotoProfilModal from '../components/FotoProfilModal';
 
 interface Jabatan {
   id: string;
@@ -48,7 +49,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const bagian = searchParams.get('bagian');
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -65,6 +66,7 @@ export default function Profile() {
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [photoMsg, setPhotoMsg] = useState('');
   const [photoErr, setPhotoErr] = useState('');
+  const [lihatFoto, setLihatFoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   // State untuk ganti password (berlaku untuk SEMUA role)
@@ -175,6 +177,11 @@ export default function Profile() {
       setPasswordLama('');
       setPasswordBaru('');
       setKonfirmasiPassword('');
+      // Server menaikkan versi sesi pada ganti password, jadi cookie ini sudah
+      // mati. Keluar rapi supaya pengguna tidak terjebak halaman dengan sesi mati.
+      await logout();
+      navigate('/login');
+      return;
     } catch (err) {
       if (axios.isAxiosError(err)) setPasswordErr(err.response?.data?.message || 'Gagal mengganti password.');
       else setPasswordErr('Terjadi kesalahan yang tidak terduga.');
@@ -280,7 +287,15 @@ export default function Profile() {
           <div className="relative shrink-0">
             <div className="flex items-center justify-center w-28 h-28 overflow-hidden rounded-full bg-white/20 backdrop-blur-sm ring-4 ring-white/30">
               {data.foto ? (
-                <img src={avatarUrl(data.foto, 112)} alt={nama} className="object-cover w-full h-full" />
+                <button
+                  type="button"
+                  onClick={() => setLihatFoto(true)}
+                  title="Lihat foto lebih besar"
+                  aria-label="Lihat foto lebih besar"
+                  className="w-full h-full transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  <img src={avatarUrl(data.foto, 112)} alt={nama} className="object-cover w-full h-full" />
+                </button>
               ) : (
                 <span className="text-3xl font-black text-white">{inisial}</span>
               )}
@@ -597,6 +612,10 @@ export default function Profile() {
           </div>
         </form>
       </div>
+
+      {lihatFoto && data.foto && (
+        <FotoProfilModal foto={data.foto} nama={nama} onClose={() => setLihatFoto(false)} />
+      )}
     </div>
   );
 }

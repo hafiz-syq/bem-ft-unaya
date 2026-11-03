@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { LayoutDashboard, Mail, KeyRound } from 'lucide-react';
+import { LayoutDashboard, Mail, KeyRound, LogOut } from 'lucide-react';
 import { avatarUrl } from '../lib/gambar';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -16,7 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
  * kehilangan posisi.
  */
 export default function MenuProfil() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [buka, setBuka] = useState(false);
   const wadahRef = useRef<HTMLDivElement>(null);
   const tombolRef = useRef<HTMLButtonElement>(null);
@@ -104,6 +104,19 @@ export default function MenuProfil() {
               {label}
             </Link>
           ))}
+
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setBuka(false);
+              void logout();
+            }}
+            className="flex w-full items-center gap-3 border-t border-gray-200 px-4 py-2.5 text-sm font-bold text-red-600 transition-colors hover:bg-red-50 focus:bg-red-50 focus:outline-none dark:border-gray-700 dark:text-red-400 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
+          >
+            <LogOut className="w-4 h-4 shrink-0 text-red-500" />
+            Keluar
+          </button>
         </div>
       )}
     </div>
