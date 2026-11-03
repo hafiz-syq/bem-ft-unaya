@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import UserAvatar from '../components/UserAvatar';
 import { FileEdit, Plus, Clock, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import axios from 'axios';
+import { isAdminRole } from '../lib/roles';
 
 interface ProfileData {
     nama: string;
@@ -183,8 +184,10 @@ export default function DataRequests() {
                                     </div>
                                 </div>
 
-                                {/* Tombol Aksi untuk Admin/Pengurus jika status masih PENDING */}
-                                {user?.role !== 'MAHASISWA' && req.status === 'PENDING' && (
+                                {/* Tombol aksi: hanya ADMIN/SUPERADMIN. Server (processRequest)
+                                    menolak role lain, jadi UI tidak boleh menawarkan tombol yang
+                                    pasti gagal. */}
+                                {isAdminRole(user?.role) && req.status === 'PENDING' && (
                                     <div className="flex flex-col justify-center gap-2 pt-4 border-t border-gray-100 dark:border-gray-800 md:border-l md:border-gray-100 dark:md:border-gray-800 md:pl-5 md:pt-0">
                                         <button
                                             onClick={() => handleProcess(req.id, 'APPROVED')}

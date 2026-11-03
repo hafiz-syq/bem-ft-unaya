@@ -33,11 +33,10 @@ export const createRequest = async (req: any, res: Response, next: NextFunction)
 export const getRequests = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
     const user = req.user;
-    let whereCondition = {};
-
-    if (user.role === 'MAHASISWA') {
-      whereCondition = { userId: user.id };
-    }
+    // Hanya ADMIN/SUPERADMIN yang melihat seluruh pengajuan. Role pengurus lain
+    // (PENGURUS, BEM, DPM, himpunan) dipaksa ke barisnya sendiri: include di
+    // bawah membawa user.profile berisi nama, email, dan no_hp.
+    const whereCondition = isAdminRole(user.role) ? {} : { userId: user.id };
 
     const requests = await prisma.dataChangeRequest.findMany({
       where: whereCondition,
