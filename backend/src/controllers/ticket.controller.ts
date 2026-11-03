@@ -14,6 +14,9 @@ import {
   TARGET_LABEL,
   canAccessTicket,
   canExportKeluhan,
+  isAdminRole,
+  isOfficer,
+  bolehMemoderasiTiket,
   isTicketTarget,
   ticketVisibilityWhere,
   type TicketTarget,
@@ -489,6 +492,13 @@ export const assignTicket = async (req: any, res: Response, next: NextFunction):
 // 7. Mengubah status moderasi / status tiket
 export const setTicketModeration = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    // Penjaga peran paling awal, sebelum body dibaca dan sebelum query: penulis
+    // tiket (MAHASISWA) berhak membacanya, tidak berhak mengubah statusnya.
+    if (!isAdminRole(req.user.role) && !isOfficer(req.user.role)) {
+      res.status(403).json({ message: 'Hanya admin atau pengurus yang dapat mengubah status tiket.' });
+      return;
+    }
+
     const { id } = req.params;
     const { moderationStatus, status } = req.body;
 
@@ -521,10 +531,15 @@ export const setTicketModeration = async (req: any, res: Response, next: NextFun
       return;
     }
 
-    const ticket = await prisma.ticket.findUnique({ where: { id } });
+    const ticket = await prisma.ticket.findUnique({
+      where: { id },
+      include: { assignments: { where: { isActive: true } } },
+    });
     if (!ticket) { res.status(404).json({ message: 'Tiket tidak ditemukan.' }); return; }
 
-    if (!canAccessTicket(req.user, { ...ticket, assignments: [] })) {
+    // Hak baca tidak cukup di sini: tanpa penugasan aktif, pengurus tidak boleh
+    // mengubah status maupun menandatangani moderatedById atas tiket orang lain.
+    if (!bolehMemoderasiTiket(req.user, ticket)) {
       res.status(403).json({ message: 'Anda tidak berhak mengubah tiket ini.' });
       return;
     }

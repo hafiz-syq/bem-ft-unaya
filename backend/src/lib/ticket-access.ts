@@ -50,6 +50,22 @@ export const isOfficer = (role: string): boolean => OFFICER_ROLES.includes(role)
 export const canExportKeluhan = (role: string): boolean =>
   isAdminRole(role) || role === 'PENGURUS_DPM';
 
+/**
+ * Mengubah status tiket / status moderasi: admin, atau pengurus yang sedang
+ * ditugaskan pada tiket itu.
+ *
+ * Sengaja lebih ketat dari canAccessTicket: penulis boleh MEMBACA tiketnya
+ * sendiri, tetapi kalau hak yang sama dipakai untuk menulis, mahasiswa bisa
+ * mempublikasikan keluhannya sendiri ke feed publik dan sekaligus memasang
+ * moderatedById atas namanya — jejak yang dipakai laporan bulanan.
+ */
+export const bolehMemoderasiTiket = (
+  user: { id: string; role: string },
+  ticket: { assignments?: { assigneeId: string; isActive: boolean }[] }
+): boolean =>
+  isAdminRole(user.role) ||
+  Boolean(ticket.assignments?.some((a) => a.isActive && a.assigneeId === user.id));
+
 /** Label organisasi untuk ditampilkan di UI maupun di berkas ekspor. */
 export const TARGET_LABEL: Record<TicketTarget, string> = {
   DPM: 'DPM (Dewan Perwakilan Mahasiswa)',
