@@ -143,9 +143,9 @@ const BARIS: Baris[] = [
   {
     metode: 'PATCH',
     jalur: '/devices/:id/batas',
-    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 400 },
     amanDiuji: true,
-    catatan: 'id tidak ada sehingga admin menerima 404 dan tidak ada batas perangkat yang berubah',
+    catatan: 'badan {} dari pemanggil matrix ditolak validasi 1..10 lebih dulu (400, sebelum query), jadi sel admin sengaja 400 dan bukan angka sukses; PATCH yang sah dan penurunan batas diuji di ujiBatasPerangkat',
   },
 
   // ── profile.routes.ts ───────────────────────────────────────────────────
@@ -964,6 +964,72 @@ async function ujiDrafKontenTertutup(
   }
 }
 
+/**
+ * Batas perangkat: bawaan akun baru 3, validasi batas, dan menurunkan batas
+ * tidak mengeluarkan perangkat yang sudah terdaftar.
+ *
+ * Poin bawaan menguji nilai default kolom, bukan satu endpoint: tidak ada jalur
+ * pembuatan akun yang menulis maxDevices, jadi semuanya memakai bawaan yang sama.
+ * Penolakan peran (MAHASISWA/PENGURUS 403) sudah dijaga baris matriks
+ * PATCH /devices/:id/batas di atas dan tidak diulang di sini.
+ */
+async function ujiBatasPerangkat(
+  akun: Record<Exclude<Peran, 'tamu'>, AkunUji>,
+  laporan: Laporan
+): Promise<void> {
+  const stempel = Date.now();
+  const akunBaru = await prisma.user.create({
+    data: { nim: `9999${stempel}`, password_hash: 'uji-tidak-sah', role: 'MAHASISWA' },
+    select: { id: true, maxDevices: true },
+  });
+
+  try {
+    if (akunBaru.maxDevices === 3) laporan.luluskan('akun baru tanpa maxDevices memakai bawaan 3');
+    else laporan.gagalkan('akun baru tanpa maxDevices memakai bawaan 3', akunBaru.maxDevices, 3);
+
+    for (const batas of [0, 11]) {
+      const hasil = await minta(`/devices/${akun.mahasiswa.id}/batas`, {
+        metode: 'PATCH',
+        cookie: akun.admin.cookie,
+        body: { maxDevices: batas },
+      });
+      const nama = `PATCH /devices/:id/batas [admin] menolak maxDevices=${batas}`;
+      if (hasil.status !== 400) laporan.gagalkan(`${nama} — status ${hasil.status}`, hasil.status, 400);
+      else laporan.luluskan(`${nama} → 400`);
+    }
+
+    const setelahTolak = await prisma.user.findUnique({
+      where: { id: akun.mahasiswa.id },
+      select: { maxDevices: true },
+    });
+    const namaTetap = 'dua penolakan di atas tidak mengubah nilai batas akun target';
+    if (setelahTolak?.maxDevices !== 3) laporan.gagalkan(namaTetap, setelahTolak?.maxDevices, 3);
+    else laporan.luluskan(namaTetap);
+
+    await prisma.userDevice.createMany({
+      data: [
+        { userId: akun.mahasiswa.id, deviceId: `uji-batas-a-${stempel}`, label: 'Uji A' },
+        { userId: akun.mahasiswa.id, deviceId: `uji-batas-b-${stempel}`, label: 'Uji B' },
+      ],
+    });
+    const sebelum = await prisma.userDevice.count({ where: { userId: akun.mahasiswa.id } });
+    const turun = await minta(`/devices/${akun.mahasiswa.id}/batas`, {
+      metode: 'PATCH',
+      cookie: akun.admin.cookie,
+      body: { maxDevices: 1 },
+    });
+    const sesudah = await prisma.userDevice.count({ where: { userId: akun.mahasiswa.id } });
+
+    const namaPutus = 'menurunkan batas 3 -> 1 tidak menghapus baris UserDevice';
+    if (turun.status !== 200) laporan.gagalkan(`${namaPutus} — PATCH status ${turun.status}`, turun.status, 200);
+    else if (sesudah !== sebelum) laporan.gagalkan(namaPutus, sesudah, sebelum);
+    else laporan.luluskan(`${namaPutus} (${sesudah} baris tetap ada)`);
+  } finally {
+    await prisma.userDevice.deleteMany({ where: { userId: akun.mahasiswa.id } });
+    await prisma.user.delete({ where: { id: akunBaru.id } });
+  }
+}
+
 // ─── Pemeriksaan kelengkapan: setiap rute terdaftar harus punya baris ──────
 interface RuteTerdaftar {
   kunci: string;
@@ -1048,6 +1114,9 @@ async function main(): Promise<void> {
 
     console.log('\n--- Isi balasan: draf konten tidak terbaca anonim ---');
     await ujiDrafKontenTertutup(akun, laporan);
+
+    console.log('\n--- Batas perangkat ---');
+    await ujiBatasPerangkat(akun, laporan);
 
     console.log('\n--- Kelengkapan cakupan ---');
     const { terpasang, berkasTidakTerpasang } = daftarRuteTerpasang();
