@@ -40,6 +40,16 @@ export interface HasilLampiran {
 
 const unik = (): string => `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
 
+/**
+ * Nama berkas kiriman ikut menjadi publicId Cloudinary dan nama berkas di disk
+ * cadangan, sehingga `../../orang-lain/x` akan menulis di luar folder kita.
+ * Karakter pertama wajib huruf/angka agar `..` dan varian titik lainnya tidak
+ * pernah lolos; sisanya dibatasi pada [a-z0-9._-] maksimal 80 karakter.
+ * Nama yang tidak cocok diganti 'lampiran' — yang penting hanyalah nama unik.
+ */
+export const namaAman = (teks: string): string =>
+  /^[a-z0-9][a-z0-9._-]{0,79}$/i.test(teks) ? teks : 'lampiran';
+
 /** Mengubah isi berkas gambar menjadi WebP berukuran wajar (lampiran cukup 1600px). */
 const keWebp = (buffer: Buffer): Promise<Buffer> =>
   sharp(buffer, { failOn: 'none', limitInputPixels: 60_000_000 })
@@ -118,7 +128,7 @@ export const simpanLampiran = async (file: Express.Multer.File): Promise<HasilLa
         );
       }
     }
-    nama = `${path.parse(nama).name || 'lampiran'}-${unik()}`;
+    nama = `${namaAman(path.parse(nama).name)}-${unik()}`;
     if (cloudinarySiap()) {
       const { secureUrl } = await unggahKeCloudinary(webp, {
         folder: FOLDER_LAMPIRAN,

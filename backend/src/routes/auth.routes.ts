@@ -20,9 +20,9 @@ const router = Router();
 
 // Proteksi Brute-Force khusus untuk endpoint login
 const loginLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 15 menit
+  windowMs: 5 * 60 * 1000, // 5 menit
   max: 5, // Batas 5 kali percobaan gagal/request per IP
-  message: { message: 'Terlalu banyak percobaan login. Silakan coba lagi setelah 15 menit.' }
+  message: { message: 'Terlalu banyak percobaan login. Silakan coba lagi setelah 5 menit.' }
 });
 
 // Endpoint Autentikasi

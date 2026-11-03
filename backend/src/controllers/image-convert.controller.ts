@@ -8,7 +8,7 @@ import { pastikanFolderUploads } from '../lib/uploads';
 import { cloudinarySiap, unggahKeCloudinary } from '../lib/cloudinary';
 import { logActivity } from '../services/audit.service';
 import { isAdminRole } from '../lib/ticket-access';
-import { unduh, kepala } from '../lib/http';
+import { unduh, kepala, hostTidakAman } from '../lib/http';
 
 /**
  * Konversi gambar dari URL web menjadi WebP yang lebih ringan.
@@ -55,36 +55,17 @@ const ekstensiDariMime = (mimeType: string): string => {
   return map[mimeType] || '.bin';
 };
 
+/**
+ * Pemeriksaan awal yang ramah: hanya bentuk URL yang bisa dinilai tanpa DNS.
+ * Daftar hitam host lives di lib/http (termasuk 169.254/16, CGNAT dan IPv6
+ * internal) dan `unduh`/`kepala` memeriksanya lagi untuk SETIAP hop setelah
+ * alamat di-resolve, jadi bentuk seperti http://2130706433/ tetap tertangkap.
+ */
 const validUrl = (url: string): boolean => {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
-
-    // Cegah SSRF: tolak localhost, IP internal, dan domain internal
-    const host = parsed.hostname.toLowerCase();
-    if (
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host === '::1' ||
-      host.startsWith('10.') ||
-      host.startsWith('172.16.') || host.startsWith('172.17.') || host.startsWith('172.18.') ||
-      host.startsWith('172.19.') || host.startsWith('172.20.') || host.startsWith('172.21.') ||
-      host.startsWith('172.22.') || host.startsWith('172.23.') || host.startsWith('172.24.') ||
-      host.startsWith('172.25.') || host.startsWith('172.26.') || host.startsWith('172.27.') ||
-      host.startsWith('172.28.') || host.startsWith('172.29.') || host.startsWith('172.30.') ||
-      host.startsWith('172.31.') ||
-      host.startsWith('192.168.') ||
-      host.startsWith('0.') ||
-      host.endsWith('.local') ||
-      host.endsWith('.internal') ||
-      host.endsWith('.private') ||
-      host === '[::1]' ||
-      host === '[fd00::]' // IPv6 unique local
-    ) {
-      return false;
-    }
-
-    return true;
+    return !hostTidakAman(parsed.hostname);
   } catch {
     return false;
   }

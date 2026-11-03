@@ -14,6 +14,7 @@
  *   redirect ke localhost/internal tetap diunduh oleh server.
  */
 import type { IncomingHttpHeaders } from 'http';
+import { promises as dns } from 'dns';
 
 interface ResponsUnduh {
   status: number;
@@ -61,6 +62,33 @@ export const hostTidakAman = (hostname: string): boolean => {
 
 const tolak = (pesan: string): Error => new Error(pesan);
 
+/**
+ * Pemeriksaan host sebelum fetch.
+ *
+ * `hostTidakAman` hanya mengenali alamat yang ditulis apa adanya, sedangkan
+ * `http://2130706433/` dan `http://127.1/` juga menunjuk ke loopback, dan
+ * sebuah domain publik bisa saja menunjuk ke 10.0.0.1. Karena itu hostname
+ * selalu di-resolve lebih dulu dan SETIAP jawaban diperiksa; gagal resolve
+ * diperlakukan sebagai penolakan (fail closed).
+ *
+ * Sisa risiko: DNS bisa menjawab berbeda saat fetch gerçekten koneksi dibuat
+ * (rebinding). Jeda antara keduanya milidetik dan tidak ada mekanisme sah untuk
+ * mengganti rekord secepat itu; perlindungan penuh butuh mengunci IP.
+ */
+const pastikanHostAman = async (hostname: string): Promise<void> => {
+  if (hostTidakAman(hostname)) throw tolak('Request failed: host internal/private tidak diizinkan.');
+
+  let jawaban: { address: string }[];
+  try {
+    jawaban = await dns.lookup(hostname.replace(/^\[|\]$/g, ''), { all: true });
+  } catch {
+    throw tolak('Request failed: host tidak dapat di-resolve.');
+  }
+  if (jawaban.some((a) => hostTidakAman(a.address))) {
+    throw tolak('Request failed: host internal/private tidak diizinkan.');
+  }
+};
+
 /** Mengikuti redirect secara manual sambil memeriksa setiap host hop. */
 const ikutiDenganPemeriksaan = async (
   url: string,
@@ -75,9 +103,7 @@ const ikutiDenganPemeriksaan = async (
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       throw tolak('Request failed: hanya http/https yang diizinkan.');
     }
-    if (hostTidakAman(parsed.hostname)) {
-      throw tolak('Request failed: host internal/private tidak diizinkan.');
-    }
+    await pastikanHostAman(parsed.hostname);
 
     const response = await fetch(target, {
       method: metode,

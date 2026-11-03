@@ -14,9 +14,14 @@ import { simpanFotoProfil } from '../lib/foto-profil';
 import { beriNotifikasiPercobaanPerangkat } from '../services/notifikasi-perangkat.service';
 import crypto from 'crypto';
 
+// Batas panjang supaya body raksasa tidak sempat masuk ke findUnique lalu
+// bcrypt.compare. NIM terpanjang yang tercatat di produksi 14 karakter
+// (plafon 20 longgar). Password sengaja 200, bukan 72: bcrypt memotong di 72
+// byte, jadi akun berpassword lebih panjang hari ini masih bisa masuk dan
+// tidak boleh dikunci oleh validasi baru ini.
 export const loginSchema = z.object({
-  nim: z.string().min(1),
-  password: z.string().min(1)
+  nim: z.string().trim().min(1, 'NIM wajib diisi.').max(20, 'NIM terlalu panjang.'),
+  password: z.string().min(1, 'Password wajib diisi.').max(200, 'Password terlalu panjang.')
 });
 
 // --- Pengaturan verifikasi email ---
@@ -72,7 +77,12 @@ const issueVerificationCode = async (
 
 export const login = async (req: any, res: any, next: any): Promise<void> => {
   try {
-    const { nim, password } = req.body;
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: parsed.error.issues[0]?.message || 'Data yang dikirim tidak valid.' });
+      return;
+    }
+    const { nim, password } = parsed.data;
 
     // 1. Cari user berdasarkan NIM (profil ikut diambil untuk status verifikasi email)
     const user = await prisma.user.findUnique({ where: { nim }, include: { profile: true } });
