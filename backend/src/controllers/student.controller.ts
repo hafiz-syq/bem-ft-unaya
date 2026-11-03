@@ -100,21 +100,23 @@ export const getStudents = async (req: any, res: Response, next: NextFunction): 
       role: { notIn: bisaLihatAdmin ? ['SUPERADMIN'] : ['ADMIN', 'SUPERADMIN'] },
       // Akun di tempat sampah tidak pernah muncul di daftar utama.
       deletedAt: null,
-      ...(hanyaDirektori ? { isActive: true } : {}),
     };
 
-    if (role !== 'ALL' && ASSIGNABLE_ROLES.includes(role)) {
-      if (role !== 'ADMIN' || bisaLihatAdmin) {
-        where.role = role;
-      }
+    // Satu keputusan untuk filter role & status, dipakai Prisma dan query
+    // ringkasan angkatan di bawah supaya keduanya tidak bisa berbeda.
+    const peranTerpilih =
+      role !== 'ALL' && ASSIGNABLE_ROLES.includes(role) && (role !== 'ADMIN' || bisaLihatAdmin)
+        ? role
+        : null;
+    if (peranTerpilih) {
+      where.role = peranTerpilih;
     }
 
     // Direktori mahasiswa selalu berisi akun aktif; filter status dari UI
     // tidak boleh membuka daftar akun nonaktif untuk peran ini.
-    if (!hanyaDirektori) {
-      if (status === 'AKTIF') where.isActive = true;
-      else if (status === 'NONAKTIF') where.isActive = false;
-    }
+    const statusAktif =
+      hanyaDirektori || status === 'AKTIF' ? true : status === 'NONAKTIF' ? false : null;
+    if (statusAktif !== null) where.isActive = statusAktif;
 
     if (search) {
       where.OR = [
@@ -135,7 +137,29 @@ export const getStudents = async (req: any, res: Response, next: NextFunction): 
     // sengaja tidak ikut dihitung walau SUPERADMIN sedang melihat daftar admin.
     const roleMahasiswa = ['MAHASISWA', ...OFFICER_ROLES];
 
-    const [akun, total, daftarNim] = await Promise.all([
+    // Predikat ringkasan angkatan = predikat `where` ∩ roleMahasiswa. Filter
+    // role: notIn ADMIN/SUPERADMIN tidak perlu diulang karena keduanya memang
+    // tidak ada di dalam roleMahasiswa.
+    const kondisiAngkatan: string[] = ['deletedAt IS NULL'];
+    const nilaiAngkatan: unknown[] = [];
+    if (peranTerpilih) {
+      kondisiAngkatan.push('role = ?');
+      nilaiAngkatan.push(peranTerpilih);
+    }
+    if (statusAktif !== null) {
+      kondisiAngkatan.push('isActive = ?');
+      nilaiAngkatan.push(statusAktif);
+    }
+    if (search) {
+      kondisiAngkatan.push(
+        '(nim LIKE ? OR EXISTS (SELECT 1 FROM StudentProfile sp WHERE sp.userId = User.id AND sp.nama LIKE ?))'
+      );
+      nilaiAngkatan.push(`%${search}%`, `%${search}%`);
+    }
+    kondisiAngkatan.push(`role IN (${roleMahasiswa.map(() => '?').join(', ')})`);
+    nilaiAngkatan.push(...roleMahasiswa);
+
+    const [akun, total, barisAngkatan] = await Promise.all([
       prisma.user.findMany({
         where: whereDaftar,
         skip,
@@ -145,21 +169,27 @@ export const getStudents = async (req: any, res: Response, next: NextFunction): 
       }),
       prisma.user.count({ where: whereDaftar }),
       // Ringkasan per angkatan butuh SELURUH baris yang cocok dengan filter,
-      // bukan hanya halaman yang sedang tampil. Hanya kolom nim yang diambil
-      // supaya query tetap ringan.
-      prisma.user.findMany({
-        where: { AND: [where, { role: { in: roleMahasiswa } }] },
-        select: { nim: true },
-      }),
+      // bukan hanya halaman yang sedang tampil. Pengelompokannya dikerjakan
+      // database atas 2 digit pertama nim supaya tidak ada query yang tumbuh
+      // seukuran seluruh akun. Predikatnya dibangun dari variabel yang sama
+      // dengan `where` di atas: filter baru di `where` harus ditambahkan juga
+      // di sini.
+      prisma.$queryRawUnsafe<{ dua: string; jumlah: bigint }[]>(
+        `SELECT LEFT(nim, 2) AS dua, COUNT(*) AS jumlah
+         FROM User
+         WHERE ${kondisiAngkatan.join(' AND ')}
+         GROUP BY dua`,
+        ...nilaiAngkatan
+      ),
     ]);
 
     // Tahun angkatan dibaca dari 2 digit pertama NIM, aturan yang sama dengan
     // kolom angkatan per baris, sehingga hitungan selalu konsisten.
     const petaAngkatan = new Map<number, number>();
-    for (const { nim } of daftarNim) {
-      const tahun = hitungAngkatan(nim);
+    for (const baris of barisAngkatan) {
+      const tahun = hitungAngkatan(baris.dua);
       if (tahun === null) continue;
-      petaAngkatan.set(tahun, (petaAngkatan.get(tahun) ?? 0) + 1);
+      petaAngkatan.set(tahun, (petaAngkatan.get(tahun) ?? 0) + Number(baris.jumlah));
     }
     const perAngkatan = [...petaAngkatan.entries()]
       .map(([angkatan, jumlah]) => ({ angkatan, jumlah }))

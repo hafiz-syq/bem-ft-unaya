@@ -1,12 +1,14 @@
 /**
  * Unit test tanpa server & tanpa database.
  *
- * Dua kelompok yang diuji:
+ * Tiga kelompok yang diuji:
  *   A. lib/ticket-access — aturan privasi tiket murni (siapa boleh baca apa).
  *   B. Guard peran di controller kritis — memastikan penolakan 403 terjadi di
  *      DALAM controller SEBELUM query apa pun ke database, sehingga bila ada
  *      yang menghapus guard, test ini gagal (prisma akan tersentuh / next
  *      dipanggil) tanpa perlu server berjalan.
+ *   C. Peta MIME -> ekstensi untuk lampiran/arsip (celah stored XSS P0.2).
+ *   D. Gerbang retensi (B2.7) — penghapusan tidak boleh jalan tanpa flag.
  *
  * Jalankan: npm run test:unit   (dari folder backend)
  */
@@ -28,6 +30,8 @@ import {
 import { createPositionSlot, assignPosition } from '../controllers/position.controller';
 import { processRequest } from '../controllers/data-request.controller';
 import { getAuditLogs } from '../controllers/audit.controller';
+import { EKSTENSI_DOKUMEN, ekstensiDokumen } from '../middlewares/upload.middleware';
+import { pangkasRetensi } from '../services/retensi.service';
 
 let lulus = 0;
 const gagal: string[] = [];
@@ -140,6 +144,49 @@ async function main(): Promise<void> {
     await getAuditLogs({ user: { id: 'u-uji', role: 'PENGURUS_BEM' }, query: {} }, res as never, (() => { nextDipanggil = true; }) as never);
     uji('getAuditLogs: PENGURUS ditolak 403 (khusus admin)', res.code === 403 && !nextDipanggil);
   }
+
+  console.log('\n=== C. Ekstensi lampiran diturunkan dari MIME, bukan nama berkas ===\n');
+
+  uji(
+    'setiap MIME yang diizinkan punya ekstensi kanoniknya sendiri',
+    ['application/pdf|.pdf', 'application/msword|.doc',
+     'application/vnd.openxmlformats-officedocument.wordprocessingml.document|.docx',
+     'application/vnd.ms-excel|.xls',
+     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|.xlsx',
+     'application/vnd.ms-powerpoint|.ppt',
+     'application/vnd.openxmlformats-officedocument.presentationml.presentation|.pptx',
+    ].every((pasang) => {
+      const [mime, ekstensi] = pasang.split('|');
+      return EKSTENSI_DOKUMEN[mime] === ekstensi && ekstensiDokumen(mime) === ekstensi;
+    })
+  );
+  uji('MIME asing dipaksa .pdf, tidak pernah ikut nama berkas', ekstensiDokumen('text/html') === '.pdf' && ekstensiDokumen(undefined) === '.pdf');
+  uji('parameter MIME diabaikan saat memetakan ekstensi', ekstensiDokumen('application/pdf; charset=binary') === '.pdf');
+  uji('peta tidak memuat ekstensi yang bisa dieksekusi browser', !Object.values(EKSTENSI_DOKUMEN).some((e) => ['.html', '.htm', '.svg', '.xhtml', '.js'].includes(e)));
+
+  // --- D. Gerbang retensi ------------------------------------------------
+  // Sengaja hanya sisi "mati": membuka gerbang di sini akan benar-benar
+  // menghapus baris di DATABASE_URL milik siapa pun yang menjalankan tes.
+  const envRetensi = process.env.RETENSI_AKTIF;
+  delete process.env.RETENSI_AKTIF;
+  const retensiLepas = await pangkasRetensi();
+  uji(
+    'retensi: flag lepas => aktif=false dan semua hitungan nol',
+    retensiLepas.aktif === false &&
+      [
+        retensiLepas.notifikasi,
+        retensiLepas.auditLog,
+        retensiLepas.errorLog,
+        retensiLepas.pesanChat,
+        retensiLepas.jejakTamu,
+      ].every((n) => n === 0)
+  );
+  process.env.RETENSI_AKTIF = '0';
+  uji('retensi: "0" tidak membuka gerbang', (await pangkasRetensi()).aktif === false);
+  process.env.RETENSI_AKTIF = 'true';
+  uji('retensi: hanya "1" yang membuka gerbang', (await pangkasRetensi()).aktif === false);
+  if (envRetensi === undefined) delete process.env.RETENSI_AKTIF;
+  else process.env.RETENSI_AKTIF = envRetensi;
 
   console.log(`\n--- RINGKASAN UNIT TEST ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
   if (gagal.length > 0) {

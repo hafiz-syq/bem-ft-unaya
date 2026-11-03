@@ -331,6 +331,10 @@ model Ticket {
   updatedAt        DateTime           @updatedAt
 
   @@index([status, priority, createdAt])
+  // EXPLAIN: rata-rata jam respons (jendela 2000 tiket terbaru) dan hitung
+  // nomor tiket harian sama-sama menyaring createdAt tanpa filter status;
+  // sebelumnya keduanya memindai seluruh tabel (24.888 baris).
+  @@index([createdAt])
 }
 
 model TicketAssignment {
@@ -394,6 +398,9 @@ model PublicComment {
 
   // Mempercepat daftar komentar yang tayang di halaman depan (hanya APPROVED).
   @@index([status, createdAt])
+  // EXPLAIN: tren komentar per bulan menyaring rentang createdAt saja; tanpa
+  // indeks ini query-nya memindai seluruh indeks status (39.780 baris).
+  @@index([createdAt])
   @@index([isFlagged, createdAt])
   @@index([deletedAt])
 }
@@ -451,6 +458,10 @@ model Content {
   author    User     @relation(fields: [authorId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // EXPLAIN: daftar konten (dengan atau tanpa filter type) semula full scan
+  // 5994 baris + filesort; indeks ini menghilangkan penyortirannya.
+  @@index([status, createdAt])
 }
 
 model Agenda {
@@ -512,6 +523,12 @@ model Demisioner {
   description  String?  @db.Text // sejarah singkat / pesan demisioner
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  // EXPLAIN: daftar demisioner (filter organization + urut organization,
+  // periode, nama) semula full scan + filesort. Periode diminta DESC; MySQL 8
+  // masih menyortir sisa baris yang cocok, jadi indeks ini memotong pembacaan
+  // tabel, bukan menghilangkan filesort.
+  @@index([organization, periode, nama])
 }
 
 /// Pengaturan teks situs yang bisa diubah admin setiap pergantian kepengurusan.

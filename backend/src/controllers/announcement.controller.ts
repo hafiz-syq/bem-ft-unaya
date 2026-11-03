@@ -189,41 +189,51 @@ export const createAnnouncement = async (req: any, res: Response, next: NextFunc
       return;
     }
 
-    const data = await prisma.announcement.create({
-      data: {
-        title,
-        content,
-        audience,
-        audienceRole: (audience === 'ROLE' ? audienceRole : null) as any,
-        audienceAngkatan: audience === 'ANGKATAN' ? audienceAngkatan : null,
-        audienceOrganizationId: audience === 'ORGANISASI' ? audienceOrganizationId : null,
-        isPublished,
-        createdById: req.user.id,
-      },
-    });
+    // Pengumuman dan kotak masuk penerima ditulis bersama: gagal di tengah
+    // meninggalkan pengumuman yang tampil tanpa notifikasi bagi sebagian akun.
+    const { data, idPenerima } = await prisma.$transaction(async (tx) => {
+      const baru = await tx.announcement.create({
+        data: {
+          title,
+          content,
+          audience,
+          audienceRole: (audience === 'ROLE' ? audienceRole : null) as any,
+          audienceAngkatan: audience === 'ANGKATAN' ? audienceAngkatan : null,
+          audienceOrganizationId: audience === 'ORGANISASI' ? audienceOrganizationId : null,
+          isPublished,
+          createdById: req.user.id,
+        },
+      });
 
-    let jumlahPenerima = 0;
-    if (isPublished) {
-      const penerima = await prisma.user.findMany({
-        where: filterPenerima(data) as any,
+      if (!isPublished) return { data: baru, idPenerima: [] as string[] };
+
+      const penerima = await tx.user.findMany({
+        where: filterPenerima(baru) as any,
         select: { id: true },
       });
-      jumlahPenerima = penerima.length;
 
       if (penerima.length > 0) {
-        await prisma.notification.createMany({
+        await tx.notification.createMany({
           data: penerima.map((p) => ({
             userId: p.id,
             title: 'Pengumuman Baru',
             message: title,
           })),
         });
-        await kirimPushKeBanyak(penerima.map((p) => p.id), {
-          title: 'Pengumuman Baru',
-          body: title,
-          url: '/pengumuman',
-        });
       }
+
+      return { data: baru, idPenerima: penerima.map((p) => p.id) };
+    });
+
+    const jumlahPenerima = idPenerima.length;
+
+    // Push di luar transaksi: efek samping jaringan tidak dibatalkan oleh rollback.
+    if (jumlahPenerima > 0) {
+      await kirimPushKeBanyak(idPenerima, {
+        title: 'Pengumuman Baru',
+        body: title,
+        url: '/pengumuman',
+      });
     }
 
     await logActivity(

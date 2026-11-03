@@ -78,54 +78,82 @@ export const createTicket = async (req: any, res: Response, next: NextFunction):
     // penyimpanan tidak meninggalkan tiket yang menjanjikan lampiran tak ada.
     const lampiranBaru: HasilLampiran | null = file ? await simpanLampiran(file) : null;
 
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const randomCode = Math.floor(1000 + Math.random() * 9000);
-    const ticket_no = `TKT-${dateStr}-${randomCode}`;
-
-    const newTicket = await prisma.ticket.create({
-      data: {
-        ticket_no,
-        type,
-        category,
-        title,
-        content,
-        targetOrganization,
-        senderId: userId,
-        status: 'DIKIRIM',
-        // Aspirasi memang ditujukan untuk ruang publik sejak awal.
-        // Keluhan ditahan dulu supaya bisa diperiksa sebelum tayang (anonim).
-        moderationStatus: type === 'ASPIRASI' ? 'PUBLISHED' : 'PENDING_MODERATION',
-      },
-    });
-
-    if (lampiranBaru) {
-      await prisma.attachment.create({
-        data: {
-          ticketId: newTicket.id,
-          filename: lampiranBaru.filename,
-          url: lampiranBaru.url,
-          mimeType: lampiranBaru.mimeType,
-          size: lampiranBaru.size,
-        },
-      });
-    }
-
-    // --- Notifikasi dalam aplikasi ---
     const roles = roleYangMenerima(type, targetOrganization);
     const penerima = await prisma.user.findMany({
       where: { role: { in: roles as any }, isActive: true },
       select: { id: true },
     });
 
-    if (penerima.length > 0) {
-      await prisma.notification.createMany({
-        data: penerima.map((p) => ({
-          userId: p.id,
-          title: 'Tiket Masuk Baru',
-          message: `Tiket ${type} baru #${ticket_no} menunggu untuk ditinjau.`,
-        })),
-      });
+    // Nomor tiket = urutan baris hari itu, bukan acakan. Unique constraint pada
+    // ticket_no adalah penjaga sebenarnya: dua pengiriman serentak menghasilkan
+    // P2002 yang dijawab 409, bukan tiket bernomor ganda.
+    // shortcut: sengaja TANPA isolationLevel Serializable — diukur 12 kirim
+    // serentak, Serializable cuma meloloskan 1 (11x P2034 = 500), default
+    // meloloskan 1 dan sisanya P2002 = 409 yang bisa diminta ulang.
+    const mulaiHariUtc = new Date();
+    mulaiHariUtc.setUTCHours(0, 0, 0, 0);
+    const dateStr = mulaiHariUtc.toISOString().slice(0, 10).replace(/-/g, '');
 
+    let newTicket: { id: string; ticket_no: string };
+    try {
+      newTicket = await prisma.$transaction(
+        async (tx) => {
+          const jumlahHariIni = await tx.ticket.count({ where: { createdAt: { gte: mulaiHariUtc } } });
+          const ticket_no = `TKT-${dateStr}-${String(jumlahHariIni + 1).padStart(4, '0')}`;
+
+          const tiket = await tx.ticket.create({
+            data: {
+              ticket_no,
+              type,
+              category,
+              title,
+              content,
+              targetOrganization,
+              senderId: userId,
+              status: 'DIKIRIM',
+              // Aspirasi memang ditujukan untuk ruang publik sejak awal.
+              // Keluhan ditahan dulu supaya bisa diperiksa sebelum tayang (anonim).
+              moderationStatus: type === 'ASPIRASI' ? 'PUBLISHED' : 'PENDING_MODERATION',
+            },
+          });
+
+          if (lampiranBaru) {
+            await tx.attachment.create({
+              data: {
+                ticketId: tiket.id,
+                filename: lampiranBaru.filename,
+                url: lampiranBaru.url,
+                mimeType: lampiranBaru.mimeType,
+                size: lampiranBaru.size,
+              },
+            });
+          }
+
+          if (penerima.length > 0) {
+            await tx.notification.createMany({
+              data: penerima.map((p) => ({
+                userId: p.id,
+                title: 'Tiket Masuk Baru',
+                message: `Tiket ${type} baru #${ticket_no} menunggu untuk ditinjau.`,
+              })),
+            });
+          }
+
+          return tiket;
+        }
+      );
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        res.status(409).json({ message: 'Nomor tiket baru sedang dipakai, silakan kirim ulang.' });
+        return;
+      }
+      throw error;
+    }
+
+    const ticket_no = newTicket.ticket_no;
+
+    // --- Notifikasi dalam aplikasi (dikirim setelah commit) ---
+    if (penerima.length > 0) {
       await kirimPushKeBanyak(
         penerima.map((p) => p.id),
         {
@@ -188,8 +216,15 @@ export const getTickets = async (req: any, res: Response, next: NextFunction): P
         // id & foto ikut dikirim supaya avatar pengirim/petugas bisa membuka
         // dialog profil tanpa permintaan tambahan.
         sender: { select: { id: true, nim: true, role: true, foto: true, profile: { select: { nama: true } } } },
-        attachments: true,
+        // shortcut: 30 lampiran & 200 balasan terbaru per tiket, naikkan bila ada
+        // tiket yang benar-benar melewati itu. GET /tickets adalah satu-satunya
+        // sumber utas (tidak ada endpoint detail), jadi batas harus cukup longgar
+        // supaya tidak menghapus baris dari layar — hanya memotong pertumbuhan
+        // payload yang tidak masuk akal.
+        attachments: { orderBy: { createdAt: 'desc' }, take: 30 },
         replies: {
+          orderBy: { createdAt: 'desc' },
+          take: 200,
           include: {
             author: { select: { id: true, nim: true, role: true, foto: true, profile: { select: { nama: true } } } },
           },
@@ -214,7 +249,14 @@ export const getTickets = async (req: any, res: Response, next: NextFunction): P
         t.status !== 'SELESAI' &&
         t.status !== 'DITOLAK' &&
         Date.now() > tenggat.getTime();
-      return { ...t, slaDueAt: tenggat, slaOverdue: terlambat };
+      return {
+        ...t,
+        // replies diambil terbaru dulu karena take; dibalik agar urutan tampil
+        // tetap kronologis seperti utas sebelumnya.
+        replies: [...t.replies].reverse(),
+        slaDueAt: tenggat,
+        slaOverdue: terlambat,
+      };
     });
 
     res.status(200).json({ data });
@@ -298,28 +340,31 @@ export const replyTicket = async (req: any, res: Response, next: NextFunction): 
       return;
     }
 
-    const reply = await prisma.ticketReply.create({
-      data: { ticketId: id, authorId: userId, content },
-    });
+    const reply = await prisma.$transaction(async (tx) => {
+      const baru = await tx.ticketReply.create({ data: { ticketId: id, authorId: userId, content } });
+      if (ticket.senderId === userId) return baru;
 
-    if (ticket.senderId !== userId) {
       // Balasan pertama pengurus menghentikan jam SLA dan memindahkan tiket ke
       // DIPROSES bila sebelumnya masih menunggu.
       const perubahan: Record<string, unknown> = {};
       if (!ticket.firstResponseAt) perubahan.firstResponseAt = new Date();
       if (ticket.status === 'DIKIRIM' || ticket.status === 'DITINJAU') perubahan.status = 'DIPROSES';
       if (Object.keys(perubahan).length > 0) {
-        await prisma.ticket.update({ where: { id }, data: perubahan });
+        await tx.ticket.update({ where: { id }, data: perubahan });
       }
 
-      await prisma.notification.create({
+      await tx.notification.create({
         data: {
           userId: ticket.senderId,
           title: 'Balasan Baru pada Tiket',
           message: `Tiket #${ticket.ticket_no} Anda telah mendapat balasan baru dari pengurus.`,
         },
       });
+      return baru;
+    });
 
+    // Push di luar transaksi: efek samping jaringan tidak dibatalkan oleh rollback.
+    if (ticket.senderId !== userId) {
       await kirimPushKePengguna(ticket.senderId, {
         title: 'Balasan Baru pada Tiket',
         body: `Tiket #${ticket.ticket_no} — ${ticket.title}`,
@@ -377,36 +422,44 @@ export const assignTicket = async (req: any, res: Response, next: NextFunction):
     const assignee = await prisma.user.findUnique({ where: { id: assigneeId } });
     if (!assignee) { res.status(404).json({ message: 'Pengurus tidak ditemukan.' }); return; }
 
-    await prisma.ticketAssignment.updateMany({
-      where: { ticketId: id, isActive: true },
-      data: { isActive: false },
-    });
+    // Lima write harus lolos atau gagal bersama: tiket yang tercatat
+    // ditugaskan tanpa baris penugasan aktif membuat pengurus berikutnya
+    // melihat tiket yang tampak tanpa pemilik.
+    const newAssignment = await prisma.$transaction(async (tx) => {
+      await tx.ticketAssignment.updateMany({
+        where: { ticketId: id, isActive: true },
+        data: { isActive: false },
+      });
 
-    const newAssignment = await prisma.ticketAssignment.create({
-      data: { ticketId: id, assigneeId, assignerId },
-    });
+      const penugasan = await tx.ticketAssignment.create({
+        data: { ticketId: id, assigneeId, assignerId },
+      });
 
-    if (ticket.status === 'DIKIRIM') {
-      await prisma.ticket.update({ where: { id }, data: { status: 'DIPROSES' } });
+      if (ticket.status === 'DIKIRIM') {
+        await tx.ticket.update({ where: { id }, data: { status: 'DIPROSES' } });
 
-      await prisma.notification.create({
+        await tx.notification.create({
+          data: {
+            userId: ticket.senderId,
+            title: 'Status Tiket Diperbarui',
+            message: `Tiket #${ticket.ticket_no} Anda saat ini mulai diproses oleh pengurus.`,
+          },
+        });
+      }
+
+      // Beri tahu pengurus yang ditugaskan supaya tidak ada tiket yang menganggur.
+      await tx.notification.create({
         data: {
-          userId: ticket.senderId,
-          title: 'Status Tiket Diperbarui',
-          message: `Tiket #${ticket.ticket_no} Anda saat ini mulai diproses oleh pengurus.`,
+          userId: assigneeId,
+          title: 'Tiket Ditugaskan Kepada Anda',
+          message: `Anda ditugaskan menangani tiket #${ticket.ticket_no} (${ticket.title}).`,
         },
       });
-    }
 
-    // Beri tahu pengurus yang ditugaskan supaya tidak ada tiket yang menganggur.
-    await prisma.notification.create({
-      data: {
-        userId: assigneeId,
-        title: 'Tiket Ditugaskan Kepada Anda',
-        message: `Anda ditugaskan menangani tiket #${ticket.ticket_no} (${ticket.title}).`,
-      },
+      return penugasan;
     });
 
+    // Push di luar transaksi: efek samping jaringan tidak dibatalkan oleh rollback.
     await kirimPushKePengguna(assigneeId, {
       title: 'Tiket Ditugaskan Kepada Anda',
       body: `#${ticket.ticket_no} — ${ticket.title}`,
@@ -460,9 +513,13 @@ export const setTicketModeration = async (req: any, res: Response, next: NextFun
       return;
     }
 
-    const updated = await prisma.ticket.update({ where: { id }, data });
+    const { updated, beriTahuPemilik } = await prisma.$transaction(async (tx) => {
+      const hasil = await tx.ticket.update({ where: { id }, data });
 
-    if (status && status !== ticket.status && ticket.senderId !== req.user.id) {
+      if (!status || status === ticket.status || ticket.senderId === req.user.id) {
+        return { updated: hasil, beriTahuPemilik: null as null | string };
+      }
+
       const pesanStatus: Record<string, string> = {
         DIKIRIM: 'kembali menunggu tinjauan',
         DITINJAU: 'sedang ditinjau',
@@ -470,16 +527,24 @@ export const setTicketModeration = async (req: any, res: Response, next: NextFun
         SELESAI: 'telah selesai',
         DITOLAK: 'ditolak',
       };
-      await prisma.notification.create({
+      const pesan = pesanStatus[status] || 'diperbarui';
+
+      await tx.notification.create({
         data: {
           userId: ticket.senderId,
           title: 'Status Tiket Diperbarui',
-          message: `Tiket #${ticket.ticket_no} ${pesanStatus[status] || 'diperbarui'} oleh pengurus.`,
+          message: `Tiket #${ticket.ticket_no} ${pesan} oleh pengurus.`,
         },
       });
+
+      return { updated: hasil, beriTahuPemilik: pesan };
+    });
+
+    // Push di luar transaksi: efek samping jaringan tidak dibatalkan oleh rollback.
+    if (beriTahuPemilik) {
       await kirimPushKePengguna(ticket.senderId, {
         title: 'Status Tiket Diperbarui',
-        body: `#${ticket.ticket_no} ${pesanStatus[status] || 'diperbarui'}.`,
+        body: `#${ticket.ticket_no} ${beriTahuPemilik}.`,
         url: '/tickets',
       });
     }
@@ -600,7 +665,9 @@ export const exportKeluhanExcel = async (req: any, res: Response, next: NextFunc
           where: { isActive: true },
           include: { assignee: { include: { profile: { select: { nama: true } } } } },
         },
-        replies: { select: { id: true } },
+        // Jumlah balasan diambil sebagai hitungan di DB, bukan barisnya: kolom
+        // audit "Jumlah Balasan" butuh angka persis, jadi tidak boleh dibatasi take.
+        _count: { select: { replies: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -640,7 +707,7 @@ export const exportKeluhanExcel = async (req: any, res: Response, next: NextFunc
         status: t.status,
         moderasi: t.moderationStatus,
         petugas: t.assignments[0]?.assignee.profile?.nama ?? '-',
-        balasan: t.replies.length,
+        balasan: t._count.replies,
       });
     });
 

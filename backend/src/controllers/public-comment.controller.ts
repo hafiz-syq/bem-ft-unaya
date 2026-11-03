@@ -283,14 +283,16 @@ export const reportComment = async (req: Permintaan, res: Response, next: NextFu
       select: { id: true, profile: { select: { nama: true } } },
     });
 
-    for (const admin of admins) {
-      await prisma.notification.create({
-        data: {
+    // Satu createMany menggantikan satu INSERT per admin: jumlah admin tumbuh
+    // dan laporan bisa datang beruntun saat moderasi.
+    if (admins.length > 0) {
+      await prisma.notification.createMany({
+        data: admins.map((admin) => ({
           userId: admin.id,
           title: 'Laporan Komentar Baru',
           message: `Komentar dari ${comment.nama} dilaporkan oleh pengguna: ${reason ? reason : 'Tidak ada alasan yang diberikan'}`,
           isRead: false,
-        },
+        })),
       });
     }
 
@@ -359,6 +361,9 @@ export const getPublicComments = async (_req: Request, res: Response, next: Next
       include: {
         replies: {
           orderBy: { createdAt: 'asc' },
+          take: 100,
+          // shortcut: 100 balasan per komentar, naikkan bila ada utas yang
+          // benar-benar sepanjang itu.
           // Foto pengurus/admin ikut dikirim: halaman buku tamu bersifat publik,
           // jadi pengunjung boleh melihat foto profil penulis balasan.
           include: {

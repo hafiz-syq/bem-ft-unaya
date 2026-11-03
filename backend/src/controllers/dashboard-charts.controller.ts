@@ -43,25 +43,19 @@ export const getDashboardCharts = async (req: any, res: Response, next: NextFunc
       1
     );
 
-    // Kirim query raw ke Prisma agar kita bisa kelompokkan berdasarkan bulan.
-    // Prisma tidak mendukung extract() secara native di semua DB, jadi kita
-    // mengambil data mentah kemudian kelompokkan manual di sisi Node.
-    const komentarMentah = await prisma.publicComment.findMany({
-      where: {
-        createdAt: {
-          gte: duaBelasBulankeLalu,
-          lt: satuDuaBelasBulankeDepan,
-        },
-      },
-      select: {
-        createdAt: true,
-        status: true,
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+    // Kelompok per bulan dikerjakan database lewat DATE_FORMAT. Sebelumnya
+    // seluruh baris 12 bulan diambil lalu dihitung di Node: query 40x lebih
+    // besar dari hasilnya dan membebani memori function serverless.
+    // shortcut: bulan dihitung dari nilai createdAt apa adanya (UTC di Vercel),
+    // sama seperti produksi hari ini karena fungsi berjalan di zona UTC.
+    const barisKomentar = await prisma.$queryRaw<{ bulan: string; total: bigint }[]>`
+      SELECT DATE_FORMAT(createdAt, '%Y-%m') AS bulan, COUNT(*) AS total
+      FROM PublicComment
+      WHERE createdAt >= ${duaBelasBulankeLalu} AND createdAt < ${satuDuaBelasBulankeDepan}
+      GROUP BY bulan
+    `;
 
-    // Kelompokkan per bulan (format YYYY-MM)
-    const petaBulanan = new Map<string, { total: number; approved: number; rejected: number }>();
+    const petaBulanan = new Map<string, number>();
     for (let i = 0; i < 12; i++) {
       const d = new Date(
         sekarang.getFullYear(),
@@ -69,17 +63,10 @@ export const getDashboardCharts = async (req: any, res: Response, next: NextFunc
         1
       );
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      petaBulanan.set(key, { total: 0, approved: 0, rejected: 0 });
+      petaBulanan.set(key, 0);
     }
-
-    for (const baris of komentarMentah) {
-      const d = baris.createdAt as Date;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const existing = petaBulanan.get(key) ?? { total: 0, approved: 0, rejected: 0 };
-      existing.total += 1;
-      if (baris.status === 'APPROVED') existing.approved += 1;
-      if (baris.status === 'REJECTED') existing.rejected += 1;
-      petaBulanan.set(key, existing);
+    for (const baris of barisKomentar) {
+      petaBulanan.set(baris.bulan, Number(baris.total));
     }
 
     const komentarPerBulan: ChartSeriesPoint[] = [];
@@ -87,24 +74,18 @@ export const getDashboardCharts = async (req: any, res: Response, next: NextFunc
     for (const k of urutanKunci) {
       komentarPerBulan.push({
         label: k,
-        nilai: petaBulanan.get(k)!.total,
+        nilai: petaBulanan.get(k)!,
       });
     }
 
     // --- 2. Tren impor mahasiswa per bulan (berdasarkan audit log IMPORT_STUDENTS_SIMPAN) ---
-    const imporMentah = await prisma.auditLog.findMany({
-      where: {
-        action: 'IMPORT_STUDENTS_SIMPAN',
-        createdAt: {
-          gte: duaBelasBulankeLalu,
-          lt: satuDuaBelasBulankeDepan,
-        },
-      },
-      select: {
-        createdAt: true,
-        metadata: true,
-      },
-    });
+    const barisImpor = await prisma.$queryRaw<{ bulan: string; total: bigint }[]>`
+      SELECT DATE_FORMAT(createdAt, '%Y-%m') AS bulan, COUNT(*) AS total
+      FROM AuditLog
+      WHERE action = 'IMPORT_STUDENTS_SIMPAN'
+        AND createdAt >= ${duaBelasBulankeLalu} AND createdAt < ${satuDuaBelasBulankeDepan}
+      GROUP BY bulan
+    `;
 
     const petaBulananImpor = new Map<string, number>();
     for (let i = 0; i < 12; i++) {
@@ -116,11 +97,8 @@ export const getDashboardCharts = async (req: any, res: Response, next: NextFunc
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       petaBulananImpor.set(key, 0);
     }
-
-    for (const baris of imporMentah) {
-      const d = baris.createdAt as Date;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      petaBulananImpor.set(key, (petaBulananImpor.get(key) ?? 0) + 1);
+    for (const baris of barisImpor) {
+      petaBulananImpor.set(baris.bulan, Number(baris.total));
     }
 
     const imporPerBulan: ChartSeriesPoint[] = [];
@@ -139,24 +117,24 @@ export const getDashboardCharts = async (req: any, res: Response, next: NextFunc
     ]);
 
     // --- 4. Ringkasan impor (akumulasi dari log, bukan real-time) ---
-    // Total dari metadata log, batasi 1000 baris terakhir agar tidak berat
-    const imporBarisTerakhir = await prisma.auditLog.findMany({
-      where: { action: 'IMPORT_STUDENTS_SIMPAN' },
-      orderBy: { createdAt: 'desc' },
-      take: 1000,
-      select: { metadata: true },
-    });
+    // Jumlahnya dihitung di DB atas SEMUA baris. Versi lama membaca 1000 baris
+    // terakhir lalu menjumlah metadata di Node, jadi angkanya diam-diam kurang
+    // begitu jumlah log melewati 1000.
+    const [ringkasanImpor] = await prisma.$queryRaw<
+      { totalImpor: bigint; dibuat: bigint | null; dilewati: bigint | null; gagal: bigint | null }[]
+    >`
+      SELECT COUNT(*) AS totalImpor,
+             SUM(CAST(JSON_EXTRACT(metadata, '$.akunDibuat') AS SIGNED)) AS dibuat,
+             SUM(CAST(JSON_EXTRACT(metadata, '$.akunDilewati') AS SIGNED)) AS dilewati,
+             SUM(CAST(JSON_EXTRACT(metadata, '$.akunGagal') AS SIGNED)) AS gagal
+      FROM AuditLog
+      WHERE action = 'IMPORT_STUDENTS_SIMPAN'
+    `;
 
-    let totalDibuat = 0;
-    let totalDilewati = 0;
-    let totalGagal = 0;
-
-    for (const baris of imporBarisTerakhir) {
-      const m = (baris.metadata as any) ?? {};
-      totalDibuat += Number(m.akunDibuat ?? 0);
-      totalDilewati += Number(m.akunDilewati ?? 0);
-      totalGagal += Number(m.akunGagal ?? 0);
-    }
+    const totalImpor = Number(ringkasanImpor?.totalImpor ?? 0);
+    const totalDibuat = Number(ringkasanImpor?.dibuat ?? 0);
+    const totalDilewati = Number(ringkasanImpor?.dilewati ?? 0);
+    const totalGagal = Number(ringkasanImpor?.gagal ?? 0);
 
     res.status(200).json({
       data: {
@@ -168,7 +146,7 @@ export const getDashboardCharts = async (req: any, res: Response, next: NextFunc
           ditolak,
         },
         imporTotal: {
-          totalImpor: imporBarisTerakhir.length,
+          totalImpor,
           totalDibuat,
           totalDilewati,
           totalGagal,

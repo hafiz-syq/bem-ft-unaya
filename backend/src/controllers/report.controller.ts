@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import ExcelJS from 'exceljs';
+import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { isAdminRole, OFFICER_ROLES } from '../lib/ticket-access';
 import { hitungAngkatan } from '../services/account-lifecycle.service';
@@ -53,7 +54,7 @@ export const downloadMonthlyReport = async (req: any, res: Response, next: NextF
       totalMahasiswa,
       totalPengurus,
       tiketBulanIni,
-      penggunaAngkatan,
+      barisAngkatan,
       komentar,
       pengajuan,
     ] = await Promise.all([
@@ -70,10 +71,14 @@ export const downloadMonthlyReport = async (req: any, res: Response, next: NextF
         },
         orderBy: { createdAt: 'asc' },
       }),
-      prisma.user.findMany({
-        where: { role: { in: ['MAHASISWA', ...OFFICER_ROLES] as any }, deletedAt: null },
-        select: { nim: true, isActive: true },
-      }),
+      // Angkatan dibaca dari 2 digit pertama NIM dan dihitung di database,
+      // bukan dengan menarik seluruh akun mahasiswa ke Node.
+      prisma.$queryRaw<{ dua: string; isActive: boolean; jumlah: bigint }[]>`
+        SELECT LEFT(nim, 2) AS dua, isActive, COUNT(*) AS jumlah
+        FROM User
+        WHERE deletedAt IS NULL AND role IN (${Prisma.join(['MAHASISWA', ...OFFICER_ROLES])})
+        GROUP BY dua, isActive
+      `,
       prisma.publicComment.findMany({
         where: { createdAt: rentang },
         select: { status: true, isFlagged: true, deletedAt: true },
@@ -86,13 +91,14 @@ export const downloadMonthlyReport = async (req: any, res: Response, next: NextF
     ]);
 
     const perAngkatan = new Map<number, { total: number; aktif: number; nonaktif: number }>();
-    for (const u of penggunaAngkatan) {
-      const tahun = hitungAngkatan(u.nim);
+    for (const baris of barisAngkatan) {
+      const tahun = hitungAngkatan(baris.dua);
       if (!tahun) continue;
       const isi = perAngkatan.get(tahun) || { total: 0, aktif: 0, nonaktif: 0 };
-      isi.total += 1;
-      if (u.isActive) isi.aktif += 1;
-      else isi.nonaktif += 1;
+      const jumlah = Number(baris.jumlah);
+      isi.total += jumlah;
+      if (baris.isActive) isi.aktif += jumlah;
+      else isi.nonaktif += jumlah;
       perAngkatan.set(tahun, isi);
     }
 
@@ -234,39 +240,52 @@ export async function kirimPengingatLaporanBulanan(sekarang: Date = new Date()):
   const bulanLalu = new Date(sekarang.getFullYear(), sekarang.getMonth() - 1, 1);
   const kunci = `laporan_bulanan_terakhir`;
   const nilai = `${bulanLalu.getFullYear()}-${String(bulanLalu.getMonth() + 1).padStart(2, '0')}`;
+  const labelBulan = `${NAMA_BULAN[bulanLalu.getMonth()]} ${bulanLalu.getFullYear()}`;
 
-  const tersimpan = await prisma.siteSetting.findUnique({ where: { key: kunci } });
-  if (tersimpan?.value === nilai) return false;
+  // Cron bisa dijalankan ulang (percobaan lagi atau dua invocation bertumpuk).
+  // Pemeriksaan penanda dan penulisannya berada di transaksi yang sama supaya
+  // retry tidak menghasilkan notifikasi ganda.
+  const penerima = await prisma.$transaction(
+    async (tx) => {
+      const tersimpan = await tx.siteSetting.findUnique({ where: { key: kunci } });
+      if (tersimpan?.value === nilai) return null;
 
-  const admins = await prisma.user.findMany({
-    where: { role: { in: ['ADMIN', 'SUPERADMIN'] }, deletedAt: null },
-    select: { id: true },
-  });
+      const admins = await tx.user.findMany({
+        where: { role: { in: ['ADMIN', 'SUPERADMIN'] }, deletedAt: null },
+        select: { id: true },
+      });
 
-  if (admins.length > 0) {
-    await prisma.notification.createMany({
-      data: admins.map((a) => ({
-        userId: a.id,
-        title: 'Laporan Bulanan Siap',
-        message: `Laporan bulan ${NAMA_BULAN[bulanLalu.getMonth()]} ${bulanLalu.getFullYear()} dapat diunduh dari dashboard.`,
-      })),
-    });
-
-    await kirimPushKeBanyak(
-      admins.map((a) => a.id),
-      {
-        title: 'Laporan Bulanan Siap',
-        body: `Laporan ${NAMA_BULAN[bulanLalu.getMonth()]} ${bulanLalu.getFullYear()} dapat diunduh dari dashboard.`,
-        url: '/dashboard',
+      if (admins.length > 0) {
+        await tx.notification.createMany({
+          data: admins.map((a) => ({
+            userId: a.id,
+            title: 'Laporan Bulanan Siap',
+            message: `Laporan bulan ${labelBulan} dapat diunduh dari dashboard.`,
+          })),
+        });
       }
-    ).catch(() => undefined);
-  }
 
-  await prisma.siteSetting.upsert({
-    where: { key: kunci },
-    update: { value: nilai },
-    create: { key: kunci, value: nilai },
-  });
+      await tx.siteSetting.upsert({
+        where: { key: kunci },
+        update: { value: nilai },
+        create: { key: kunci, value: nilai },
+      });
+
+      return admins.map((a) => a.id);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+  );
+
+  if (penerima === null) return false;
+
+  // Push di luar transaksi: efek samping jaringan tidak dibatalkan oleh rollback.
+  if (penerima.length > 0) {
+    await kirimPushKeBanyak(penerima, {
+      title: 'Laporan Bulanan Siap',
+      body: `Laporan ${labelBulan} dapat diunduh dari dashboard.`,
+      url: '/dashboard',
+    }).catch(() => undefined);
+  }
 
   return true;
 }

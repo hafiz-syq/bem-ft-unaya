@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 import prisma from '../lib/prisma';
-import { kirimPushKePengguna } from '../services/push.service';
+import { kirimPushKeBanyak } from '../services/push.service';
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -59,6 +59,9 @@ export async function checkAndNotifyExpiringExtensions() {
     orderBy: { perpanjanganHingga: 'asc' },
   });
 
+  const idAdmins = admins.map((a) => a.id);
+  const pesan: string[] = [];
+
   for (const student of expiringStudents) {
     const expiredAt = student.perpanjanganHingga!;
     const daysLeft = Math.ceil(
@@ -80,23 +83,31 @@ export async function checkAndNotifyExpiringExtensions() {
     }
 
     const message = `Perpanjangan masa studi ${student.profile?.nama || student.nim} (${student.nim}) akan berakhir dalam ${daysLeft} hari (${expiredAt.toLocaleDateString('id-ID')}).`;
+    pesan.push(message);
 
-    for (const admin of admins) {
-      await prisma.notification.create({
-        data: {
-          userId: admin.id,
+    // Push per mahasiswa, bukan per pasangan mahasiswa×admin: isinya berbeda
+    // tiap mahasiswa, jadi satu panggilan mengirim ke semua admin sekaligus.
+    await kirimPushKeBanyak(idAdmins, {
+      title: 'Peringatan Perpanjangan Studi',
+      body: message,
+      url: '/students',
+    }).catch(() => undefined);
+  }
+
+  // Satu INSERT untuk semua baris, menggantikan satu INSERT per admin per
+  // mahasiswa. Email tetap di luarnya supaya percobaan ulang koneksi SMTP
+  // tidak menahan transaksi.
+  if (idAdmins.length > 0 && pesan.length > 0) {
+    await prisma.notification.createMany({
+      data: pesan.flatMap((message) =>
+        idAdmins.map((userId) => ({
+          userId,
           title: 'Peringatan Perpanjangan Studi',
           message,
           isRead: false,
-        },
-      });
-
-      await kirimPushKePengguna(admin.id, {
-        title: 'Peringatan Perpanjangan Studi',
-        body: message,
-        url: '/students',
-      }).catch(() => undefined);
-    }
+        }))
+      ),
+    });
   }
 
   return { checked: expiringStudents.length };

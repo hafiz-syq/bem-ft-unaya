@@ -71,6 +71,7 @@ export const getDashboardStatistik = async (req: any, res: Response, next: NextF
         akunNonaktif,
         akunDiperpanjang,
         tikets,
+        rataResponsBaris,
       ] = await Promise.all([
         prisma.ticket.count(),
         prisma.ticket.count({ where: { status: { in: ['DIKIRIM', 'DITINJAU', 'DIPROSES'] } } }),
@@ -85,7 +86,7 @@ export const getDashboardStatistik = async (req: any, res: Response, next: NextF
         // Dibatasi 2000 tiket terakhir agar respons tetap cepat walau data besar.
         prisma.ticket.findMany({
           where: { createdAt: { gte: duaBelasBulanLalu } },
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: 2000,
           select: {
             id: true,
@@ -93,9 +94,24 @@ export const getDashboardStatistik = async (req: any, res: Response, next: NextF
             targetOrganization: true,
             status: true,
             createdAt: true,
-            replies: { select: { createdAt: true }, orderBy: { createdAt: 'asc' }, take: 1 },
           },
         }),
+        // Rata-rata jam dihitung database dengan jendela baris yang sama persis
+        // (2000 tiket terbaru dalam 12 bulan, tie-break id desc) sehingga angkanya
+        // sama dengan rata-rata yang sebelumnya dihitung di Node.
+        prisma.$queryRaw<{ rata: number | null }[]>`
+          SELECT AVG(TIMESTAMPDIFF(MICROSECOND, t.createdAt, r.firstAt) / 3600000000) AS rata
+          FROM (
+            SELECT id, createdAt FROM Ticket
+            WHERE createdAt >= ${duaBelasBulanLalu}
+            ORDER BY createdAt DESC, id DESC
+            LIMIT 2000
+          ) t
+          JOIN (
+            SELECT ticketId, MIN(createdAt) AS firstAt FROM TicketReply GROUP BY ticketId
+          ) r ON r.ticketId = t.id
+          WHERE TIMESTAMPDIFF(MICROSECOND, t.createdAt, r.firstAt) >= 0
+        `,
       ]);
 
       const petaTren = new Map(bulan.map((b) => [b.key, 0]));
@@ -112,6 +128,14 @@ export const getDashboardStatistik = async (req: any, res: Response, next: NextF
         petaStatus.set(tiket.status, (petaStatus.get(tiket.status) ?? 0) + 1);
       }
 
+      // Angka rata-rata dari DB dibulatkan 1 desimal, persis seperti versi Node
+      // yang digantikannya.
+      const rataResponsMentah = rataResponsBaris[0]?.rata;
+      const rataResponsTampil =
+        rataResponsMentah === null || rataResponsMentah === undefined
+          ? 0
+          : Math.round(Number(rataResponsMentah) * 10) / 10;
+
       res.status(200).json({
         data: {
           role: user.role,
@@ -120,7 +144,7 @@ export const getDashboardStatistik = async (req: any, res: Response, next: NextF
             tiketAktif,
             tiketSelesai,
             tiketMenungguModerasi,
-            rataResponsJam: rataResponsJam(tikets),
+            rataResponsJam: rataResponsTampil,
             totalMahasiswa,
             totalPengurus,
             menungguKomentar,

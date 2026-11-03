@@ -357,7 +357,9 @@ export const getGalleries = async (req: any, res: Response, next: NextFunction):
     const galleries = await prisma.gallery.findMany({
       orderBy: { createdAt: 'desc' },
       // images ikut dikirim supaya frontend bisa menampilkan carousel.
-      include: { images: { orderBy: { order: 'asc' } } }
+      // shortcut: 40 foto terakhir per postingan, naikkan bila ada kegiatan yang
+      // benar-benar memuat lebih dari itu.
+      include: { images: { orderBy: { order: 'asc' }, take: 40 } }
     });
     res.status(200).json({ data: galleries });
   } catch (error) { next(error); }
@@ -555,13 +557,17 @@ export const updateSiteSettings = async (req: any, res: Response, next: NextFunc
       return;
     }
 
-    for (const [key, value] of valid) {
-      await prisma.siteSetting.upsert({
-        where: { key },
-        create: { key, value: String(value ?? '') },
-        update: { value: String(value ?? '') }
-      });
-    }
+    // Satu transaksi: setengah daftar pengaturan tersimpan membuat teks situs
+    // tampil campuran antara versi lama dan baru bagi pengunjung.
+    await prisma.$transaction(
+      valid.map(([key, value]) =>
+        prisma.siteSetting.upsert({
+          where: { key },
+          create: { key, value: String(value ?? '') },
+          update: { value: String(value ?? '') },
+        })
+      )
+    );
 
     await logActivity(
       req.user.id,
