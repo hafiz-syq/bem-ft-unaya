@@ -193,6 +193,8 @@ export default function PublicComments() {
   };
 
   const kirimBalasan = async (k: Komentar) => {
+    // Enter di kolom balasan memanggil fungsi ini tanpa melewati `disabled` tombol, jadi penahannya di sini.
+    if (busyId === k.id) return;
     const isi = (draftBalasan[k.id] || '').trim();
     if (isi.length < 2) {
       alert('Isi balasan minimal 2 karakter.');

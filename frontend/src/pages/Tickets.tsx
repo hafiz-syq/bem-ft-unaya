@@ -71,6 +71,7 @@ export default function Tickets() {
   const [assigneesList, setAssigneesList] = useState<Assignee[]>([]);
   const [templates, setTemplates] = useState<TemplateBalasan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
   const [searchParams] = useSearchParams();
   const kataCari = (searchParams.get('search') || '').toLowerCase();
@@ -91,6 +92,8 @@ export default function Tickets() {
   const [templateDipilih, setTemplateDipilih] = useState<Record<string, string>>({});
   const [selectedAssignee, setSelectedAssignee] = useState<{ [ticketId: string]: string }>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  // POST /tickets/:id/replies tidak idempoten, dan busyId dibagikan dengan kontrol status/prioritas.
+  const [mengirimBalasan, setMengirimBalasan] = useState(false);
 
   // State penilaian tiket oleh pengirim.
   const [nilaiTiket, setNilaiTiket] = useState<Ticket | null>(null);
@@ -99,6 +102,7 @@ export default function Tickets() {
   const [menyimpanNilai, setMenyimpanNilai] = useState(false);
 
   const fetchData = useCallback(async () => {
+    setError('');
     try {
       const response = await api.get('/tickets');
       setTickets(response.data.data);
@@ -111,7 +115,10 @@ export default function Tickets() {
         setAssigneesList(assigneesRes.data.data);
         setTemplates(templatesRes.data.data);
       }
-    } catch (error) { console.error('Gagal memuat data tiket:', error); }
+    } catch (error) {
+      console.error('Gagal memuat data tiket:', error);
+      setError('Gagal memuat daftar tiket. Coba muat ulang halaman.');
+    }
     finally { setLoading(false); }
   }, [isMahasiswa]);
 
@@ -164,13 +171,15 @@ export default function Tickets() {
   };
 
   const handleSubmitReply = async (ticketId: string) => {
-    if (!replyContent.trim()) return;
+    if (!replyContent.trim() || mengirimBalasan) return;
+    setMengirimBalasan(true);
     try {
       await api.post(`/tickets/${ticketId}/replies`, { content: replyContent });
       setReplyingTo(null); setReplyContent('');
       setTemplateDipilih((p) => ({ ...p, [ticketId]: '' }));
       fetchData();
     } catch (error) { console.error(error); alert('Gagal mengirim balasan'); }
+    finally { setMengirimBalasan(false); }
   };
 
   const handlePriority = async (ticketId: string, priority: string) => {
@@ -389,6 +398,8 @@ export default function Tickets() {
         <Info className="w-5 h-5 shrink-0 mt-0.5" />
         <p>{infoAkses()}</p>
       </div>
+
+      {error && <div className="p-4 text-sm text-red-600 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">{error}</div>}
 
       <div className="space-y-4">
         {loading ? <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-amber-400 animate-spin" /></div>
@@ -663,7 +674,7 @@ export default function Tickets() {
                             />
                             <div className="flex gap-2 md:flex-col">
                               <button onClick={() => { setReplyingTo(null); setReplyContent(''); }} className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">Batal</button>
-                              <button onClick={() => handleSubmitReply(ticket.id)} className="px-3 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500">Kirim</button>
+                              <button onClick={() => handleSubmitReply(ticket.id)} disabled={mengirimBalasan} className="inline-flex items-center gap-2 px-3 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-60">{mengirimBalasan ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Kirim'}</button>
                             </div>
                           </div>
                         </div>

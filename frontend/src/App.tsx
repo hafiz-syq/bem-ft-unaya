@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import OfflineStatus from './components/OfflineStatus';
 import Landing from './pages/Landing';
+import { isAdminRole, isStaff, ROLE_SUPERADMIN } from './lib/roles';
 
 // Halaman selain landing dimuat sesuai kebutuhan. Ini memangkas JavaScript
 // awal yang harus diunduh pengunjung, sehingga halaman publik tampil lebih
@@ -79,6 +80,22 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   return children;
 }
 
+/**
+ * ProtectedRoute + pemeriksaan role. Sidebar hanya menyembunyikan menu,
+ * URL-nya tetap bisa dibuka langsung, jadi penolakannya ditaruh di rute.
+ * Aturan sebenarnya tetap dijaga server.
+ */
+function RequireRole({ boleh, children }: { boleh: (role?: string | null) => boolean; children: ReactNode }) {
+  const { user } = useAuth();
+  return (
+    <ProtectedRoute>
+      {boleh(user?.role) ? children : <Navigate to="/dashboard" replace />}
+    </ProtectedRoute>
+  );
+}
+
+const isSuperAdmin = (role?: string | null) => role === ROLE_SUPERADMIN;
+
 function App() {
   useEffect(() => {
     // Mark as hydrated after mount to ensure client-side JS takes over
@@ -143,29 +160,29 @@ function App() {
       } />
 
       <Route path="/devices" element={
-        <ProtectedRoute>
+        <RequireRole boleh={isAdminRole}>
           <DashboardLayout>
             <Devices />
           </DashboardLayout>
-        </ProtectedRoute>
+        </RequireRole>
       } />
 
       {/* Riwayat perangkat satu akun, tempat admin memutus satu perangkat saja. */}
       <Route path="/devices/:id" element={
-        <ProtectedRoute>
+        <RequireRole boleh={isAdminRole}>
           <DashboardLayout>
             <DeviceDetail />
           </DashboardLayout>
-        </ProtectedRoute>
+        </RequireRole>
       } />
 
-      {/* Pengaturan tema musiman: halaman menolak sendiri bila bukan SUPERADMIN. */}
+      {/* Pengaturan tema musiman: rute menolak non-SUPERADMIN, halaman memeriksa ulang. */}
       <Route path="/tema-musiman" element={
-        <ProtectedRoute>
+        <RequireRole boleh={isSuperAdmin}>
           <DashboardLayout>
             <SeasonalTheme />
           </DashboardLayout>
-        </ProtectedRoute>
+        </RequireRole>
       } />
 
       {/* Forum diskusi: semua akun login boleh membaca & menulis; pembuatan
@@ -203,27 +220,27 @@ function App() {
       } />
 
       <Route path="/pemantauan" element={
-        <ProtectedRoute>
+        <RequireRole boleh={isAdminRole}>
           <DashboardLayout>
             <ErrorLogs />
           </DashboardLayout>
-        </ProtectedRoute>
+        </RequireRole>
       } />
 
       <Route path="/organizations" element={
-        <ProtectedRoute>
+        <RequireRole boleh={isAdminRole}>
           <DashboardLayout>
             <Organizations />
           </DashboardLayout>
-        </ProtectedRoute>
+        </RequireRole>
       } />
 
       <Route path="/positions" element={
-        <ProtectedRoute>
+        <RequireRole boleh={isAdminRole}>
           <DashboardLayout>
             <Positions />
           </DashboardLayout>
-        </ProtectedRoute>
+        </RequireRole>
       } />
 
       <Route path="/data-requests" element={
@@ -235,19 +252,19 @@ function App() {
       } />
 
       <Route path="/galeri-komentar" element={
-        <ProtectedRoute>
+        <RequireRole boleh={isStaff}>
           <DashboardLayout>
             <GalleryCommentsAdmin />
           </DashboardLayout>
-        </ProtectedRoute>
+        </RequireRole>
       } />
 
       <Route path="/audit" element={
-        <ProtectedRoute>
+        <RequireRole boleh={isAdminRole}>
           <DashboardLayout>
             <AuditLogs />
           </DashboardLayout>
-        </ProtectedRoute>
+        </RequireRole>
       } />
 
       <Route path="/faq" element={
@@ -259,11 +276,11 @@ function App() {
       } />
 
       <Route path="/cms" element={
-        <ProtectedRoute>
+        <RequireRole boleh={isStaff}>
           <DashboardLayout>
             <CMSManager />
           </DashboardLayout>
-        </ProtectedRoute>
+        </RequireRole>
       } />
 
       <Route path="/agenda" element={<Agenda />} />

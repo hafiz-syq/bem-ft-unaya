@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { api } from '../lib/axios';
 import { Search, FileSpreadsheet, Trash2, RefreshCw } from 'lucide-react';
 import axios from 'axios';
@@ -129,7 +129,14 @@ export default function Students() {
   const [hasilImpor, setHasilImpor] = useState<HasilSimpan | null>(null);
   const [galatImpor, setGalatImpor] = useState('');
 
-  const fetchStudents = useCallback(async (signal?: AbortSignal) => {
+  // Controller di ref: muat ulang pasca-mutasi (panggil tanpa argumen) tetap bisa dibatalkan, bukan hanya fetch dari useEffect.
+  const pembatalAktif = useRef<AbortController | null>(null);
+  const pembatalSampah = useRef<AbortController | null>(null);
+
+  const fetchStudents = useCallback(async () => {
+    pembatalAktif.current?.abort();
+    const controller = new AbortController();
+    pembatalAktif.current = controller;
     setLoading(true);
     setError('');
     // Balasan yang dibatalkan bukan kegagalan: jangan tulis galat dan jangan
@@ -145,7 +152,7 @@ export default function Students() {
           role: role === 'ALL' ? undefined : role,
           angkatan: angkatan ?? undefined,
         },
-        signal,
+        signal: controller.signal,
       });
       setStudents(response.data.data);
       setMeta(response.data.meta);
@@ -154,18 +161,22 @@ export default function Students() {
       if (axios.isCancel(err)) batal = true;
       else setError(await pesanKesalahan(err, 'Gagal memuat data mahasiswa'));
     } finally {
+      if (pembatalAktif.current === controller) pembatalAktif.current = null;
       if (!batal) setLoading(false);
     }
   }, [page, kataKunci, status, role, angkatan]);
 
-  const fetchSampah = useCallback(async (signal?: AbortSignal) => {
+  const fetchSampah = useCallback(async () => {
+    pembatalSampah.current?.abort();
+    const controller = new AbortController();
+    pembatalSampah.current = controller;
     setMemuatSampah(true);
     setError('');
     let batal = false;
     try {
       const res = await api.get('/students/trash', {
         params: { search: kataKunci || undefined, page: sampahHalaman, limit: 20 },
-        signal,
+        signal: controller.signal,
       });
       setSampah(res.data.data);
       setSampahTotal(res.data.meta?.total || 0);
@@ -174,24 +185,23 @@ export default function Students() {
       if (axios.isCancel(err)) batal = true;
       else setError(await pesanKesalahan(err, 'Gagal memuat tempat sampah.'));
     } finally {
+      if (pembatalSampah.current === controller) pembatalSampah.current = null;
       if (!batal) setMemuatSampah(false);
     }
   }, [kataKunci, sampahHalaman]);
 
   useEffect(() => {
     if (tab !== 'AKTIF') return;
-    const controller = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void fetchStudents(controller.signal);
-    return () => controller.abort();
+    void fetchStudents();
+    return () => { pembatalAktif.current?.abort(); };
   }, [fetchStudents, tab]);
 
   useEffect(() => {
     if (tab !== 'SAMPAH') return;
-    const controller = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void fetchSampah(controller.signal);
-    return () => controller.abort();
+    void fetchSampah();
+    return () => { pembatalSampah.current?.abort(); };
   }, [fetchSampah, tab]);
 
   const handleSearch = (e: React.FormEvent) => {

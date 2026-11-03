@@ -57,6 +57,7 @@ export default function CMSManager() {
   const [settings, setSettings] = useState({ visi: '', misi: '' });
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   // States untuk Modal & Form
@@ -88,6 +89,7 @@ export default function CMSManager() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       if (activeTab === 'KONTEN') {
         const res = await api.get('/cms');
@@ -108,6 +110,8 @@ export default function CMSManager() {
       }
     } catch (error) {
       console.error('Gagal memuat data:', error);
+      if (axios.isAxiosError(error)) setError(error.response?.data?.message || 'Gagal memuat data.');
+      else setError('Terjadi kesalahan.');
     } finally {
       setLoading(false);
     }
@@ -342,6 +346,8 @@ export default function CMSManager() {
           </button>
         )}
       </div>
+
+      {error && <div className="p-4 text-sm text-red-600 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">{error}</div>}
 
       {/* Tabs Navigation */}
       <div className="flex flex-wrap gap-1 p-1.5 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm rounded-xl">

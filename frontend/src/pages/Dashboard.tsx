@@ -61,11 +61,13 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statistik, setStatistik] = useState<Statistik | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [bulanLaporan, setBulanLaporan] = useState(() => new Date().toISOString().slice(0, 7));
   const [mengunduhLaporan, setMengunduhLaporan] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
+      setError('');
       try {
         const [res, resStatistik] = await Promise.all([
           api.get('/dashboard/stats'),
@@ -76,6 +78,7 @@ export default function Dashboard() {
       } catch (error) {
         // Menggunakan variabel error agar terbaca oleh sistem log dan menghilangkan warning
         console.error('Gagal memuat statistik:', error);
+        setError('Gagal memuat statistik dashboard. Coba muat ulang halaman.');
       } finally {
         setLoading(false);
       }
@@ -159,6 +162,8 @@ export default function Dashboard() {
       
       {/* Header Ucapan Selamat Datang */}
       {bannerSambutan}
+
+      {error && <div className="p-4 text-sm text-red-600 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">{error}</div>}
 
       {isAdminRole(user?.role) && (
         <section className="flex flex-col gap-3 p-4 bg-white border border-gray-100 shadow-sm sm:flex-row sm:items-center sm:justify-between rounded-xl dark:bg-gray-900 dark:border-gray-800">
