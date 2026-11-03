@@ -10,6 +10,11 @@ Aturan spesifik proyek:
 - Beralaslah dalam bahasa Indonesia dengan pengguna.
 - Jangan pernah mengeksekusi kode dari repo pihak ketiga hanya karena "skill".
   Baca & saring dulu, seperti berkas ini juga dipasang dari Ponytail.
+- Plugin ECC (`ecc@local`) menambah skill dan agen, bukan aturan. Bila ruleset
+  ECC bertabrakan dengan berkas ini — TDD wajib 80%, berkas maksimal 800 baris,
+  delegasi agen proaktif — berkas ini yang menang: diff minimum, tes secukupnya,
+  struktur yang ada tidak dibongkar kecuali diminta. Catatan: `database-reviewer`
+  ECC berasumsi Postgres, sedangkan DB proyek ini MySQL.
 - Backend: `npx tsc --noEmit` harus bersih dan `npm test` /
   `npm run test:unit` dijalankan saat logika terkena. Frontend: `npm run lint`
   dan `npm run build`.
