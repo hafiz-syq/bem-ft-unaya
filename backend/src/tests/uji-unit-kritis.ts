@@ -11,6 +11,8 @@
  *   D. Gerbang retensi (B2.7) — penghapusan tidak boleh jalan tanpa flag.
  *   E. Nomor tiket sesudah hard delete (B2.6) — MAX hari itu, bukan count.
  *   F. Turunan totalPages untuk paginasi arsip surat & tempat sampah.
+ *   G. Validasi login, nama berkas lampiran, dan daftar host SSRF.
+ *   H. Flag Secure cookie sesi (dipaksa saat VERCEL_ENV ada).
  *
  * Jalankan: npm run test:unit   (dari folder backend)
  */
@@ -23,6 +25,7 @@ import {
   ROLE_TARGET,
   TICKET_TARGETS,
   TARGET_LABEL,
+  bolehMemoderasiTiket,
   canAccessTicket,
   canExportKeluhan,
   isAdminRole,
@@ -33,10 +36,14 @@ import {
 import { createPositionSlot, assignPosition } from '../controllers/position.controller';
 import { processRequest } from '../controllers/data-request.controller';
 import { getAuditLogs } from '../controllers/audit.controller';
+import { loginSchema } from '../controllers/auth.controller';
 import { EKSTENSI_DOKUMEN, ekstensiDokumen } from '../middlewares/upload.middleware';
+import { namaAman } from '../lib/lampiran';
+import { hostTidakAman, unduh } from '../lib/http';
 import { pangkasRetensi } from '../services/retensi.service';
-import { nomorTiketBerikutnya } from '../controllers/ticket.controller';
+import { nomorTiketBerikutnya, setTicketModeration } from '../controllers/ticket.controller';
 import { batasHalaman } from '../lib/paginasi';
+import { cookieHarusSecure } from '../lib/cookies';
 
 let lulus = 0;
 const gagal: string[] = [];
@@ -108,6 +115,18 @@ async function main(): Promise<void> {
   uji('akses: BEM baca aspirasi, bukan keluhan', canAccessTicket({ id: 'x', role: 'PENGURUS_BEM' }, tiketAspirasi) && !canAccessTicket({ id: 'x', role: 'PENGURUS_BEM' }, tiketKeluhan));
   uji('akses: himpunan baca tiket ke organisasinya saja', canAccessTicket({ id: 'x', role: 'PENGURUS_TEKNIK_MESIN' }, { type: 'ASPIRASI', targetOrganization: 'TEKNIK_MESIN', senderId: 'u1' }) && !canAccessTicket({ id: 'x', role: 'PENGURUS_TEKNIK_MESIN' }, { type: 'ASPIRASI', targetOrganization: 'BEM', senderId: 'u1' }));
 
+  // bolehMemoderasiTiket: hak TULIS (status + moderatedById) lebih ketat dari hak BACA.
+  const tiketUntukModerasi = { ...tiketKeluhan, assignments: [] as { assigneeId: string; isActive: boolean }[] };
+  uji('moderasi: admin selalu boleh', bolehMemoderasiTiket({ id: 'a', role: 'ADMIN' }, tiketUntukModerasi));
+  uji('moderasi: penulis ditolak walau berhak membaca tiketnya',
+    canAccessTicket({ id: 'u1', role: 'MAHASISWA' }, tiketUntukModerasi) &&
+    !bolehMemoderasiTiket({ id: 'u1', role: 'MAHASISWA' }, tiketUntukModerasi));
+  uji('moderasi: pengurus harus punya penugasan aktif',
+    bolehMemoderasiTiket({ id: 'u2', role: 'PENGURUS_BEM' }, { ...tiketKeluhan, assignments: [{ assigneeId: 'u2', isActive: true }] }) &&
+    !bolehMemoderasiTiket({ id: 'u2', role: 'PENGURUS_BEM' }, { ...tiketKeluhan, assignments: [{ assigneeId: 'u2', isActive: false }] }));
+  uji('moderasi: pengurus tanpa penugasan ditolak meski boleh membaca',
+    !bolehMemoderasiTiket({ id: 'u9', role: 'PENGURUS_BEM' }, { ...tiketKeluhan, assignments: [{ assigneeId: 'u2', isActive: true }] }));
+
   console.log('\n=== B. Guard peran di controller kritis (tolak SEBELUM query DB) ===\n');
 
   // Semua kasus di bawah memakai role NON-admin. Bila guard dihapus, controller
@@ -148,6 +167,18 @@ async function main(): Promise<void> {
     let nextDipanggil = false;
     await getAuditLogs({ user: { id: 'u-uji', role: 'PENGURUS_BEM' }, query: {} }, res as never, (() => { nextDipanggil = true; }) as never);
     uji('getAuditLogs: PENGURUS ditolak 403 (khusus admin)', res.code === 403 && !nextDipanggil);
+  }
+
+  {
+    // Serangan IRISAN A: penulis memublikasikan sekaligus menutup tiketnya sendiri.
+    const res = resPalsu();
+    let nextDipanggil = false;
+    await setTicketModeration(
+      { user: nonAdmin, params: { id: 'tiket-uji' }, body: { moderationStatus: 'PUBLISHED', status: 'SELESAI' } },
+      res as never,
+      (() => { nextDipanggil = true; }) as never
+    );
+    uji('setTicketModeration: MAHASISWA ditolak 403 tanpa query DB', res.code === 403 && !nextDipanggil);
   }
 
   console.log('\n=== C. Ekstensi lampiran diturunkan dari MIME, bukan nama berkas ===\n');
@@ -211,6 +242,71 @@ async function main(): Promise<void> {
     'totalPages: 0/20 -> 0, 200/20 -> 10, 201/20 -> 11',
     batasHalaman(0, 20) === 0 && batasHalaman(200, 20) === 10 && batasHalaman(201, 20) === 11
   );
+
+  // --- G. Validasi login, nama berkas lampiran, daftar host SSRF -----------
+  uji(
+    'loginSchema: NIM/password kosong dan non-string ditolak',
+    !loginSchema.safeParse({}).success &&
+      !loginSchema.safeParse({ nim: '  ', password: 'x' }).success &&
+      !loginSchema.safeParse({ nim: { $gt: '' }, password: 'x' }).success
+  );
+  uji(
+    'loginSchema: NIM 21 karakter / password 201 karakter ditolak, yang wajar diterima',
+    !loginSchema.safeParse({ nim: '1'.repeat(21), password: 'x' }).success &&
+      !loginSchema.safeParse({ nim: '22140001', password: 'x'.repeat(201) }).success &&
+      loginSchema.safeParse({ nim: '22140001', password: 'Rahasia123' }).success
+  );
+
+  uji(
+    'namaAman: nama baik dipertahankan, traversal & pemisah jalur diganti',
+    namaAman('berkas-2026.v2') === 'berkas-2026.v2' &&
+      namaAman('../../bem-ft-unaya/x') === 'lampiran' &&
+      namaAman('a/b') === 'lampiran' &&
+      namaAman('..') === 'lampiran' &&
+      namaAman('') === 'lampiran'
+  );
+
+  uji(
+    'hostTidakAman menutup rentang yang daftar lama image-convert lewatkan',
+    hostTidakAman('169.254.169.254') && hostTidakAman('100.64.0.1') && hostTidakAman('172.20.0.1') &&
+      !hostTidakAman('8.8.8.8') && !hostTidakAman('res.cloudinary.com')
+  );
+
+  // Bentuk desimal (2130706433) dan pendek (127.1) bukan dotted-quad, jadi
+  // pemeriksaan literal saja meloloskannya. Yang menahan adalah resolusi +
+  // pemeriksaan setiap jawaban; kalau resolver menolak bentuk itu sejak awal
+  // (EBADNAME) hasilnya tetap penolakan, jadi kedua pesan sama-sama sah.
+  {
+    let alasan: string | null = null;
+    try {
+      await unduh('http://2130706433/', { timeout: 3000 });
+    } catch (error) {
+      alasan = (error as Error).message;
+    }
+    uji(
+      'unduh: bentuk IP non-dotted-quad menuju loopback ditolak sebelum fetch',
+      alasan !== null && /internal\/private|tidak dapat di-resolve/.test(alasan)
+    );
+  }
+
+  // --- H. Flag Secure pada cookie sesi --------------------------------------
+  {
+    const reqPalsu = (secure: boolean, forwarded?: string) =>
+      ({ secure, get: () => forwarded }) as never;
+    const VERCEL_ENV = process.env.VERCEL_ENV;
+    delete process.env.VERCEL_ENV;
+    const httpPolos = !cookieHarusSecure(reqPalsu(false));
+    const headerHttps = cookieHarusSecure(reqPalsu(false, 'https'));
+    const tlsLangsung = cookieHarusSecure(reqPalsu(true));
+    process.env.VERCEL_ENV = 'production';
+    const dipaksaDiVercel = cookieHarusSecure(reqPalsu(false));
+    if (VERCEL_ENV === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = VERCEL_ENV;
+    uji(
+      'cookieHarusSecure: ikut protokol di luar Vercel, dipaksa aman selama VERCEL_ENV ada',
+      httpPolos && headerHttps && tlsLangsung && dipaksaDiVercel
+    );
+  }
 
   console.log(`\n--- RINGKASAN UNIT TEST ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
   if (gagal.length > 0) {

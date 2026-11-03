@@ -184,7 +184,14 @@ const BARIS: Baris[] = [
     amanDiuji: true,
     catatan: 'hapus tiket hanya untuk DPM+/admin; id tidak ada sehingga admin menerima 404 tanpa penghapusan',
   },
-  { metode: 'PUT', jalur: '/tickets/:id/moderation', harapan: { tamu: 401 } },
+  {
+    metode: 'PUT',
+    jalur: '/tickets/:id/moderation',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan:
+      'penjaga peran jalan sebelum body dibaca dan sebelum query: MAHASISWA (penulis tiket) selalu 403, pengurus/admin lanjut ke pencarian tiket dan kena 404 karena id tidak ada sehingga tidak ada status maupun moderatedById yang berubah. Aturan "pengurus hanya boleh menandatangani tiket yang ditugaskan kepadanya" diuji di uji-unit-kritis.ts.',
+  },
   // Template balasan cepat dipakai pengurus saat menjawab tiket.
   { metode: 'GET', jalur: '/tickets/templates', harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
   {
@@ -746,19 +753,20 @@ const BARIS: Baris[] = [
   },
 
   // ── rute yang didaftarkan langsung di app.ts ────────────────────────────
+  // Kunci cron hanya dibaca dari header. Varian lama `?secret=...` dan segmen
+  // path `/cron/<secret>` sudah dihapus (secret di URL endapan di log akses),
+  // jadi tidak ada barisnya lagi; pemeriksa kelengkapan akan menggagalkan CI
+  // bila salah satu varian itu didaftarkan kembali tanpa baris pengujian.
   {
     metode: 'POST',
     jalur: '/internal/cron',
     harapan: { tamu: 401 },
     amanDiuji: true,
     catatan: 'tanpa header X-Cron-Secret selalu 401; endpoint tidak menyentuh database',
-  },
-  {
-    metode: 'POST',
-    jalur: '/internal/cron/:kunciCron',
-    harapan: { tamu: 401 },
-    amanDiuji: true,
-    catatan: 'varian segmen path (dipakai pemanggil yang hanya bisa mengatur URL); secret salah selalu 401 sebelum menyentuh database',
+    cek: (peran, hasil) =>
+      peran === 'tamu' && !hasil.body.includes('Kunci cron tidak sah')
+        ? 'penolakan cron bukan karena kunci tidak sah'
+        : null,
   },
   // Vercel Cron mengirim GET dengan Authorization: Bearer <CRON_SECRET>.
   {
@@ -767,13 +775,6 @@ const BARIS: Baris[] = [
     harapan: { tamu: 401 },
     amanDiuji: true,
     catatan: 'tanpa kunci cron yang cocok selalu 401; job tidak pernah jalan pada baris ini',
-  },
-  {
-    metode: 'GET',
-    jalur: '/internal/cron/:kunciCron',
-    harapan: { tamu: 401 },
-    amanDiuji: true,
-    catatan: 'segmen path "kunciCron" bukan secret yang sah sehingga selalu 401',
   },
   { metode: 'GET', jalur: '/health', harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' } },
 ];
@@ -873,8 +874,97 @@ async function jalankanBaris(baris: Baris, akun: Record<Exclude<Peran, 'tamu'>, 
   if (baris.temuan && !adaKetidaksesuaian) laporan.catatKonfirmasi(label, baris.temuan);
 }
 
-// ─── Pemeriksaan kelengkapan: setiap rute terdaftar harus punya baris ──────
+/**
+ * IRISAN B — isi balasan GET /data-requests per peran.
+ *
+ * Matriks di atas hanya membuktikan 401/403, padahal kebocoran di sini berupa
+ * 200 yang memuat nama/email/no_hp milik orang lain. Jadi dibuat satu pengajuan
+ * milik akun mahasiswa dengan penanda acak, lalu isi balasan tiap peran
+ * diperiksa: pengurus (PENGURUS_BEM) tidak boleh melihatnya, admin boleh, dan
+ * mahasiswa hanya melihat punyanya sendiri.
+ */
+async function ujiIsolasiPengajuanData(
+  akun: Record<Exclude<Peran, 'tamu'>, AkunUji>,
+  laporan: Laporan
+): Promise<void> {
+  const penanda = `UJI-PII-${Date.now()}`;
+  const pengajuan = await prisma.dataChangeRequest.create({
+    data: { userId: akun.mahasiswa.id, requestData: { nama: penanda }, reason: penanda },
+    select: { id: true },
+  });
 
+  try {
+    const pemeriksaan: { peran: Exclude<Peran, 'tamu'>; harusTerlihat: boolean }[] = [
+      { peran: 'mahasiswa', harusTerlihat: true },
+      { peran: 'pengurus', harusTerlihat: false },
+      { peran: 'admin', harusTerlihat: true },
+    ];
+
+    for (const { peran, harusTerlihat } of pemeriksaan) {
+      const nama = `GET /api/data-requests [${NAMA_PERAN[peran]}] ${
+        harusTerlihat ? 'melihat' : 'TIDAK melihat'
+      } pengajuan milik akun lain`;
+      const hasil = await minta('/data-requests', { cookie: akun[peran].cookie });
+
+      if (hasil.status !== 200) {
+        laporan.gagalkan(`${nama} — status ${hasil.status}`, hasil.status, 200);
+        continue;
+      }
+      const terlihat = hasil.body.includes(penanda);
+      if (terlihat !== harusTerlihat) {
+        laporan.gagalkan(`${nama} — penanda ${terlihat ? 'ada' : 'tidak ada'} di balasan`, terlihat, harusTerlihat);
+        continue;
+      }
+      laporan.luluskan(nama);
+    }
+  } finally {
+    await prisma.dataChangeRequest.deleteMany({ where: { id: pengajuan.id } });
+  }
+}
+
+/**
+ * IRISAN C — draf konten tidak boleh terbaca oleh pengunjung anonim.
+ *
+ * Baris matriks GET /cms/:id hanya memancing id yang tidak ada (404), jadi
+ * aturan statusnya diuji terpisah: satu konten berstatus DRAFT dibuat, lalu
+ * isi balasan tiap pemanggil diperiksa dan barisnya dihapus lagi.
+ */
+async function ujiDrafKontenTertutup(
+  akun: Record<Exclude<Peran, 'tamu'>, AkunUji>,
+  laporan: Laporan
+): Promise<void> {
+  const penanda = `UJI-DRAF-${Date.now()}`;
+  const draf = await prisma.content.create({
+    data: { type: 'BERITA', title: penanda, content: penanda, status: 'DRAFT', authorId: akun.admin.id },
+    select: { id: true },
+  });
+
+  try {
+    const pemeriksaan: { peran: Peran; harusTerlihat: boolean }[] = [
+      { peran: 'tamu', harusTerlihat: false },
+      { peran: 'mahasiswa', harusTerlihat: false },
+      { peran: 'pengurus', harusTerlihat: true },
+      { peran: 'admin', harusTerlihat: true },
+    ];
+
+    for (const { peran, harusTerlihat } of pemeriksaan) {
+      const nama = `GET /api/cms/:id [${NAMA_PERAN[peran]}] ${harusTerlihat ? 'boleh' : 'TIDAK boleh'} membaca draf`;
+      const cookie = peran === 'tamu' ? undefined : akun[peran].cookie;
+      const hasil = await minta(`/cms/${draf.id}`, { cookie });
+      const terlihat = hasil.status === 200 && hasil.body.includes(penanda);
+
+      if (terlihat !== harusTerlihat) {
+        laporan.gagalkan(`${nama} — status ${hasil.status}`, terlihat, harusTerlihat);
+        continue;
+      }
+      laporan.luluskan(`${nama} → ${hasil.status}`);
+    }
+  } finally {
+    await prisma.content.deleteMany({ where: { id: draf.id } });
+  }
+}
+
+// ─── Pemeriksaan kelengkapan: setiap rute terdaftar harus punya baris ──────
 interface RuteTerdaftar {
   kunci: string;
   berkas: string;
@@ -952,6 +1042,12 @@ async function main(): Promise<void> {
     for (const baris of BARIS) {
       await jalankanBaris(baris, akun, jabatan.id, laporan);
     }
+
+    console.log('\n--- Isi balasan: isolasi pengajuan perubahan data ---');
+    await ujiIsolasiPengajuanData(akun, laporan);
+
+    console.log('\n--- Isi balasan: draf konten tidak terbaca anonim ---');
+    await ujiDrafKontenTertutup(akun, laporan);
 
     console.log('\n--- Kelengkapan cakupan ---');
     const { terpasang, berkasTidakTerpasang } = daftarRuteTerpasang();
