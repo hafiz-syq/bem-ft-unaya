@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { api, assetUrl } from '../lib/axios';
+import { api, assetUrl, tautanAman } from '../lib/axios';
 import { Clock, MapPin, Link as LinkIcon, Loader2, Code2, ArrowLeft, Share2, Lock, CalendarDays, CalendarPlus, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useAuth } from '../contexts/AuthContext';
@@ -198,15 +198,15 @@ export default function Agenda() {
                       <CalendarPlus className="w-4 h-4"/> Tambah ke Kalender
                     </a>
                     {/* Media sosial: terbuka untuk semua pengunjung, tanpa login. */}
-                    {item.socialMediaLink && (
-                      <a href={item.socialMediaLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 font-bold text-gray-600 transition-colors border border-gray-200 rounded-lg dark:text-gray-300 dark:border-gray-700 hover:border-amber-400 hover:text-amber-500">
+                    {tautanAman(item.socialMediaLink) && (
+                      <a href={tautanAman(item.socialMediaLink)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 font-bold text-gray-600 transition-colors border border-gray-200 rounded-lg dark:text-gray-300 dark:border-gray-700 hover:border-amber-400 hover:text-amber-500">
                         <Share2 className="w-4 h-4" /> Media Sosial
                       </a>
                     )}
                     {/* Pendaftaran: hanya untuk akun minimal mahasiswa (sudah login). */}
-                    {item.registrationLink && (
+                    {tautanAman(item.registrationLink) && (
                       isMahasiswaOrAbove(user?.role) ? (
-                        <a href={item.registrationLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 font-bold text-amber-500 transition-colors rounded-lg bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/40">
+                        <a href={tautanAman(item.registrationLink)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 font-bold text-amber-500 transition-colors rounded-lg bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/40">
                           <LinkIcon className="w-4 h-4"/> Daftar Sekarang
                         </a>
                       ) : (

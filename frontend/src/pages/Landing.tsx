@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { api, assetUrl } from '../lib/axios';
+import { api, assetUrl, tautanAman } from '../lib/axios';
 import { avatarUrl } from '../lib/gambar';
 import { useAuth } from '../contexts/AuthContext';
 import { useSeasonalTheme } from '../contexts/SeasonalThemeContext';
@@ -108,6 +108,9 @@ export default function Landing() {
   const [demisioner, setDemisioner] = useState<DemisionerItem[]>([]);
   const [demoIndex, setDemoIndex] = useState(0);
   const [loadingContent, setLoadingContent] = useState(true);
+  // Empat permintaan bagian halaman saling lepas; catat yang gagal supaya pengunjung tahu, bukan melihat halaman hampa.
+  const [bagianGagal, setBagianGagal] = useState<string[]>([]);
+  const tandaiGagal = (bagian: string) => setBagianGagal((b) => (b.includes(bagian) ? b : [...b, bagian]));
 
   // Prerender data (jika ada dari build)
   const prerenderData = (typeof window !== 'undefined' && window.__LANDING_DATA__) || null;
@@ -159,6 +162,7 @@ export default function Landing() {
         setGalleries(resGallery.data.data.slice(0, 4));
       } catch (error) { 
         console.error('Gagal memuat data utama', error); 
+        tandaiGagal('berita, agenda & galeri');
       } 
 
       try {
@@ -166,6 +170,7 @@ export default function Landing() {
         setComments(resComments.data.data.slice(0, 6));
       } catch (error) { 
         console.error('Gagal memuat komentar', error); 
+        tandaiGagal('ulasan publik');
       } 
 
       // Aspirasi & keluhan yang sudah tayang (keluhan sudah dianonimkan server).
@@ -174,6 +179,7 @@ export default function Landing() {
         setPublicTickets(resTickets.data.data);
       } catch (error) {
         console.error('Gagal memuat aspirasi publik', error);
+        tandaiGagal('aspirasi');
       } 
 
       // Pratinjau riwayat demisioner untuk bagian sejarah.
@@ -182,6 +188,7 @@ export default function Landing() {
         setDemisioner(resDemisioner.data.data.slice(0, 5));
       } catch (error) {
         console.error('Gagal memuat demisioner', error);
+        tandaiGagal('riwayat demisioner');
       } 
 
       setLoadingContent(false);
@@ -353,6 +360,13 @@ export default function Landing() {
       </nav>
 
       <main id="konten-utama" tabIndex={-1} className="outline-none">
+      {bagianGagal.length > 0 && (
+        <div className="max-w-6xl px-4 pt-6 mx-auto sm:px-6">
+          <div className="p-4 text-sm text-red-600 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">
+            Sebagian halaman gagal dimuat: {bagianGagal.join(', ')}. Coba muat ulang halaman ini.
+          </div>
+        </div>
+      )}
       {/* HERO SECTION */}
       <section className="px-4 py-20 overflow-hidden text-white sm:px-6 sm:py-24 bg-gradient-to-br from-neutral-700 via-neutral-800 to-zinc-900">
         <div className="max-w-4xl mx-auto space-y-6 text-center">
@@ -677,9 +691,9 @@ export default function Landing() {
                         <MapPin className="w-3.5 h-3.5 text-red-500 dark:text-red-400 shrink-0 mt-0.5" /> <span className="line-clamp-1">{item.location}</span>
                       </div>
                       {/* Tautan media sosial agenda terbuka untuk semua pengunjung. */}
-                      {item.socialMediaLink && (
+                      {tautanAman(item.socialMediaLink) && (
                         <a
-                          href={item.socialMediaLink}
+                          href={tautanAman(item.socialMediaLink)}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
@@ -985,9 +999,9 @@ export default function Landing() {
                 <p className="text-sm leading-relaxed text-gray-600 whitespace-pre-wrap dark:text-gray-400">{selectedAgenda.description}</p>
               </div>
 
-              {selectedAgenda.socialMediaLink && (
+              {tautanAman(selectedAgenda.socialMediaLink) && (
                 <a
-                  href={selectedAgenda.socialMediaLink}
+                  href={tautanAman(selectedAgenda.socialMediaLink)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center w-full gap-2 py-3 font-bold transition-colors border-2 border-amber-400 rounded-xl text-amber-600 dark:text-amber-400 hover:bg-amber-400 hover:text-gray-900 dark:hover:text-gray-900"
@@ -996,9 +1010,9 @@ export default function Landing() {
                 </a>
               )}
 
-              {selectedAgenda.registrationLink && (
+              {tautanAman(selectedAgenda.registrationLink) && (
                 isMahasiswaOrAbove(user?.role) ? (
-                  <a href={selectedAgenda.registrationLink} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-full gap-2 py-3 mt-4 font-bold text-gray-900 transition-all shadow-md bg-amber-400 rounded-xl hover:bg-amber-500 active:scale-95">
+                  <a href={tautanAman(selectedAgenda.registrationLink)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-full gap-2 py-3 mt-4 font-bold text-gray-900 transition-all shadow-md bg-amber-400 rounded-xl hover:bg-amber-500 active:scale-95">
                     Daftar / Ikuti Kegiatan <ExternalLink className="w-4 h-4" />
                   </a>
                 ) : (

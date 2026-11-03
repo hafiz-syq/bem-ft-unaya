@@ -200,3 +200,11 @@ export const assetUrl = (path?: string | null): string => {
   }
   return `${API_ORIGIN}${path}`;
 };
+
+/** Nilai yang layak jadi href: http/https atau path root-relative; skema lain (javascript:, data:) ditolak. */
+export const tautanAman = (href?: string | null): string => {
+  const nilai = (href || '').trim();
+  if (/^https?:\/\/\S+$/i.test(nilai)) return nilai;
+  // Root-relative ('/uploads/x.pdf') aman; '//evil.com' mengikuti host asing, jadi tolak.
+  return /^\/(?!\/)/.test(nilai) ? nilai : '';
+};

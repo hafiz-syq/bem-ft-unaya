@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import { api, API_ORIGIN } from '../lib/axios';
+import { api, assetUrl, tautanAman } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useAksesArsip } from '../lib/arsip-surat';
 import { isAdminRole } from '../lib/roles';
@@ -345,9 +345,9 @@ export default function Documents() {
                   {d.note && <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Catatan: {d.note}</p>}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {d.fileUrl && (
+                  {tautanAman(assetUrl(d.fileUrl)) && (
                     <a
-                      href={`${API_ORIGIN}${d.fileUrl}`}
+                      href={tautanAman(assetUrl(d.fileUrl))}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-amber-700 rounded-lg bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60"
