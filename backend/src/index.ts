@@ -32,6 +32,17 @@ if (produksiSebenarnya && !(process.env.CRON_SECRET || '').trim()) {
   console.error(`[cron] ${peringatanCron}`);
 }
 
+// Sama seperti cron: tanpa JWT_SECRET login melempar 500 dan seluruh sesi lama
+// tidak terverifikasi, jadi hanya listener mandiri yang boleh mati di sini.
+const peringatanJwt =
+  'JWT_SECRET belum disetel. Setel di Vercel Project Settings -> Environment Variables; ' +
+  'tanpanya setiap login gagal dan semua sesi lama langsung tidak sah.';
+
+if (produksiSebenarnya && !(process.env.JWT_SECRET || '').trim()) {
+  if (jalankanListener) throw new Error(peringatanJwt);
+  console.error(`[auth] ${peringatanJwt}`);
+}
+
 // Vercel Function mengimpor app dan menangani request sendiri. Jangan buka
 // listener di sana; listener hanya untuk Hostinger/proses Node biasa.
 export default app;

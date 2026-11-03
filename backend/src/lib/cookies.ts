@@ -12,7 +12,7 @@ const SEHARI_MS = 24 * 60 * 60 * 1000;
  * X-Forwarded-Proto dari reverse proxy. Jadi cookie hanya ditandai Secure
  * ketika transportnya memang terenkripsi.
  */
-export const isPermintaanHttps = (req: Request): boolean => {
+const isPermintaanHttps = (req: Request): boolean => {
   if (req.secure) return true;
 
   const forwarded = req.get('x-forwarded-proto');
@@ -20,6 +20,19 @@ export const isPermintaanHttps = (req: Request): boolean => {
 
   return false;
 };
+
+/**
+ * Apakah cookie boleh diawali tanpa Secure.
+ *
+ * VERCEL_ENV (production & preview) hanya dilayani lewat HTTPS, jadi keputusannya
+ * dipaksa aman di sana dan tidak lagi bergantung pada X-Forwarded-Proto — header
+ * itu bisa tidak terkirim atau dipalsukan pembuat permintaan. Di luar Vercel
+ * (mis. server kampus yang dibuka via http://192.168.x.x) Secure tetap mengikuti
+ * protokol permintaan sebenarnya: memaksanya membuat browser membuang cookie dan
+ * pengguna terjebak di halaman login tanpa pesan.
+ */
+export const cookieHarusSecure = (req: Request): boolean =>
+  Boolean(process.env.VERCEL_ENV) || isPermintaanHttps(req);
 
 /**
  * Nilai SameSite untuk cookie sesi.
@@ -52,7 +65,7 @@ export const opsiCookieToken = (req: Request): CookieOptions => {
   const sameSite = sameSiteCookie();
   return {
     httpOnly: true,
-    secure: sameSite === 'none' ? true : isPermintaanHttps(req),
+    secure: sameSite === 'none' || cookieHarusSecure(req),
     sameSite,
     maxAge: SEHARI_MS,
   };
@@ -63,7 +76,7 @@ export const opsiHapusCookieToken = (req: Request): CookieOptions => {
   const sameSite = sameSiteCookie();
   return {
     httpOnly: true,
-    secure: sameSite === 'none' ? true : isPermintaanHttps(req),
+    secure: sameSite === 'none' || cookieHarusSecure(req),
     sameSite,
   };
 };
