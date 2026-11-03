@@ -14,6 +14,7 @@
     "test": "ts-node src/tests/uji-akses-rute.ts",
     "test:unit": "ts-node src/tests/uji-unit-kritis.ts",
     "uji:retensi": "ts-node src/tests/uji-retensi-mysql.ts",
+    "uji:nomor-tiket": "ts-node src/tests/uji-nomor-tiket-mysql.ts",
     "seed": "ts-node src/scripts/seed.ts",
     "superadmin": "ts-node src/scripts/buat-superadmin.ts",
     "verifikasi:akses": "ts-node src/scripts/verifikasi-akses-non-admin.ts",

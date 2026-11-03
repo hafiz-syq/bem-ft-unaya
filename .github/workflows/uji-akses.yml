@@ -79,6 +79,14 @@ jobs:
           RETENSI_AKTIF: '1'
         run: npm run uji:retensi
 
+      # Penomoran tiket (B2.6) sebelumnya hanya terbukti lewat stub $queryRaw di job tanpa DB.
+      # Langkah ini menjalankan SQL MAX yang SAMA di atas mysql:8, di basis data runner yang
+      # baru dimigrasi dan masih kosong; skripnya menolak bila hari itu sudah ada tiket lain
+      # dan membersihkan baris uji sendiri.
+      - name: Penomoran tiket — SQL MAX dieksekusi di MySQL 8
+        working-directory: backend
+        run: npm run uji:nomor-tiket
+
       - name: Bangun backend
         working-directory: backend
         run: npm run build
