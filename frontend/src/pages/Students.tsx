@@ -1,104 +1,29 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { api } from '../lib/axios';
-import {
-  Search, Loader2, ChevronLeft, ChevronRight, Download, FileSpreadsheet,
-  Upload, UserCog, CalendarClock, X, AlertTriangle, CheckCircle2, FileUp, UserPlus,
-  ShieldCheck, Pencil, Trash2, Save, GraduationCap, Power, Smartphone, Undo2, RefreshCw,
-} from 'lucide-react';
+import { Search, FileSpreadsheet, Trash2, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfileDialog } from '../contexts/ProfileDialogContext';
-import UserAvatar from '../components/UserAvatar';
 import {
   ASSIGNABLE_ROLES, ROLE_ADMIN, ROLE_LABEL, ROLE_SUPERADMIN, isAdminRole,
 } from '../lib/roles';
-
-interface Student {
-  id: string;
-  nim: string;
-  role: string;
-  isActive: boolean;
-  email?: string | null;
-  jabatan: string | null;
-  organisasi: string | null;
-  deactivatedAt: string | null;
-  deactivationType: string | null;
-  tenggatHapus: string | null;
-  perpanjanganHingga: string | null;
-  tenggatHapusEfektif: string | null;
-  diperpanjangSampai: string | null;
-  angkatan: number | null;
-  email_verified?: boolean;
-  foto?: string | null;
-  profile: {
-    nama: string;
-    program_studi: string;
-    email: string | null;
-    no_hp: string | null;
-    foto?: string | null;
-  } | null;
-}
-
-interface Meta {
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-  /** Jumlah mahasiswa per tahun angkatan pada filter yang sedang aktif. */
-  perAngkatan?: { angkatan: number; jumlah: number }[];
-  /** Filter angkatan yang sedang dipakai server (null bila tidak ada). */
-  angkatan?: number | null;
-  /** true bila pemilik sesi hanya boleh membaca direktori (role mahasiswa). */
-  hanyaBaca?: boolean;
-}
-
-interface HasilPratinjau {
-  totalDibaca: number;
-  valid: number;
-  siapDiimpor: number;
-  sudahTerdaftar: number;
-  bermasalah: number;
-  contoh: { nama: string; nim: string; program_studi: string }[];
-  daftarBermasalah: { nama?: string; nim?: string; alasan: string }[];
-}
-
-interface HasilSimpan {
-  dibuat: number;
-  dilewati: number;
-  gagal: number;
-  bermasalah: number;
-  daftarGagal: string[];
-}
-
-interface StudentSampah {
-  id: string;
-  nim: string;
-  role: string;
-  deletedAt: string;
-  deletionReason: string | null;
-  profile: { nama: string; program_studi: string; foto: string | null } | null;
-}
-
-type TabData = 'AKTIF' | 'SAMPAH';
-
-const LIMIT = 20;
-
-/** Program studi yang dikenali sistem (sama dengan daftar pada impor PDF). */
-const PROGRAM_STUDI = ['SISTEM INFORMASI', 'TEKNIK MESIN', 'TEKNIK SIPIL'] as const;
-
-const FORM_TAMBAH_KOSONG = {
-  nim: '',
-  nama: '',
-  program_studi: PROGRAM_STUDI[0] as string,
-  email: '',
-  no_hp: '',
-};
-
-const STATUS_OPTIONS = [
-  { value: 'ALL', label: 'Semua Status' },
-  { value: 'AKTIF', label: 'Aktif' },
-  { value: 'NONAKTIF', label: 'Nonaktif' },
-];
+import {
+  FORM_TAMBAH_KOSONG, LIMIT, PROGRAM_STUDI,
+  keTanggalInput,
+  type FormAdmin, type FormAkun, type FormTambah, type HasilPratinjau,
+  type HasilSimpan, type Meta, type Student, type StudentSampah, type TabData,
+} from './students/data-mahasiswa';
+import HeaderHalaman from './students/HeaderHalaman';
+import BilahFilter from './students/BilahFilter';
+import RingkasanAngkatan from './students/RingkasanAngkatan';
+import BilahAksiMassal from './students/BilahAksiMassal';
+import TabelMahasiswa from './students/TabelMahasiswa';
+import TabelSampah from './students/TabelSampah';
+import ModalSunting from './students/ModalSunting';
+import ModalKelola from './students/ModalKelola';
+import ModalAdmin from './students/ModalAdmin';
+import ModalTambah from './students/ModalTambah';
+import ModalImpor from './students/ModalImpor';
 
 /**
  * Ambil pesan kesalahan dari server.
@@ -123,15 +48,6 @@ async function pesanKesalahan(err: unknown, bawaan: string): Promise<string> {
 
   return bawaan;
 }
-
-/** Tanggal polos (YYYY-MM-DD) untuk input type="date". */
-const keTanggalInput = (nilai: string | null): string =>
-  nilai ? new Date(nilai).toISOString().slice(0, 10) : '';
-
-const formatTanggal = (nilai: string | null): string =>
-  nilai
-    ? new Date(nilai).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-    : '—';
 
 export default function Students() {
   const { user } = useAuth();
@@ -166,7 +82,7 @@ export default function Students() {
 
   // --- Modal sunting data mahasiswa (admin & superadmin) ---
   const [edit, setEdit] = useState<Student | null>(null);
-  const [formEdit, setFormEdit] = useState({
+  const [formEdit, setFormEdit] = useState<FormAkun>({
     nama: '',
     program_studi: PROGRAM_STUDI[0] as string,
     email: '',
@@ -192,13 +108,13 @@ export default function Students() {
 
   // --- Modal tambah akun administrator (khusus SUPERADMIN) ---
   const [adminTerbuka, setAdminTerbuka] = useState(false);
-  const [formAdmin, setFormAdmin] = useState({ nim: '', email: '', password: '', konfirmasi: '' });
+  const [formAdmin, setFormAdmin] = useState<FormAdmin>({ nim: '', email: '', password: '', konfirmasi: '' });
   const [menyimpanAdmin, setMenyimpanAdmin] = useState(false);
   const [galatAdmin, setGalatAdmin] = useState('');
 
   // --- Modal tambah mahasiswa manual (satu per satu) ---
   const [tambahTerbuka, setTambahTerbuka] = useState(false);
-  const [formTambah, setFormTambah] = useState({ ...FORM_TAMBAH_KOSONG });
+  const [formTambah, setFormTambah] = useState<FormTambah>({ ...FORM_TAMBAH_KOSONG });
   const [menyimpanTambah, setMenyimpanTambah] = useState(false);
   const [galatTambah, setGalatTambah] = useState('');
 
@@ -211,9 +127,12 @@ export default function Students() {
   const [hasilImpor, setHasilImpor] = useState<HasilSimpan | null>(null);
   const [galatImpor, setGalatImpor] = useState('');
 
-  const fetchStudents = useCallback(async () => {
+  const fetchStudents = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError('');
+    // Balasan yang dibatalkan bukan kegagalan: jangan tulis galat dan jangan
+    // matikan spinner milik permintaan baru yang sudah berjalan.
+    let batal = false;
     try {
       const response = await api.get('/students', {
         params: {
@@ -224,41 +143,52 @@ export default function Students() {
           role: role === 'ALL' ? undefined : role,
           angkatan: angkatan ?? undefined,
         },
+        signal,
       });
       setStudents(response.data.data);
       setMeta(response.data.meta);
       setDipilih(new Set());
     } catch (err) {
-      setError(await pesanKesalahan(err, 'Gagal memuat data mahasiswa'));
+      if (axios.isCancel(err)) batal = true;
+      else setError(await pesanKesalahan(err, 'Gagal memuat data mahasiswa'));
     } finally {
-      setLoading(false);
+      if (!batal) setLoading(false);
     }
   }, [page, kataKunci, status, role, angkatan]);
 
-  const fetchSampah = useCallback(async () => {
+  const fetchSampah = useCallback(async (signal?: AbortSignal) => {
     setMemuatSampah(true);
     setError('');
+    let batal = false;
     try {
       const res = await api.get('/students/trash', {
         params: { search: kataKunci || undefined },
+        signal,
       });
       setSampah(res.data.data);
       setSampahTotal(res.data.meta?.total || 0);
     } catch (err) {
-      setError(await pesanKesalahan(err, 'Gagal memuat tempat sampah.'));
+      if (axios.isCancel(err)) batal = true;
+      else setError(await pesanKesalahan(err, 'Gagal memuat tempat sampah.'));
     } finally {
-      setMemuatSampah(false);
+      if (!batal) setMemuatSampah(false);
     }
   }, [kataKunci]);
 
   useEffect(() => {
+    if (tab !== 'AKTIF') return;
+    const controller = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (tab === 'AKTIF') fetchStudents();
+    void fetchStudents(controller.signal);
+    return () => controller.abort();
   }, [fetchStudents, tab]);
 
   useEffect(() => {
+    if (tab !== 'SAMPAH') return;
+    const controller = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (tab === 'SAMPAH') fetchSampah();
+    void fetchSampah(controller.signal);
+    return () => controller.abort();
   }, [fetchSampah, tab]);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -742,60 +672,13 @@ export default function Students() {
         {error && <div className="p-4 text-sm text-red-600 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">{error}</div>}
         {notice && <div className="p-4 text-sm text-green-700 rounded-lg bg-green-50 dark:bg-green-950/60 dark:text-green-300">{notice}</div>}
 
-        <div className="overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800 rounded-xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="text-sm text-gray-500 border-b border-gray-200 dark:text-gray-400 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
-                  <th className="p-4 font-medium">NIM</th>
-                  <th className="p-4 font-medium">Nama</th>
-                  <th className="p-4 font-medium">Program Studi</th>
-                  <th className="p-4 font-medium">Dihapus</th>
-                  <th className="p-4 font-medium text-center">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {memuatSampah ? (
-                  <tr><td colSpan={5} className="p-8 text-center"><Loader2 className="w-6 h-6 mx-auto text-amber-400 animate-spin" /></td></tr>
-                ) : sampah.length === 0 ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-gray-500 dark:text-gray-400">Tempat sampah kosong.</td></tr>
-                ) : (
-                  sampah.map((s) => (
-                    <tr key={s.id} className="transition hover:bg-gray-50 dark:hover:bg-gray-800/60">
-                      <td className="p-4 font-medium text-gray-900 dark:text-gray-100">{s.nim}</td>
-                      <td className="p-4 text-gray-700 dark:text-gray-300">
-                        <p className="font-bold">{s.profile?.nama || '-'}</p>
-                        {s.deletionReason && <p className="text-xs text-gray-400">{s.deletionReason}</p>}
-                      </td>
-                      <td className="p-4 text-gray-600 dark:text-gray-400">{s.profile?.program_studi || '-'}</td>
-                      <td className="p-4 text-sm text-gray-600 dark:text-gray-400">{formatTanggal(s.deletedAt)}</td>
-                      <td className="p-4">
-                        <div className="flex flex-wrap items-center justify-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => pulihkanSiswa(s)}
-                            disabled={sedangProses === s.id}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-green-700 rounded-lg bg-green-50 hover:bg-green-100 dark:text-green-300 dark:bg-green-950/60 disabled:opacity-50"
-                          >
-                            <Undo2 className="w-3.5 h-3.5" /> Pulihkan
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => hapusPermanen(s)}
-                            disabled={sedangProses === s.id}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-red-600 rounded-lg bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-950/60 disabled:opacity-50"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Hapus permanen
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <TabelSampah
+          sampah={sampah}
+          memuatSampah={memuatSampah}
+          sedangProses={sedangProses}
+          pulihkanSiswa={pulihkanSiswa}
+          hapusPermanen={hapusPermanen}
+        />
       </div>
     );
   }
@@ -803,186 +686,43 @@ export default function Students() {
   return (
     <div className="max-w-6xl p-6 mx-auto space-y-6 md:p-8">
 
-      {/* Header Halaman & Form Pencarian */}
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Data Mahasiswa</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {meta?.hanyaBaca
-              ? `Direktori ${meta?.total || 0} mahasiswa aktif${angkatan ? ` angkatan ${angkatan}` : ''}. Data kontak akun hanya terlihat oleh pengelola.`
-              : `Total ${meta?.total || 0} akun ${angkatan ? `angkatan ${angkatan}` : 'terdaftar di sistem'}.`}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <form onSubmit={handleSearch} className="flex gap-2">
-            <div className="relative w-full md:w-64">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <Search className="w-4 h-4 text-gray-400 dark:text-gray-500" />
-              </div>
-              <input
-                type="text"
-                placeholder="Cari NIM atau Nama..."
-                className="block w-full py-2 pr-3 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg pl-9 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700 dark:placeholder:text-gray-500 focus:ring-amber-300 focus:border-amber-300"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm font-medium text-gray-900 transition rounded-lg bg-amber-400 hover:bg-amber-500"
-            >
-              Cari
-            </button>
-          </form>
-
-          {isAdmin && (
-            <>
-              <button
-                type="button"
-                onClick={() => { resetImpor(); setImporTerbuka(true); }}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-bold transition rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 dark:hover:bg-amber-900/40"
-              >
-                <Upload className="w-4 h-4" /> Impor PDF
-              </button>
-              <button
-                type="button"
-                onClick={bukaTambah}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 transition rounded-lg bg-amber-400 hover:bg-amber-500"
-              >
-                <UserPlus className="w-4 h-4" /> Tambah
-              </button>
-              {isSuperadmin && (
-                <button
-                  type="button"
-                  onClick={bukaTambahAdmin}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-purple-700 transition rounded-lg bg-purple-50 hover:bg-purple-100 dark:text-purple-300 dark:bg-purple-950/60 dark:hover:bg-purple-900/40"
-                >
-                  <ShieldCheck className="w-4 h-4" /> Tambah Admin
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleExportCsv}
-                disabled={exporting}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-bold transition rounded-lg text-amber-600 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 dark:hover:bg-amber-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                Ekspor CSV
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      <HeaderHalaman
+        meta={meta}
+        angkatan={angkatan}
+        search={search}
+        setSearch={setSearch}
+        handleSearch={handleSearch}
+        isAdmin={isAdmin}
+        isSuperadmin={isSuperadmin}
+        exporting={exporting}
+        handleExportCsv={handleExportCsv}
+        bukaTambah={bukaTambah}
+        bukaTambahAdmin={bukaTambahAdmin}
+        bukaImpor={() => { resetImpor(); setImporTerbuka(true); }}
+      />
 
       {tombolTab && <div>{tombolTab}</div>}
 
-      {/* Filter Status & Role */}
-      <div className="flex flex-wrap gap-3 p-4 bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800 rounded-xl">
-        {/* Filter status hanya untuk pengelola: direktori mahasiswa selalu
-            berisi akun aktif dan server mengabaikan filter ini bagi mereka. */}
-        {isAdmin && (
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400">
-            Status
-            <select
-              value={status}
-              onChange={(e) => ubahFilter(() => setStatus(e.target.value))}
-              className="px-3 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-            >
-              {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </label>
-        )}
+      <BilahFilter
+        isAdmin={isAdmin}
+        status={status}
+        setStatus={setStatus}
+        role={role}
+        setRole={setRole}
+        opsiFilterRole={opsiFilterRole}
+        angkatan={angkatan}
+        setAngkatan={setAngkatan}
+        ubahFilter={ubahFilter}
+      />
 
-        <label className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400">
-          Role
-          <select
-            value={role}
-            onChange={(e) => ubahFilter(() => setRole(e.target.value))}
-            className="px-3 py-1.5 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-          >
-            <option value="ALL">Semua Role</option>
-            {opsiFilterRole.map((r) => (
-              <option key={r} value={r}>{ROLE_LABEL[r] ?? r}</option>
-            ))}
-          </select>
-        </label>
-
-        {angkatan !== null && (
-          <button
-            type="button"
-            onClick={() => ubahFilter(() => setAngkatan(null))}
-            title={`Hapus filter angkatan ${angkatan}`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-bold transition rounded-lg text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 dark:border-amber-900 dark:hover:bg-amber-900/60"
-          >
-            Angkatan {angkatan}
-            <X className="w-3.5 h-3.5" />
-            <span className="sr-only">Hapus filter angkatan</span>
-          </button>
-        )}
-      </div>
-
-      {/* Ringkasan jumlah mahasiswa per angkatan (ADMIN & SUPERADMIN).
-          Dihitung server dari seluruh baris yang cocok dengan filter, bukan
-          hanya halaman yang tampil, supaya angka totalnya tetap tepat. */}
+      {/* Ringkasan jumlah mahasiswa per angkatan (ADMIN & SUPERADMIN). */}
       {isAdmin && meta?.perAngkatan && meta.perAngkatan.length > 0 && (
-        <section
-          aria-labelledby="ringkasan-angkatan"
-          className="bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800 rounded-xl"
-        >
-          <div className="flex flex-wrap items-start justify-between gap-2 px-5 pt-5">
-            <div>
-              <h2
-                id="ringkasan-angkatan"
-                className="flex items-center gap-2 text-base font-bold text-gray-900 dark:text-gray-100"
-              >
-                <GraduationCap className="w-5 h-5 text-amber-400" /> Jumlah Mahasiswa per Angkatan
-              </h2>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Dibaca dari 2 digit pertama NIM dan mengikuti filter yang aktif.
-              </p>
-            </div>
-            <span className="px-2.5 py-1 text-xs font-bold rounded-full text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/60">
-              {meta.perAngkatan.reduce((jumlah, item) => jumlah + item.jumlah, 0)} mahasiswa •{' '}
-              {meta.perAngkatan.length} angkatan
-            </span>
-          </div>
-
-          <ul className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-3 lg:grid-cols-4">
-            {meta.perAngkatan.map(({ angkatan: tahun, jumlah }) => {
-              const aktif = angkatan === tahun;
-              return (
-                <li key={tahun}>
-                  <button
-                    type="button"
-                    onClick={() => ubahFilter(() => setAngkatan(aktif ? null : tahun))}
-                    aria-pressed={aktif}
-                    title={aktif ? `Hapus filter angkatan ${tahun}` : `Tampilkan hanya angkatan ${tahun}`}
-                    className={`w-full h-full p-4 text-left transition border rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${aktif
-                      ? 'border-amber-400 bg-amber-50 ring-1 ring-amber-400 dark:border-amber-500/70 dark:bg-amber-950/50'
-                      : 'border-gray-200 bg-gray-50/70 hover:border-amber-300 hover:bg-amber-50/60 dark:border-gray-800 dark:bg-gray-800/40 dark:hover:border-amber-500/60 dark:hover:bg-amber-950/30'
-                      }`}
-                  >
-                    <span className="flex items-center justify-between gap-2 text-[11px] font-bold tracking-wide uppercase text-gray-500 dark:text-gray-400">
-                      Angkatan
-                      {aktif && (
-                        <span className="px-1.5 py-0.5 text-[10px] font-bold normal-case rounded-full text-amber-700 bg-amber-100 dark:text-amber-200 dark:bg-amber-900/60">
-                          aktif
-                        </span>
-                      )}
-                    </span>
-                    <span className="block text-xl font-black text-gray-900 dark:text-gray-100">{tahun}</span>
-                    <span className="block mt-1 text-sm text-gray-600 dark:text-gray-300">
-                      <span className="font-bold text-amber-600 dark:text-amber-300">{jumlah}</span> mahasiswa
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+        <RingkasanAngkatan
+          meta={meta}
+          angkatan={angkatan}
+          setAngkatan={setAngkatan}
+          ubahFilter={ubahFilter}
+        />
       )}
 
       {/* Pesan Error / Notifikasi */}
@@ -997,895 +737,114 @@ export default function Students() {
 
       {/* Bilah aksi massal */}
       {isAdmin && dipilih.size > 0 && (
-        <div className="sticky top-16 z-20 flex flex-wrap items-center gap-2 p-3 bg-amber-50 border border-amber-200 shadow-sm rounded-xl dark:bg-amber-950/60 dark:border-amber-900">
-          <span className="mr-1 text-sm font-bold text-amber-800 dark:text-amber-200">
-            {dipilih.size} akun dipilih
-          </span>
-          <button
-            type="button"
-            onClick={() => jalankanBulk('AKTIFKAN')}
-            disabled={bulkBusy}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg text-green-700 bg-green-100 hover:bg-green-200 dark:text-green-300 dark:bg-green-900/50 disabled:opacity-50"
-          >
-            <Power className="w-3.5 h-3.5" /> Aktifkan
-          </button>
-          <button
-            type="button"
-            onClick={() => jalankanBulk('NONAKTIFKAN')}
-            disabled={bulkBusy}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg text-gray-700 bg-white hover:bg-gray-100 border border-gray-200 dark:text-gray-200 dark:bg-gray-800 dark:border-gray-700 disabled:opacity-50"
-          >
-            <Power className="w-3.5 h-3.5" /> Nonaktifkan
-          </button>
-          <button
-            type="button"
-            onClick={() => jalankanBulk('PUTUS_PERANGKAT')}
-            disabled={bulkBusy}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 dark:text-blue-300 dark:bg-blue-950/60 disabled:opacity-50"
-          >
-            <Smartphone className="w-3.5 h-3.5" /> Putus perangkat
-          </button>
-          {isSuperadmin && (
-            <>
-              <span className="flex items-center gap-1 ml-1">
-                <select
-                  value={bulkRole}
-                  onChange={(e) => setBulkRole(e.target.value)}
-                  className="px-2 py-1.5 text-xs font-bold bg-white border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700"
-                >
-                  {opsiRoleBaru.map((r) => (
-                    <option key={r} value={r}>{ROLE_LABEL[r] ?? r}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => jalankanBulk('UBAH_ROLE', bulkRole)}
-                  disabled={bulkBusy}
-                  className="px-2.5 py-1.5 text-xs font-bold text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 dark:text-amber-200 dark:bg-amber-900/50 disabled:opacity-50"
-                >
-                  Terapkan role
-                </button>
-              </span>
-              <button
-                type="button"
-                onClick={() => jalankanBulk('HAPUS')}
-                disabled={bulkBusy}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg text-red-700 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-950/60 disabled:opacity-50"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> Hapus
-              </button>
-            </>
-          )}
-          {bulkBusy && <Loader2 className="w-4 h-4 animate-spin text-amber-500" />}
-          <button
-            type="button"
-            onClick={() => setDipilih(new Set())}
-            className="ml-auto inline-flex items-center gap-1 px-2 py-1.5 text-xs font-bold text-gray-500 rounded-lg hover:bg-white/60 dark:text-gray-400"
-          >
-            <X className="w-3.5 h-3.5" /> Batal pilih
-          </button>
-        </div>
+        <BilahAksiMassal
+          jumlah={dipilih.size}
+          bulkBusy={bulkBusy}
+          bulkRole={bulkRole}
+          setBulkRole={setBulkRole}
+          isSuperadmin={isSuperadmin}
+          opsiRoleBaru={opsiRoleBaru}
+          jalankanBulk={jalankanBulk}
+          setDipilih={setDipilih}
+        />
       )}
 
       {/* Tabel Data Mahasiswa */}
-      <div className="overflow-hidden bg-white border border-gray-200 shadow-sm dark:bg-gray-900 dark:border-gray-800 rounded-xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="text-sm text-gray-500 border-b border-gray-200 dark:text-gray-400 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/60">
-                {isAdmin && (
-                  <th className="w-10 p-4 font-medium">
-                    <input
-                      type="checkbox"
-                      checked={semuaTerpilih}
-                      onChange={toggleSemua}
-                      aria-label="Pilih semua akun di halaman ini"
-                      className="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
-                    />
-                  </th>
-                )}
-                <th className="p-4 font-medium">NIM</th>
-                <th className="p-4 font-medium">Nama Mahasiswa</th>
-                <th className="p-4 font-medium">Program Studi</th>
-                <th className="p-4 font-medium">Role</th>
-                <th className="p-4 font-medium text-center">Status Akun</th>
-                {isAdmin && <th className="p-4 font-medium text-center">Aksi</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-              {loading ? (
-                <tr>
-                  <td colSpan={isAdmin ? 7 : 5} className="p-8 text-center">
-                    <Loader2 className="w-6 h-6 mx-auto text-amber-400 animate-spin" />
-                  </td>
-                </tr>
-              ) : students.length === 0 ? (
-                <tr>
-                  <td colSpan={isAdmin ? 7 : 5} className="p-8 text-center text-gray-500 dark:text-gray-400">
-                    Tidak ada data mahasiswa ditemukan.
-                  </td>
-                </tr>
-              ) : (
-                students.map((student) => (
-                  <tr
-                    key={student.id}
-                    onClick={() => bukaProfil(student.id)}
-                    onKeyDown={(e) => {
-                      // Hanya saat fokus ada di baris itu sendiri, bukan di
-                      // tombol/select di dalamnya (Enter pada kontrol tetap
-                      // menjalankan kontrol tersebut).
-                      if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
-                        e.preventDefault();
-                        bukaProfil(student.id);
-                      }
-                    }}
-                    tabIndex={0}
-                    title={`Klik untuk melihat profil ${student.profile?.nama || student.nim}`}
-                    className="cursor-pointer transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400 dark:hover:bg-gray-800/60"
-                  >
-                    {isAdmin && (
-                      <td className="p-4" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={dipilih.has(student.id)}
-                          onChange={() => togglePilih(student.id)}
-                          aria-label={`Pilih ${student.profile?.nama || student.nim}`}
-                          className="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
-                        />
-                      </td>
-                    )}
-                    <td className="p-4 font-medium text-gray-900 dark:text-gray-100">{student.nim}</td>
-                    <td className="p-4 text-gray-700 dark:text-gray-300">
-                      <div className="flex items-center min-w-0 gap-3">
-                        <UserAvatar
-                          userId={student.id}
-                          nama={student.profile?.nama || student.nim}
-                          foto={student.foto ?? student.profile?.foto ?? null}
-                          size="sm"
-                        />
-                        <div className="min-w-0">
-                          <p className="font-bold text-gray-900 truncate dark:text-gray-100">{student.profile?.nama ?? '-'}</p>
-                          {student.jabatan && (
-                            <span className="block text-xs text-gray-400 dark:text-gray-500">
-                              {student.jabatan}{student.organisasi ? ` — ${student.organisasi}` : ''}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-4 text-gray-600 dark:text-gray-400">{student.profile?.program_studi ?? '-'}</td>
-                    <td className="p-4" onClick={(e) => e.stopPropagation()}>
-
-                      {bolehUbahRole(student) ? (
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={student.role}
-                            disabled={sedangProses === student.id}
-                            onChange={(e) => ubahRole(student, e.target.value)}
-                            className="px-2 py-1.5 text-xs font-bold text-gray-800 bg-white border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300 disabled:opacity-50"
-                          >
-                            {(opsiRoleBaru.includes(student.role) ? opsiRoleBaru : [student.role, ...opsiRoleBaru]).map((r) => (
-                              <option key={r} value={r}>{ROLE_LABEL[r] ?? r}</option>
-                            ))}
-                          </select>
-                          {sedangProses === student.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />}
-                        </div>
-                      ) : (
-                        <span className="text-gray-600 dark:text-gray-400">{ROLE_LABEL[student.role] ?? student.role}</span>
-                      )}
-                    </td>
-                    <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
-                      {/* Pengunjung direktori (mahasiswa) hanya melihat status,
-                          tidak bisa mengubahnya — tombol aktif hanya untuk pengelola. */}
-                      {isAdmin ? (
-                        <button
-                          type="button"
-                          onClick={() => ubahStatus(student)}
-                          disabled={sedangProses === student.id || student.id === user?.id}
-                          title={student.id === user?.id ? 'Status akun sendiri tidak dapat diubah dari sini' : 'Klik untuk mengubah status'}
-                          className={`inline-flex items-center px-2.5 py-0.5 text-xs font-bold rounded-full transition disabled:cursor-not-allowed ${student.isActive
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/60'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60'
-                            }`}
-                        >
-                          {student.isActive ? 'Aktif' : 'Nonaktif'}
-                        </button>
-                      ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 text-xs font-bold text-green-800 bg-green-100 rounded-full dark:bg-green-900/40 dark:text-green-300">
-                          {student.isActive ? 'Aktif' : 'Nonaktif'}
-                        </span>
-                      )}
-                    </td>
-                    {isAdmin && (
-                      <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex flex-wrap items-center justify-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => bukaKelola(student)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-gray-700 rounded-lg bg-gray-100 hover:bg-gray-200 dark:text-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
-                          >
-                            <CalendarClock className="w-3.5 h-3.5" /> Kelola
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => bukaEdit(student)}
-                            title={`Sunting data ${student.profile?.nama || student.nim}`}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 dark:hover:bg-amber-900/40"
-                          >
-                            <Pencil className="w-3.5 h-3.5" /> Edit
-                          </button>
-                          {bolehHapus(student) && (
-                            <button
-                              type="button"
-                              onClick={() => hapusStudent(student)}
-                              disabled={sedangProses === student.id}
-                              title={`Hapus permanen ${student.profile?.nama || student.nim}`}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-red-600 rounded-lg bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-950/60 dark:hover:bg-red-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {sedangProses === student.id
-                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                : <Trash2 className="w-3.5 h-3.5" />} Hapus
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {!loading && meta && meta.totalPages > 1 && (
-          <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-800">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Halaman {meta.page} dari {meta.totalPages}
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={meta.page === 1}
-                className="p-2 text-gray-600 border border-gray-300 rounded-lg dark:text-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
-                disabled={meta.page === meta.totalPages}
-                className="p-2 text-gray-600 border border-gray-300 rounded-lg dark:text-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      <TabelMahasiswa
+        students={students}
+        meta={meta}
+        loading={loading}
+        isAdmin={isAdmin}
+        idAkunSendiri={user?.id}
+        dipilih={dipilih}
+        semuaTerpilih={semuaTerpilih}
+        sedangProses={sedangProses}
+        opsiRoleBaru={opsiRoleBaru}
+        toggleSemua={toggleSemua}
+        togglePilih={togglePilih}
+        bukaProfil={bukaProfil}
+        ubahRole={ubahRole}
+        ubahStatus={ubahStatus}
+        bolehUbahRole={bolehUbahRole}
+        bolehHapus={bolehHapus}
+        bukaKelola={bukaKelola}
+        bukaEdit={bukaEdit}
+        hapusStudent={hapusStudent}
+        setPage={setPage}
+      />
 
       {/* MODAL SUNTING DATA AKUN */}
       {edit && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Sunting data akun"
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/70 backdrop-blur-sm"
-          onClick={() => setEdit(null)}
-        >
-          <form
-            onSubmit={simpanEdit}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl dark:bg-gray-900 dark:border dark:border-gray-800"
-          >
-            <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100 dark:border-gray-800">
-              <div>
-                <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
-                  <Pencil className="w-5 h-5 text-amber-400" /> Sunting Data Akun
-                </h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {edit.profile?.nama ?? edit.nim} • {edit.nim}
-                </p>
-              </div>
-              <button type="button" onClick={() => setEdit(null)} aria-label="Tutup" className="p-1 text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              {galatEdit && (
-                <div className="flex items-start gap-2 p-3 text-sm text-red-700 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {galatEdit}
-                </div>
-              )}
-
-              {edit.profile ? (
-                <>
-                  <div>
-                    <label htmlFor="edit-nama" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Nama Lengkap</label>
-                    <input
-                      id="edit-nama"
-                      type="text"
-                      required
-                      maxLength={120}
-                      value={formEdit.nama}
-                      onChange={(e) => setFormEdit((f) => ({ ...f, nama: e.target.value }))}
-                      className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="edit-prodi" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Program Studi</label>
-                    <select
-                      id="edit-prodi"
-                      value={formEdit.program_studi}
-                      onChange={(e) => setFormEdit((f) => ({ ...f, program_studi: e.target.value }))}
-                      className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                    >
-                      {(PROGRAM_STUDI as readonly string[]).includes(formEdit.program_studi)
-                        ? PROGRAM_STUDI.map((p) => <option key={p} value={p}>{p}</option>)
-                        : [formEdit.program_studi, ...PROGRAM_STUDI].map((p) => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label htmlFor="edit-email" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
-                      <input
-                        id="edit-email"
-                        type="email"
-                        value={formEdit.email}
-                        onChange={(e) => setFormEdit((f) => ({ ...f, email: e.target.value }))}
-                        className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="edit-hp" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">No. HP/WA</label>
-                      <input
-                        id="edit-hp"
-                        type="tel"
-                        maxLength={30}
-                        value={formEdit.no_hp}
-                        onChange={(e) => setFormEdit((f) => ({ ...f, no_hp: e.target.value }))}
-                        className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                      />
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="p-3 text-xs rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
-                    Akun administrator tidak memiliki profil mahasiswa. Hanya email akun yang dapat disunting di sini.
-                  </div>
-                  <div>
-                    <label htmlFor="edit-email" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Email Akun</label>
-                    <input
-                      id="edit-email"
-                      type="email"
-                      value={formEdit.email}
-                      onChange={(e) => setFormEdit((f) => ({ ...f, email: e.target.value }))}
-                      className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                    />
-                  </div>
-                </>
-              )}
-
-              <div className="flex items-start gap-2 p-3 text-xs rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <p>
-                  NIM tidak dapat diubah karena dipakai sebagai username login. Email dipakai untuk fitur lupa
-                  password; kosongkan bila akun tidak perlu punya email.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-gray-800">
-              <button
-                type="button"
-                onClick={() => setEdit(null)}
-                className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={menyimpanEdit}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
-              >
-                {menyimpanEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Simpan</>}
-              </button>
-            </div>
-          </form>
-        </div>
+        <ModalSunting
+          edit={edit}
+          setEdit={setEdit}
+          formEdit={formEdit}
+          setFormEdit={setFormEdit}
+          galatEdit={galatEdit}
+          menyimpanEdit={menyimpanEdit}
+          simpanEdit={simpanEdit}
+        />
       )}
 
       {/* MODAL KELOLA AKUN */}
       {kelola && (
-        <div role="dialog" aria-modal="true" aria-label="Kelola mahasiswa" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/70 backdrop-blur-sm" onClick={() => setKelola(null)}>
-          <form
-            onSubmit={simpanKelola}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg overflow-hidden bg-white shadow-2xl rounded-2xl dark:bg-gray-900 dark:border dark:border-gray-800"
-          >
-            <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100 dark:border-gray-800">
-              <div>
-                <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
-                  <UserCog className="w-5 h-5 text-amber-400" /> Kelola Akun
-                </h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {kelola.profile?.nama ?? '-'} • {kelola.nim}
-                </p>
-              </div>
-              <button type="button" onClick={() => setKelola(null)} className="p-1 text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <ModalKelola
+          kelola={kelola}
+          setKelola={setKelola}
+          tglPerpanjangan={tglPerpanjangan}
+          setTglPerpanjangan={setTglPerpanjangan}
+          tglTenggat={tglTenggat}
+          setTglTenggat={setTglTenggat}
+          aktifkan={aktifkan}
+          setAktifkan={setAktifkan}
+          batasTanggal={batasTanggal}
+          galatKelola={galatKelola}
+          menyimpanKelola={menyimpanKelola}
+          simpanKelola={simpanKelola}
+        />
+      )}
 
-            <div className="p-5 space-y-4">
-              {galatKelola && (
-                <div className="flex items-start gap-2 p-3 text-sm text-red-700 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {galatKelola}
-                </div>
-              )}
+      {/* MODAL TAMBAH AKUN ADMIN */}
+      {adminTerbuka && (
+        <ModalAdmin
+          setAdminTerbuka={setAdminTerbuka}
+          formAdmin={formAdmin}
+          setFormAdmin={setFormAdmin}
+          galatAdmin={galatAdmin}
+          menyimpanAdmin={menyimpanAdmin}
+          simpanAdmin={simpanAdmin}
+        />
+      )}
 
-              <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-                <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <p className="text-xs font-bold text-gray-500 dark:text-gray-400">Status saat ini</p>
-                  <p className="font-bold text-gray-900 dark:text-gray-100">{kelola.isActive ? 'Aktif' : 'Nonaktif'}</p>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {kelola.deactivationType === 'AUTO'
-                      ? 'Nonaktif otomatis (masa studi 5 tahun)'
-                      : kelola.deactivationType === 'MANUAL'
-                        ? 'Dinonaktifkan manual'
-                        : '—'}
-                  </p>
-                </div>
-                <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
-                  <p className="text-xs font-bold text-gray-500 dark:text-gray-400">Tenggat hapus berlaku</p>
-                  <p className="font-bold text-gray-900 dark:text-gray-100">{formatTanggal(kelola.tenggatHapusEfektif)}</p>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Perpanjangan s.d. {formatTanggal(kelola.diperpanjangSampai)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Perpanjang masa studi sampai
-                </label>
-                <input
-                  type="date"
-                  value={tglPerpanjangan}
-                  min={batasTanggal.hariIni}
-                  onChange={(e) => setTglPerpanjangan(e.target.value)}
-                  className="w-full px-3 py-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Selama tanggal ini belum lewat, akun tidak dinonaktifkan otomatis. Kosongkan untuk mencabut perpanjangan.
-                </p>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Geser tenggat hapus
-                </label>
-                <input
-                  type="date"
-                  value={tglTenggat}
-                  min={batasTanggal.duaHari}
-                  onChange={(e) => setTglTenggat(e.target.value)}
-                  className="w-full px-3 py-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Minimal sehari dari sekarang. Kosongkan untuk kembali ke aturan bawaan (1 tahun setelah nonaktif).
-                </p>
-              </div>
-
-              {!kelola.isActive && (
-                <label className="flex items-start gap-2 p-3 text-sm rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200">
-                  <input
-                    type="checkbox"
-                    checked={aktifkan}
-                    onChange={(e) => setAktifkan(e.target.checked)}
-                    className="mt-0.5 rounded border-amber-300 text-amber-500 focus:ring-amber-400"
-                  />
-                  <span>Aktifkan kembali akun ini saat disimpan.</span>
-                </label>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-gray-800">
-              <button
-                type="button"
-                onClick={() => setKelola(null)}
-                className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={menyimpanKelola}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
-              >
-                {menyimpanKelola ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-4 h-4" /> Simpan</>}
-              </button>
-            </div>
-          </form>
-        </div>
+      {/* MODAL TAMBAH MAHASISWA */}
+      {tambahTerbuka && (
+        <ModalTambah
+          setTambahTerbuka={setTambahTerbuka}
+          formTambah={formTambah}
+          setFormTambah={setFormTambah}
+          galatTambah={galatTambah}
+          menyimpanTambah={menyimpanTambah}
+          simpanTambah={simpanTambah}
+        />
       )}
 
       {/* MODAL IMPOR PDF */}
-      {adminTerbuka && (
-        <div role="dialog" aria-modal="true" aria-label="Tambah administrator" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/70 backdrop-blur-sm" onClick={() => setAdminTerbuka(false)}>
-          <form
-            onSubmit={simpanAdmin}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl dark:bg-gray-900 dark:border dark:border-gray-800"
-          >
-            <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100 dark:border-gray-800">
-              <div>
-                <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
-                  <ShieldCheck className="w-5 h-5 text-purple-400" /> Tambah Akun Admin
-                </h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Administrator bisa mengelola mahasiswa, organisasi, dan konten. Hanya SUPERADMIN yang dapat membuat akun ini.
-                </p>
-              </div>
-              <button type="button" onClick={() => setAdminTerbuka(false)} className="p-1 text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              {galatAdmin && (
-                <div className="flex items-start gap-2 p-3 text-sm text-red-700 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {galatAdmin}
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="admin-username" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
-                <input
-                  id="admin-username"
-                  type="text"
-                  required
-                  minLength={3}
-                  maxLength={40}
-                  pattern="[A-Za-z0-9._-]{3,40}"
-                  placeholder="Contoh: admin.fakultas"
-                  value={formAdmin.nim}
-                  onChange={(e) => setFormAdmin((f) => ({ ...f, nim: e.target.value }))}
-                  className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Dipakai untuk login. Huruf, angka, titik, garis bawah, atau strip (3–40 karakter).</p>
-              </div>
-
-              <div>
-                <label htmlFor="admin-email" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
-                <input
-                  id="admin-email"
-                  type="email"
-                  required
-                  placeholder="admin@domain.com"
-                  value={formAdmin.email}
-                  onChange={(e) => setFormAdmin((f) => ({ ...f, email: e.target.value }))}
-                  className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Dipakai untuk fitur lupa password. Harus unik.</p>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="admin-password" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Password awal</label>
-                  <input
-                    id="admin-password"
-                    type="password"
-                    required
-                    minLength={8}
-                    autoComplete="new-password"
-                    value={formAdmin.password}
-                    onChange={(e) => setFormAdmin((f) => ({ ...f, password: e.target.value }))}
-                    className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="admin-konfirmasi" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Ulangi password</label>
-                  <input
-                    id="admin-konfirmasi"
-                    type="password"
-                    required
-                    minLength={8}
-                    autoComplete="new-password"
-                    value={formAdmin.konfirmasi}
-                    onChange={(e) => setFormAdmin((f) => ({ ...f, konfirmasi: e.target.value }))}
-                    className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2 p-3 text-xs rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                <p>Password minimal 8 karakter. Sampaikan password awal kepada admin tersebut; ia bisa menggantinya lewat halaman Profil.</p>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-gray-800">
-              <button
-                type="button"
-                onClick={() => setAdminTerbuka(false)}
-                className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={menyimpanAdmin}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50"
-              >
-                {menyimpanAdmin && <Loader2 className="w-4 h-4 animate-spin" />}
-                Simpan Admin
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {tambahTerbuka && (
-        <div role="dialog" aria-modal="true" aria-label="Tambah mahasiswa" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/70 backdrop-blur-sm" onClick={() => setTambahTerbuka(false)}>
-          <form
-            onSubmit={simpanTambah}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl dark:bg-gray-900 dark:border dark:border-gray-800"
-          >
-            <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100 dark:border-gray-800">
-              <div>
-                <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
-                  <UserPlus className="w-5 h-5 text-amber-400" /> Tambah Mahasiswa
-                </h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Akun dibuat satu per satu. Password awal sama dengan NIM dan wajib diganti saat login pertama.
-                </p>
-              </div>
-              <button type="button" onClick={() => setTambahTerbuka(false)} className="p-1 text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              {galatTambah && (
-                <div className="flex items-start gap-2 p-3 text-sm text-red-700 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {galatTambah}
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="tambah-nim" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">NIM</label>
-                <input
-                  id="tambah-nim"
-                  type="text"
-                  required
-                  inputMode="numeric"
-                  pattern="\d{8}[A-Za-z]?"
-                  placeholder="Contoh: 22140001"
-                  value={formTambah.nim}
-                  onChange={(e) => setFormTambah((f) => ({ ...f, nim: e.target.value }))}
-                  className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                />
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">8 digit angka, boleh diakhiri satu huruf.</p>
-              </div>
-
-              <div>
-                <label htmlFor="tambah-nama" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Nama Lengkap</label>
-                <input
-                  id="tambah-nama"
-                  type="text"
-                  required
-                  value={formTambah.nama}
-                  onChange={(e) => setFormTambah((f) => ({ ...f, nama: e.target.value }))}
-                  className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="tambah-prodi" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Program Studi</label>
-                <select
-                  id="tambah-prodi"
-                  value={formTambah.program_studi}
-                  onChange={(e) => setFormTambah((f) => ({ ...f, program_studi: e.target.value }))}
-                  className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                >
-                  {PROGRAM_STUDI.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="tambah-email" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">Email (opsional)</label>
-                  <input
-                    id="tambah-email"
-                    type="email"
-                    value={formTambah.email}
-                    onChange={(e) => setFormTambah((f) => ({ ...f, email: e.target.value }))}
-                    className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="tambah-hp" className="block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">No. HP/WA (opsional)</label>
-                  <input
-                    id="tambah-hp"
-                    type="tel"
-                    value={formTambah.no_hp}
-                    onChange={(e) => setFormTambah((f) => ({ ...f, no_hp: e.target.value }))}
-                    className="w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 focus:ring-amber-300 focus:border-amber-300"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-gray-800">
-              <button
-                type="button"
-                onClick={() => setTambahTerbuka(false)}
-                className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={menyimpanTambah}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
-              >
-                {menyimpanTambah && <Loader2 className="w-4 h-4 animate-spin" />}
-                Simpan Akun
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
       {imporTerbuka && (
-        <div role="dialog" aria-modal="true" aria-label="Impor mahasiswa" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/70 backdrop-blur-sm" onClick={() => setImporTerbuka(false)}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl dark:bg-gray-900 dark:border dark:border-gray-800"
-          >
-            <div className="flex items-start justify-between gap-3 p-5 border-b border-gray-100 dark:border-gray-800">
-              <div>
-                <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-gray-100">
-                  <FileUp className="w-5 h-5 text-amber-400" /> Impor Mahasiswa dari PDF
-                </h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Sama seperti proses seed: PDF dibaca dulu, Anda periksa hasilnya, baru akun dibuat. NIM yang sudah ada dilewati.
-                </p>
-              </div>
-              <button type="button" onClick={() => setImporTerbuka(false)} className="p-1 text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              {galatImpor && (
-                <div className="flex items-start gap-2 p-3 text-sm text-red-700 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {galatImpor}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Berkas PDF data mahasiswa</label>
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  onChange={(e) => { setBerkas(e.target.files?.[0] ?? null); setPratinjau(null); setHasilImpor(null); setGalatImpor(''); }}
-                  className="block w-full text-sm text-gray-700 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 file:mr-3 file:py-2 file:px-4 file:border-0 file:text-sm file:font-bold file:bg-amber-100 file:text-amber-700 dark:file:bg-amber-900/40 dark:file:text-amber-200"
-                />
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Maksimal 10 MB. PDF hasil pindai/gambar tidak bisa dibaca — perlu diketik ulang atau di-OCR lebih dulu.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={pratinjauImpor}
-                  disabled={!berkas || memuatPratinjau || menyimpanImpor}
-                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
-                >
-                  {memuatPratinjau ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                  Pratinjau PDF
-                </button>
-
-                {pratinjau && pratinjau.siapDiimpor > 0 && (
-                  <button
-                    type="button"
-                    onClick={simpanImpor}
-                    disabled={menyimpanImpor}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
-                  >
-                    {menyimpanImpor ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                    Buat {pratinjau.siapDiimpor} Akun
-                  </button>
-                )}
-              </div>
-
-              {pratinjau && (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {[
-                      { label: 'Terbaca', nilai: pratinjau.totalDibaca },
-                      { label: 'Siap dibuat', nilai: pratinjau.siapDiimpor },
-                      { label: 'Sudah ada', nilai: pratinjau.sudahTerdaftar },
-                      { label: 'Bermasalah', nilai: pratinjau.bermasalah },
-                    ].map((item) => (
-                      <div key={item.label} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
-                        <p className="text-xs font-bold text-gray-500 dark:text-gray-400">{item.label}</p>
-                        <p className="text-xl font-black text-gray-900 dark:text-gray-100">{item.nilai}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {pratinjau.contoh.length > 0 && (
-                    <div className="overflow-hidden border border-gray-200 rounded-lg dark:border-gray-800">
-                      <table className="w-full text-left">
-                        <thead className="text-xs text-gray-500 bg-gray-50 dark:bg-gray-800 dark:text-gray-400">
-                          <tr>
-                            <th className="p-2 font-medium">Nama</th>
-                            <th className="p-2 font-medium">NIM</th>
-                            <th className="p-2 font-medium">Prodi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="text-sm divide-y divide-gray-100 dark:divide-gray-800">
-                          {pratinjau.contoh.map((c) => (
-                            <tr key={c.nim}>
-                              <td className="p-2 text-gray-700 dark:text-gray-300">{c.nama}</td>
-                              <td className="p-2 font-medium text-gray-900 dark:text-gray-100">{c.nim}</td>
-                              <td className="p-2 text-gray-600 dark:text-gray-400">{c.program_studi}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {pratinjau.daftarBermasalah.length > 0 && (
-                    <div className="p-3 text-xs rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200">
-                      <p className="font-bold">Baris yang tidak akan diimpor:</p>
-                      <ul className="mt-1 space-y-1 list-disc list-inside">
-                        {pratinjau.daftarBermasalah.slice(0, 10).map((b, i) => (
-                          <li key={`${b.nim ?? 'x'}-${i}`}>
-                            {b.nim || '(NIM kosong)'} {b.nama ? `— ${b.nama}` : ''}: {b.alasan}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {hasilImpor && (
-                <div className="p-4 space-y-2 text-sm text-green-800 rounded-lg bg-green-50 dark:bg-green-950/60 dark:text-green-200">
-                  <p className="flex items-center gap-2 font-bold">
-                    <CheckCircle2 className="w-4 h-4" /> Impor selesai
-                  </p>
-                  <p>
-                    {hasilImpor.dibuat} akun dibuat, {hasilImpor.dilewati} NIM dilewati (sudah ada),{' '}
-                    {hasilImpor.gagal} gagal, {hasilImpor.bermasalah} baris bermasalah di berkas.
-                  </p>
-                  <p className="text-xs">Password awal setiap akun sama dengan NIM dan wajib diganti saat login pertama.</p>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-gray-800">
-              <button
-                type="button"
-                onClick={() => setImporTerbuka(false)}
-                className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
+        <ModalImpor
+          setImporTerbuka={setImporTerbuka}
+          berkas={berkas}
+          setBerkas={setBerkas}
+          pratinjau={pratinjau}
+          setPratinjau={setPratinjau}
+          hasilImpor={hasilImpor}
+          setHasilImpor={setHasilImpor}
+          galatImpor={galatImpor}
+          setGalatImpor={setGalatImpor}
+          memuatPratinjau={memuatPratinjau}
+          menyimpanImpor={menyimpanImpor}
+          pratinjauImpor={pratinjauImpor}
+          simpanImpor={simpanImpor}
+        />
       )}
     </div>
   );
