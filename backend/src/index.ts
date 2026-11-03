@@ -11,6 +11,21 @@ const dijalankanLangsung = require.main === module;
 const jalankanListener =
   !diVercel && (dijalankanLangsung || process.env.BEM_START_LISTENER === '1');
 
+// Cron hanya bisa hidup bila CRON_SECRET ada. VERCEL_ENV membedakan produksi
+// dari preview: preview tetap boleh jalan tanpa secret supaya deploy uji tidak mati.
+const produksiSebenarnya = process.env.VERCEL_ENV
+  ? process.env.VERCEL_ENV === 'production'
+  : process.env.NODE_ENV === 'production';
+
+if (produksiSebenarnya && !(process.env.CRON_SECRET || '').trim()) {
+  throw new Error(
+    'CRON_SECRET belum disetel. Cron Vercel mengirim GET /api/internal/cron dengan header ' +
+      'Authorization: Bearer <CRON_SECRET>; tanpa env itu cron menjawab 401 dan siklus akun, ' +
+      'notifikasi perpanjangan, purge tempat sampah, serta pengingat laporan bulanan tidak ' +
+      'pernah jalan. Setel CRON_SECRET di Vercel Project Settings -> Environment Variables.'
+  );
+}
+
 // Vercel Function mengimpor app dan menangani request sendiri. Jangan buka
 // listener di sana; listener hanya untuk Hostinger/proses Node biasa.
 export default app;

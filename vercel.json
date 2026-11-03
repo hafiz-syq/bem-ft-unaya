@@ -20,7 +20,7 @@
   ],
   "crons": [
     {
-      "path": "/api/internal/cron/ISI_CRON_SECRET",
+      "path": "/api/internal/cron",
       "schedule": "0 21 * * *"
     }
   ]

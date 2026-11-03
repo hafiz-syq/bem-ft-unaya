@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 
 import authRoutes from './routes/auth.routes';
 import profileRoutes from './routes/profile.routes';
@@ -56,6 +57,22 @@ if (diBalikProxy) {
   app.set('trust proxy', 1);
 }
 
+// Header pengaman untuk semua balasan API (X-Content-Type-Options, X-Frame-Options,
+// HSTS, hidePoweredBy, dsb.). CSP dimatikan di sini: backend hanya melayani JSON,
+// berkas /uploads, dan (di Hostinger) hasil build Vite yang asetnya sudah punya
+// kebijakan sendiri — aturan CSP di backend justru memblokir style inline hasil
+// prerender tanpa menambah perlindungan nyata.
+//
+// crossOriginResourcePolicy dilonggarkan ke 'cross-origin' supaya <img> yang
+// menunjuk /uploads tetap bisa dimuat saat frontend berjalan di port lain
+// (mis. localhost:5173 memanggil localhost:3000).
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+
 // Konfigurasi CORS.
 // Origin yang diizinkan = alamat lokal/LAN yang sah + daftar eksplisit dari env
 // (lihat src/lib/cors-origin.ts). Origin publik lain ditolak tanpa header
@@ -94,7 +111,22 @@ app.use(cookieParser());
 
 // Folder berkas unggahan mengikuti UPLOAD_DIR (lihat src/lib/uploads.ts) agar
 // bisa diarahkan ke volume persisten di server produksi.
-app.use('/uploads', express.static(folderUploads()));
+//
+// Berkas lama di folder ini masih ada yang berekstensi menyesatkan (.html hasil
+// unggahan sebelum ekstensi diturunkan dari MIME) dan disajikan dari origin
+// aplikasi — kombinasi yang membuat stored XSS bisa jalan. Dua header ini
+// mematahkannya: isi tidak pernah dianggap dokumen (nosniff) dan navigasi ke
+// URL-nya selalu berujung unduhan, bukan render. <img> mengabaikan
+// Content-Disposition, jadi foto lama tetap tampil.
+app.use(
+  '/uploads',
+  express.static(folderUploads(), {
+    setHeaders: (res) => {
+      res.setHeader('Content-Disposition', 'attachment');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+    },
+  })
+);
 
 // Pendaftaran Routes
 app.use('/api/auth', authRoutes);

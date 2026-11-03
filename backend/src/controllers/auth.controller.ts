@@ -626,7 +626,12 @@ export const changePassword = async (req: any, res: any, next: any): Promise<voi
     }
 
     const password_hash = await bcrypt.hash(password_baru, 10);
-    await prisma.user.update({ where: { id: userId }, data: { password_hash } });
+    // Versi sesi naik supaya token lama di perangkat mana pun langsung ditolak
+    // middleware (lib/device.ts periksaSesiPerangkat) setelah password diganti.
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password_hash, sessionVersion: { increment: 1 } },
+    });
 
     await logActivity(
       userId,
@@ -909,7 +914,12 @@ export const resetPassword = async (req: any, res: any, next: any): Promise<void
     const password_hash = await bcrypt.hash(passwordBaru, 10);
 
     await prisma.$transaction([
-      prisma.user.update({ where: { id: user.id }, data: { password_hash } }),
+      // Naikkan versi sesi: tautan reset dipakai berarti pemilik akun tidak bisa
+      // masuk, jadi semua token lama harus langsung tidak berlaku.
+      prisma.user.update({
+        where: { id: user.id },
+        data: { password_hash, sessionVersion: { increment: 1 } },
+      }),
       prisma.passwordReset.update({
         where: { userId: user.id },
         data: {

@@ -3,6 +3,7 @@ import path from 'path';
 import sharp from 'sharp';
 import { pastikanFolderUploads } from './uploads';
 import { cloudinarySiap, hapusDariCloudinary, unggahKeCloudinary } from './cloudinary';
+import { ekstensiDokumen } from '../middlewares/upload.middleware';
 
 /**
  * Penyimpanan lampiran tiket (gambar/PDF) dan arsip dokumen kantor.
@@ -130,10 +131,10 @@ export const simpanLampiran = async (file: Express.Multer.File): Promise<HasilLa
     return simpanLokal(webp, nama, 'image/webp');
   }
 
-  // PDF dan berkas lain disimpan apa adanya (resource raw). Ekstensi
-  // aslinya dipertahankan supaya unduhan memilik nama yang benar.
+  // PDF dan berkas lain disimpan apa adanya (resource raw). Ekstensi ditentukan
+  // dari MIME yang sudah divalidasi, bukan dari nama kiriman pengguna.
   pastikanIsiDokumenSah(isi, file.mimetype || 'application/pdf');
-  const ekstensi = path.extname(nama) || '.pdf';
+  const ekstensi = ekstensiDokumen(file.mimetype);
   nama = `TICKET-${unik()}${ekstensi}`;
   if (cloudinarySiap()) {
     const { secureUrl } = await unggahKeCloudinary(isi, {
@@ -151,7 +152,7 @@ export const simpanDokumenArsip = async (file: Express.Multer.File): Promise<Has
   if (!isi) throw galatLampiran('Berkas dokumen tidak terbaca. Silakan pilih ulang berkasnya.', 400);
 
   pastikanIsiDokumenSah(isi, file.mimetype || 'application/pdf');
-  const ekstensi = (path.extname(file.originalname || '') || '.pdf').toLowerCase();
+  const ekstensi = ekstensiDokumen(file.mimetype);
   const nama = `DOKUMEN-${unik()}${ekstensi}`;
   if (cloudinarySiap()) {
     const { secureUrl } = await unggahKeCloudinary(isi, {

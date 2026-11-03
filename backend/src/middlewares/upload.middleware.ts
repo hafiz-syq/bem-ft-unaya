@@ -195,17 +195,34 @@ export const uploadPdfImpor = multer({
 // --- Arsip surat & proposal ------------------------------------------------
 // PDF/DOC/DOCX/XLS/XLSX/PPT/PPTX ditahan di memori lalu disimpan ke Cloudinary
 // oleh controller (lib/lampiran.ts). SVG dan berkas executable ditolak.
+//
+// Peta ini satu-satunya sumber daftar MIME dokumen yang diizinkan. Ekstensi
+// berkas yang disajikan diturunkan dari MIME di sini, BUKAN dari nama berkas
+// kiriman pengguna: `surat.html` berisi `%PDF-` dengan MIME application/pdf
+// dulu lolos filter dan tersimpan berekstensi .html, sehingga browser
+// menjalankan isinya sebagai halaman web (stored XSS).
+export const EKSTENSI_DOKUMEN: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'application/msword': '.doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.ms-excel': '.xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'application/vnd.ms-powerpoint': '.ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+};
+
+/**
+ * Ekstensi kanonis untuk MIME yang sudah divalidasi filter.
+ *
+ * MIME asing/berparameter (`application/pdf; charset=binary`) tidak pernah
+ * jatuh ke ekstensi bebas: yang tidak dikenal dipaksa `.pdf`, ekstensi paling
+ * aman karena isinya sudah dipastikan diawali `%PDF-` oleh pastikanIsiDokumenSah.
+ */
+export const ekstensiDokumen = (mimetype: string | undefined): string =>
+  EKSTENSI_DOKUMEN[String(mimetype || '').split(';')[0].trim().toLowerCase()] ?? '.pdf';
+
 const dokumenFileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  const izin = [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  ];
-  if (izin.includes(file.mimetype)) cb(null, true);
+  if (EKSTENSI_DOKUMEN[file.mimetype]) cb(null, true);
   else cb(uploadError('Format dokumen tidak didukung. Gunakan PDF, DOC/DOCX, XLS/XLSX, atau PPT/PPTX.'));
 };
 

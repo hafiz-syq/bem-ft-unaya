@@ -716,7 +716,22 @@ const BARIS: Baris[] = [
     jalur: '/internal/cron/:kunciCron',
     harapan: { tamu: 401 },
     amanDiuji: true,
-    catatan: 'varian segmen path (dipakai Vercel Cron); secret salah selalu 401 sebelum menyentuh database',
+    catatan: 'varian segmen path (dipakai pemanggil yang hanya bisa mengatur URL); secret salah selalu 401 sebelum menyentuh database',
+  },
+  // Vercel Cron mengirim GET dengan Authorization: Bearer <CRON_SECRET>.
+  {
+    metode: 'GET',
+    jalur: '/internal/cron',
+    harapan: { tamu: 401 },
+    amanDiuji: true,
+    catatan: 'tanpa kunci cron yang cocok selalu 401; job tidak pernah jalan pada baris ini',
+  },
+  {
+    metode: 'GET',
+    jalur: '/internal/cron/:kunciCron',
+    harapan: { tamu: 401 },
+    amanDiuji: true,
+    catatan: 'segmen path "kunciCron" bukan secret yang sah sehingga selalu 401',
   },
   { metode: 'GET', jalur: '/health', harapan: { tamu: 'DIIZINKAN', mahasiswa: 'DIIZINKAN' } },
 ];

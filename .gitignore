@@ -39,3 +39,7 @@ backups/
 # Hanya penanda folder yang dilacak supaya direktori tetap ada setelah clone.
 backend/uploads/*
 !backend/uploads/.gitkeep
+
+# Berkas data sementara (hasil ekspor/impor, PDF kerjaan) — sama seperti
+# uploads: isinya milik pengguna, bukan bagian dari kode.
+backend/data/
