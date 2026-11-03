@@ -243,21 +243,21 @@ export default function AgendaCalendar() {
               const iniHariIni = hariIni === item.kunci;
 
               return (
-                <div
+                <button
                   key={item.kunci}
-                  className={`min-h-[4.5rem] sm:min-h-[5.5rem] rounded-lg border p-1 transition ${
+                  type="button"
+                  onClick={() => setDipilih(item.kunci)}
+                  aria-label={`Pilih tanggal ${formatTanggal(item.kunci, {
+                    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+                  })}`}
+                  aria-pressed={terpilih}
+                  className={`flex flex-col w-full text-left min-h-[4.5rem] sm:min-h-[5.5rem] rounded-lg border p-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
                     terpilih
                       ? 'border-amber-400 bg-amber-50/60 dark:bg-amber-950/30'
                       : 'border-gray-100 dark:border-gray-800'
                   }`}
                 >
-                  <button
-                    type="button"
-                    onClick={() => setDipilih(item.kunci)}
-                    aria-label={`Pilih tanggal ${formatTanggal(item.kunci, {
-                      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-                    })}`}
-                    aria-pressed={terpilih}
+                  <span
                     className={`flex items-center justify-center w-6 h-6 text-xs font-bold rounded-full transition ${
                       iniHariIni
                         ? 'bg-amber-700 text-white dark:bg-amber-400 dark:text-gray-950'
@@ -270,7 +270,7 @@ export default function AgendaCalendar() {
                     }`}
                   >
                     {item.hari}
-                  </button>
+                  </span>
 
                   <div className="mt-1 space-y-0.5">
                     {kegiatan.slice(0, 2).map((a) => {
@@ -281,10 +281,8 @@ export default function AgendaCalendar() {
                       const akhirRentang = selesai === item.kunci;
 
                       return (
-                        <button
+                        <span
                           key={a.id}
-                          type="button"
-                          onClick={() => setDipilih(item.kunci)}
                           title={`${a.title} — ${formatRentangTanggal(a.date, a.endDate)}`}
                           style={{ backgroundColor: warna, color: teksKontras(warna) }}
                           className={`block w-full px-1 text-[9px] font-bold leading-tight truncate text-left ${
@@ -294,7 +292,7 @@ export default function AgendaCalendar() {
                           }`}
                         >
                           {awalRentang ? a.title : <span className="sr-only">{a.title}</span>}
-                        </button>
+                        </span>
                       );
                     })}
                     {kegiatan.length > 2 && (
@@ -303,7 +301,7 @@ export default function AgendaCalendar() {
                       </span>
                     )}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
