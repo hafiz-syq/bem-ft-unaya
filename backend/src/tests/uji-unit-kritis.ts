@@ -9,10 +9,12 @@
  *      dipanggil) tanpa perlu server berjalan.
  *   C. Peta MIME -> ekstensi untuk lampiran/arsip (celah stored XSS P0.2).
  *   D. Gerbang retensi (B2.7) — penghapusan tidak boleh jalan tanpa flag.
+ *   E. Nomor tiket sesudah hard delete (B2.6) — MAX hari itu, bukan count.
  *
  * Jalankan: npm run test:unit   (dari folder backend)
  */
 
+import './penahan-host-uji';
 import {
   ADMIN_ROLES,
   ASSIGNABLE_ROLES,
@@ -32,6 +34,7 @@ import { processRequest } from '../controllers/data-request.controller';
 import { getAuditLogs } from '../controllers/audit.controller';
 import { EKSTENSI_DOKUMEN, ekstensiDokumen } from '../middlewares/upload.middleware';
 import { pangkasRetensi } from '../services/retensi.service';
+import { nomorTiketBerikutnya } from '../controllers/ticket.controller';
 
 let lulus = 0;
 const gagal: string[] = [];
@@ -187,6 +190,18 @@ async function main(): Promise<void> {
   uji('retensi: hanya "1" yang membuka gerbang', (await pangkasRetensi()).aktif === false);
   if (envRetensi === undefined) delete process.env.RETENSI_AKTIF;
   else process.env.RETENSI_AKTIF = envRetensi;
+
+  // --- E. Nomor tiket sesudah hard delete ---------------------------------
+  // Baris 0001/0002/0004 hari ini (0003 sudah dihapus): maksimum = 4, jadi nomor
+  // berikutnya 0005. Rumus lama memakai count = 3 dan menghasilkan 0004 yang sudah
+  // dipakai -> P2002 -> 409 untuk semua pengguna sampai lewat tengah malam UTC.
+  // Stub menggantikan $queryRaw supaya tes ini tetap tanpa database (job "statis"
+  // CI tidak punya service MySQL).
+  const stubTx = { $queryRaw: async () => [{ n: 4n }] } as never;
+  uji(
+    'nomor tiket: 0001/0002/0004 hari ini -> 0005, bukan 0004',
+    (await nomorTiketBerikutnya(stubTx, '20261103')) === 'TKT-20261103-0005'
+  );
 
   console.log(`\n--- RINGKASAN UNIT TEST ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
   if (gagal.length > 0) {

@@ -1,3 +1,4 @@
+import './penahan-host-uji';
 import 'dotenv/config';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
@@ -18,6 +19,10 @@ import { TOKEN_COOKIE } from '../lib/cookies';
  * jadi jalur ini tetap sah dan membuat pengujian tidak bergantung pada isi
  * basis data maupun batas percobaan login (5 permintaan / 5 menit / IP).
  */
+
+// Penahan host (suite ini MENULIS akun uji 999900xx) dijalankan lebih dulu oleh
+// import './penahan-host-uji' di baris 1, bukan di sini, supaya titik masuk lain
+// yang tidak mengimpor berkas ini ikut terlindungi.
 
 export const API_URL = (process.env.API_URL || 'http://localhost:3000/api').replace(/\/+$/, '');
 
