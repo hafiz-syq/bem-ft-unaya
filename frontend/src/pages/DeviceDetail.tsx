@@ -226,11 +226,16 @@ export default function DeviceDetail() {
               <p className="flex items-center gap-1.5 text-xs font-bold text-gray-500 dark:text-gray-400">
                 <Smartphone className="w-4 h-4 text-amber-500" /> Perangkat terpakai
               </p>
-              <p className="mt-1 text-2xl font-black text-gray-900 dark:text-gray-100">
+              <p className={`mt-1 text-2xl font-black ${rincian.perangkat.length > rincian.maxDevices ? 'text-amber-600 dark:text-amber-300' : 'text-gray-900 dark:text-gray-100'}`}>
                 {rincian.perangkat.length} <span className="text-base font-bold text-gray-500 dark:text-gray-400">dari {rincian.maxDevices}</span>
+                {rincian.perangkat.length > rincian.maxDevices && (
+                  <span className="ml-2 px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+                    melebihi batas
+                  </span>
+                )}
               </p>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Batas diatur admin halaman Perangkat & Sesi.
+                Batas diatur admin di halaman Perangkat & Sesi. Menurunkan batas tidak mengeluarkan perangkat yang sudah terdaftar.
               </p>
             </div>
             <div className={`p-4 border shadow-sm rounded-xl ${rincian.percobaan ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-900/60' : 'bg-white border-gray-100 dark:bg-gray-900 dark:border-gray-800'}`}>

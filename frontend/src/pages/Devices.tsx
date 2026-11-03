@@ -360,8 +360,13 @@ export default function Devices() {
               <div className="flex flex-wrap items-center justify-between gap-3 p-3 mt-3 text-sm border border-gray-100 rounded-lg bg-gray-50 dark:bg-gray-800/60 dark:border-gray-800">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">Batas perangkat</p>
-                  <p className="mt-0.5 font-bold text-gray-900 dark:text-gray-100">
+                  <p className={`mt-0.5 font-bold ${a.jumlahPerangkat > a.maxDevices ? 'text-amber-600 dark:text-amber-300' : 'text-gray-900 dark:text-gray-100'}`}>
                     {a.jumlahPerangkat} dari {a.maxDevices} perangkat terpakai
+                    {a.jumlahPerangkat > a.maxDevices && (
+                      <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+                        melebihi batas
+                      </span>
+                    )}
                   </p>
                   {a.perangkatTambahan.length > 0 && (
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 break-words">
