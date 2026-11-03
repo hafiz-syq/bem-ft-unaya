@@ -51,7 +51,7 @@ Vercel membaca `vercel.json`. Isi Environment Variables (Production + Preview):
 | `NODE_ENV` | `production` |
 | `DATABASE_URL` | URI Aiven + `?connection_limit=4&pool_timeout=20` |
 | `JWT_SECRET` | teks acak 32–64 karakter (**beda** dengan lokal) |
-| `CRON_SECRET` | teks acak 64 karakter; sama dengan yang dipakai di `vercel.json` |
+| `CRON_SECRET` | teks acak 64 karakter; tidak pernah ditulis di `vercel.json` — Vercel Cron memakainya langsung dari environment sebagai header `Authorization: Bearer` |
 | `FRONTEND_URLS` | `https://domain-utama,https://www.domain-utama` (opsional di mode satu-origin) |
 | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | dari dashboard Cloudinary |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | App Password khusus produksi |
@@ -65,13 +65,21 @@ tidak perlu `COOKIE_SAME_SITE=none` (one origin → cookie `lax` default aman).
 
 ### Cron harian
 
-`vercel.json` root memuat `"crons"` yang memanggil
-`/api/internal/cron/ISI_CRON_SECRET` pukul `21:00 UTC` (≈ 04:00 WIB) —
-**ganti `ISI_CRON_SECRET` dengan nilai `CRON_SECRET` asli** di baris itu.
-Vercel Cron tidak bisa mengirim header kustom, karena itu secret dibawa lewat
-segmen path (didukung rute cron). Job berisi: siklus akun (nonaktif 5 tahun,
-hapus 1 tahun), notifikasi perpanjangan bendahara, flush catatan CORS, purge
-trash mahasiswa, dan pengingat laporan bulanan.
+`vercel.json` root memuat `"crons"` yang memanggil `/api/internal/cron` pukul
+`21:00 UTC` (≈ 04:00 WIB). Path itu sengaja **tidak** membawa secret: Vercel
+Cron otomatis mengirim header `Authorization: Bearer <CRON_SECRET>` selama
+variabel `CRON_SECRET` ada di Environment Variables proyek, jadi nilainya tidak
+pernah tertulis di repo. Pemanggil manual (curl/GitHub Actions/cron hPanel)
+memakai header yang sama atau `x-cron-secret`.
+
+Bentuk lama `?secret=...` dan segmen path `/api/internal/cron/<secret>` sudah
+dihapus dari rute: keduanya menaruh secret di URL sehingga tertinggal di log
+akses proxy dan platform. Kalau dulu pernah memakai bentuk itu, secret-nya
+dianggap bocor dan perlu dirotasi.
+
+Job berisi: siklus akun (nonaktif 5 tahun, hapus 1 tahun), notifikasi
+perpanjangan bendahara, flush catatan CORS, purge trash mahasiswa, dan pengingat
+laporan bulanan.
 
 ### Batas yang perlu diperhatikan
 
@@ -133,6 +141,6 @@ internal atau GitHub Actions.
 
 - [ ] Repo sudah privat (SECURITY.md); rotasi kredensial yang sempat bocor.
 - [ ] `JWT_SECRET` & `CRON_SECRET` produksi kuat dan berbeda dari lokal.
-- [ ] `ISI_CRON_SECRET` di `vercel.json` sudah diganti nilai sebenarnya.
+- [ ] `CRON_SECRET` ada di Environment Variables produksi (tanpa itu Vercel Cron menjawab 401 dan job harian mati diam-diam); `vercel.json` tetap memakai path bersih `/api/internal/cron`.
 - [ ] Superadmin produksi tidak memakai password seed; SMTP pakai App Password.
 - [ ] Uji unggahan lampiran (magic bytes kini diverifikasi server).

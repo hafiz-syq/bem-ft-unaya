@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { timingSafeEqual } from 'crypto';
+import rateLimit from 'express-rate-limit';
 import { runAccountLifecycleJob } from '../services/account-lifecycle.service';
 import { pemeriksaanPerpanjanganHarian } from '../services/notifikasi-perpanjangan.service';
 import { flushPenolakanCors } from '../services/cors-monitor.service';
@@ -30,25 +31,17 @@ const secretSama = (diberikan: string | undefined, diharapkan: string): boolean 
   return a.length === b.length && timingSafeEqual(a, b);
 };
 
-// Secret boleh dibawa empat cara: header x-cron-secret (GitHub Actions/curl),
-// header `Authorization: Bearer ...` yang dikirim otomatis oleh Vercel Cron bila
-// proyek punya env CRON_SECRET, query ?secret=..., atau segmen path
-// /cron/<secret> (untuk pemanggil yang tidak bisa menyetel header sama sekali).
-// Secret TIDAK pernah ditulis di vercel.json: path cron memakai bentuk bersih
-// /api/internal/cron supaya nilainya hanya ada di environment Vercel.
-// Didaftarkan sebagai rute-rute terpisah dengan nama segmen eksplisit supaya
-// pemeriksa kelengkapan di src/tests/uji-akses-rute.ts (yang memindai sumber
-// berkas dan membaca segmen pertama setiap pemanggilan pendaftaran rute)
-// tetap mengenali semuanya. Jangan gabungkan dalam satu larik path.
+// Secret hanya boleh dibawa lewat header: `x-cron-secret` (GitHub Actions/curl)
+// atau `Authorization: Bearer ...` yang dikirim otomatis oleh Vercel Cron bila
+// proyek punya env CRON_SECRET. Bentuk query `?secret=...` dan segmen path
+// `/cron/<secret>` sengaja DIHAPUS: keduanya menaruh secret di URL, yang
+// tersimpan di log akses proxy/platform, riwayat browser, dan header Referer.
+// Secret juga tidak pernah ditulis di vercel.json — path cron memakai bentuk
+// bersih /api/internal/cron supaya nilainya hanya ada di environment Vercel.
 const jalankanCron = async (req: Request, res: Response): Promise<void> => {
   const secret = (process.env.CRON_SECRET || '').trim();
-  const kunciParam = req.params.kunciCron;
   const bearer = /^bearer\s+(.+)$/i.exec(req.get('authorization') || '')?.[1];
-  const dibawa =
-    req.get('x-cron-secret') ||
-    bearer ||
-    (typeof kunciParam === 'string' ? kunciParam : undefined) ||
-    (typeof req.query.secret === 'string' ? req.query.secret : undefined);
+  const dibawa = req.get('x-cron-secret') || bearer;
   if (!secret || !secretSama(dibawa, secret)) {
     res.status(401).json({ message: 'Kunci cron tidak sah.' });
     return;
@@ -130,11 +123,17 @@ const jalankanCron = async (req: Request, res: Response): Promise<void> => {
   });
 };
 
-router.post('/cron', jalankanCron);
+// Kunci hanya lewat header, jadi sisa risikonya tebak-tebakan dari sisi IP.
+// Pemanggil sah (Vercel Cron) datang sekali sehari; 10 percobaan per 15 menit
+// per IP masih longgar untuk restart/manual tetapi menghentikan penebakan.
+const batasCron = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { message: 'Terlalu banyak percobaan cron dari alamat ini.' },
+});
+
+router.post('/cron', batasCron, jalankanCron);
 // Vercel Cron selalu mengirim GET; tanpa varian ini cron menjawab 404 diam-diam.
-router.get('/cron', jalankanCron);
-// Varian segmen path untuk pemanggil yang hanya bisa mengatur URL.
-router.post('/cron/:kunciCron', jalankanCron);
-router.get('/cron/:kunciCron', jalankanCron);
+router.get('/cron', batasCron, jalankanCron);
 
 export default router;
