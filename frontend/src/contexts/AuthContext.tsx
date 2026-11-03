@@ -1,6 +1,6 @@
 // Tambahkan kata kunci 'type' sebelum ReactNode
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { api } from '../lib/axios';
+import { api, mulaiSesiBaru, setelPemrosesSesiBerakhir } from '../lib/axios';
 import { bersihkanCacheOffline, setelPemilikAntrean } from '../lib/offline';
 
 interface User {
@@ -38,6 +38,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user?.id) void setelPemilikAntrean(user.id);
   }, [user?.id]);
 
+  // Sesi mati di tengah halaman: axios memanggil ini SATU kali untuk semua 401 yang
+  // gugur bersamaan (dashboard memanggil 5-6 endpoint saat mount). State user
+  // dinolkan dan guard <ProtectedRoute> yang mengarahkan ke /login — /auth/logout
+  // sengaja tidak dipanggil karena permintaannya sendiri akan dijawab 401 juga.
+  useEffect(() => {
+    setelPemrosesSesiBerakhir(() => {
+      setUser(null);
+      void bersihkanCacheOffline();
+    });
+    return () => setelPemrosesSesiBerakhir(null);
+  }, []);
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -54,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = (userData: User) => {
+    mulaiSesiBaru();
     setUser(userData);
   };
 

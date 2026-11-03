@@ -50,6 +50,61 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// --- Sesi berakhir (401) -------------------------------------------------
+// Satu jalur untuk semua permintaan yang ditolak 401. State user dinolkan lewat
+// pemroses yang dipasang AuthContext, dan guard <ProtectedRoute> di App.tsx yang
+// mengarahkan ke /login — bukan redirect dari sini, supaya lima permintaan yang
+// gugur bersamaan tidak menjadi lima lompatan.
+//
+// Semua endpoint /auth/* dikecualikan: 401 di sana adalah keadaan normal (pengguna
+// belum login, sedang mengisi ulang kredensial, atau /auth/me saat muat pertama),
+// bukan sesi yang mati.
+const KUNCI_MAKSUD = 'bem-ft-maksud-navigasi';
+let pemrosesSesiBerakhir: (() => void) | null = null;
+let sudahDiproses = false;
+
+export const setelPemrosesSesiBerakhir = (fn: (() => void) | null): void => {
+  pemrosesSesiBerakhir = fn;
+};
+
+/** Dipanggil AuthContext saat sesi baru dipasang, supaya 401 berikutnya bereaksi lagi. */
+export const mulaiSesiBaru = (): void => {
+  sudahDiproses = false;
+};
+
+/** Halaman yang dituju sebelum sesi mati; dipakai Login setelah berhasil. */
+export const ambilMaksudSetelahLogin = (): string | null => {
+  try {
+    const dimaksud = sessionStorage.getItem(KUNCI_MAKSUD);
+    sessionStorage.removeItem(KUNCI_MAKSUD);
+    // Hanya path in-app: nilai dari sessionStorage tidak boleh bisa mengarahkan
+    // keluar aplikasi, dan /login sendiri bukan tujuan yang masuk akal.
+    if (dimaksud && /^\//.test(dimaksud) && !/^\/login\b/.test(dimaksud)) return dimaksud;
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+const jalurAuth = (config?: InternalAxiosRequestConfig): boolean => {
+  const url = config?.url || '';
+  return /^\/auth(\/|$)/.test(url);
+};
+
+const perlakukanSesiBerakhir = (config?: InternalAxiosRequestConfig): void => {
+  if (sudahDiproses || jalurAuth(config)) return;
+  sudahDiproses = true;
+  try {
+    // Aplikasi ini HashRouter: rute sesungguhnya ada di location.hash ('#/students'),
+    // sementara location.pathname selalu '/' — menyimpan pathname membuat maksud hilang
+    // dan login ulang mendarat di landing, bukan di halaman yang sedang dibuka.
+    sessionStorage.setItem(KUNCI_MAKSUD, window.location.hash.replace(/^#/, '') || '/');
+  } catch {
+    /* penyimpanan diblokir: tetap arahkan ke /login tanpa maksud */
+  }
+  pemrosesSesiBerakhir?.();
+};
+
 /** Permintaan yang sedang diputar ulang dari antrean offline tidak boleh diantrekan lagi. */
 const dariAntrean = (config?: InternalAxiosRequestConfig): boolean => {
   if (!config) return false;
@@ -118,6 +173,10 @@ api.interceptors.response.use(
           console.error('Gagal menyimpan perubahan ke antrean offline:', gagalAntre);
         }
       }
+    }
+
+    if ((error?.response as { status?: number } | undefined)?.status === 401) {
+      perlakukanSesiBerakhir(config);
     }
 
     return Promise.reject(error);

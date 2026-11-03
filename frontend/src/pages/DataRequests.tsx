@@ -49,10 +49,7 @@ export default function DataRequests() {
             }
         } catch (err) {
             if (axios.isAxiosError(err)) {
-                // Cek jika errornya adalah 401 (Unauthorized), biarkan App.tsx yang menangani lemparan ke login
-                if (err.response?.status !== 401) {
-                    setError(err.response?.data?.message || 'Gagal memuat pengajuan.');
-                }
+                setError(err.response?.data?.message || 'Gagal memuat pengajuan.');
             } else {
                 setError('Terjadi kesalahan internal frontend.');
             }

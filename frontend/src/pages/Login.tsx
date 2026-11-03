@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { User, Lock, Loader2, ArrowLeft, Info, AlertCircle } from 'lucide-react'; // Tambahan Info & AlertCircle
 import PasswordInput from '../components/PasswordInput';
 import axios from 'axios';
-import { api } from '../lib/axios';
+import { ambilMaksudSetelahLogin, api } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import ThemeToggle from '../components/ThemeToggle';
 
@@ -34,7 +34,8 @@ export default function Login() {
         // Email ada tapi belum terbukti benar: tahan di halaman verifikasi
         navigate('/verify-email');
       } else {
-        navigate('/dashboard');
+        // Kembali ke halaman yang sedang dibuka waktu sesi mati, kalau ada.
+        navigate(ambilMaksudSetelahLogin() || '/dashboard');
       }
     } catch (err) {
       if (axios.isAxiosError(err)) {
