@@ -73,30 +73,37 @@ export default function Devices() {
     return () => clearTimeout(timer);
   }, [cari]);
 
-  const muat = useCallback(async () => {
+  const muat = useCallback(async (signal?: AbortSignal) => {
     if (!admin) return;
     setLoading(true);
     setError('');
+    // Ketikan/pemilah terbaru membatalkan permintaan sebelumnya: balasan yang
+    // dibatalkan bukan galat dan tidak boleh mematikan spinner yang masih jalan.
+    let batal = false;
     try {
       const res = await api.get('/devices', {
         params: { search: cariTerpakai || undefined, status, page: halaman, limit: 20 },
+        signal,
       });
       setAkun(res.data.data);
       setMeta(res.data.meta);
     } catch (err) {
-      if (axios.isAxiosError(err)) {
+      if (axios.isCancel(err)) batal = true;
+      else if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message || 'Gagal memuat data perangkat.');
       } else {
         setError('Terjadi kesalahan yang tidak terduga.');
       }
     } finally {
-      setLoading(false);
+      if (!batal) setLoading(false);
     }
   }, [admin, cariTerpakai, status, halaman]);
 
   useEffect(() => {
+    const controller = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    muat();
+    void muat(controller.signal);
+    return () => controller.abort();
   }, [muat]);
 
   useEffect(() => {
@@ -198,7 +205,7 @@ export default function Devices() {
         </div>
         <button
           type="button"
-          onClick={muat}
+          onClick={() => muat()}
           disabled={loading}
           className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-800 shrink-0"
         >

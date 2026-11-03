@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import axios from 'axios';
 import { api, API_ORIGIN } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import { useAksesArsip } from '../lib/arsip-surat';
@@ -92,9 +93,12 @@ export default function Documents() {
   const bolehBuka = Boolean(akses?.bolehAkses);
   const bolehArah = Boolean(akses?.bolehArah);
 
-  const muat = useCallback(async () => {
+  const muat = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError('');
+    // Ketikan terbaru membatalkan permintaan sebelumnya: balasan yang dibatalkan
+    // bukan galat dan tidak boleh mematikan spinner permintaan yang masih jalan.
+    let batal = false;
     try {
       const res = await api.get('/documents', {
         params: {
@@ -104,19 +108,24 @@ export default function Documents() {
           direction: bolehArah ? arah : undefined,
           search: cari.trim() || undefined,
         },
+        signal,
       });
       setDaftar(res.data.data);
       setMeta(res.data.meta);
     } catch (err: unknown) {
-      setError(pesanGalat(err, 'Gagal memuat arsip surat.'));
+      if (axios.isCancel(err)) batal = true;
+      else setError(pesanGalat(err, 'Gagal memuat arsip surat.'));
     } finally {
-      setLoading(false);
+      if (!batal) setLoading(false);
     }
   }, [filterTipe, filterOrganisasi, arah, bolehArah, cari]);
 
   useEffect(() => {
+    if (!bolehBuka) return;
+    const controller = new AbortController();
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (bolehBuka) muat();
+    void muat(controller.signal);
+    return () => controller.abort();
   }, [muat, bolehBuka]);
 
   const simpan = async (e: React.FormEvent) => {
