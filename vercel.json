@@ -4,7 +4,7 @@
     "backend": {
       "root": "backend",
       "framework": "express",
-      "entrypoint": "src/index.ts",
+      "entrypoint": "server.js",
       "installCommand": "npm ci --include=dev",
       "buildCommand": "npx prisma generate && npm run build"
     },
