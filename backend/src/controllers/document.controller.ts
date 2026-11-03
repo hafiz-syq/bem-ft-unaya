@@ -12,6 +12,7 @@ import {
   whereCakupanArsip,
   type ArahSurat,
 } from '../lib/arsip-surat';
+import { batasHalaman } from '../lib/paginasi';
 
 const TIPE_VALID = ['SURAT', 'PROPOSAL'];
 const STATUS_VALID = ['DRAFT', 'DIAJUKAN', 'DISETUJUI', 'DITOLAK', 'DIARSIPKAN'];
@@ -78,6 +79,12 @@ export const getDocuments = async (req: any, res: Response, next: NextFunction):
     const organizationId = String(req.query.organizationId || '').trim();
     const arah = String(req.query.direction || '').toUpperCase();
 
+    // Paginasi aditif: tanpa `page`/`limit` hasilnya sama persis dengan
+    // sebelumnya (150 baris pertama), jadi pemanggil lama tidak berubah.
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(150, Math.max(1, parseInt(req.query.limit as string) || 150));
+    const skip = (page - 1) * limit;
+
     // Penyaring dasar dipakai juga untuk hitungan per arah, supaya angka di
     // kedua tab tetap konsisten dengan penyaring organisasi/jenis/pencarian.
     // Cakupan ditaruh di dalam AND agar tidak menimpa penyaring lain.
@@ -108,7 +115,8 @@ export const getDocuments = async (req: any, res: Response, next: NextFunction):
       prisma.document.findMany({
         where: whereArah,
         orderBy: { createdAt: 'desc' },
-        take: 150,
+        skip,
+        take: limit,
         include: {
           organization: { select: { id: true, name: true } },
           createdBy: { select: { nim: true, profile: { select: { nama: true } } } },
@@ -132,6 +140,9 @@ export const getDocuments = async (req: any, res: Response, next: NextFunction):
       data,
       meta: {
         total,
+        page,
+        limit,
+        totalPages: batasHalaman(total, limit),
         diajukan,
         disetujui,
         bolehArah,

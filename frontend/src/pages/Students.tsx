@@ -79,6 +79,8 @@ export default function Students() {
   const [sampah, setSampah] = useState<StudentSampah[]>([]);
   const [memuatSampah, setMemuatSampah] = useState(false);
   const [sampahTotal, setSampahTotal] = useState(0);
+  const [sampahHalaman, setSampahHalaman] = useState(1);
+  const [sampahTotalHalaman, setSampahTotalHalaman] = useState(0);
 
   // --- Modal sunting data mahasiswa (admin & superadmin) ---
   const [edit, setEdit] = useState<Student | null>(null);
@@ -162,18 +164,19 @@ export default function Students() {
     let batal = false;
     try {
       const res = await api.get('/students/trash', {
-        params: { search: kataKunci || undefined },
+        params: { search: kataKunci || undefined, page: sampahHalaman, limit: 20 },
         signal,
       });
       setSampah(res.data.data);
       setSampahTotal(res.data.meta?.total || 0);
+      setSampahTotalHalaman(res.data.meta?.totalPages || 0);
     } catch (err) {
       if (axios.isCancel(err)) batal = true;
       else setError(await pesanKesalahan(err, 'Gagal memuat tempat sampah.'));
     } finally {
       if (!batal) setMemuatSampah(false);
     }
-  }, [kataKunci]);
+  }, [kataKunci, sampahHalaman]);
 
   useEffect(() => {
     if (tab !== 'AKTIF') return;
@@ -194,6 +197,7 @@ export default function Students() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
+    setSampahHalaman(1);
     setKataKunci(search.trim());
   };
 
@@ -676,6 +680,9 @@ export default function Students() {
           sampah={sampah}
           memuatSampah={memuatSampah}
           sedangProses={sedangProses}
+          halaman={sampahHalaman}
+          totalHalaman={sampahTotalHalaman}
+          setHalaman={setSampahHalaman}
           pulihkanSiswa={pulihkanSiswa}
           hapusPermanen={hapusPermanen}
         />

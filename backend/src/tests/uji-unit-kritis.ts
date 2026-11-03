@@ -10,6 +10,7 @@
  *   C. Peta MIME -> ekstensi untuk lampiran/arsip (celah stored XSS P0.2).
  *   D. Gerbang retensi (B2.7) — penghapusan tidak boleh jalan tanpa flag.
  *   E. Nomor tiket sesudah hard delete (B2.6) — MAX hari itu, bukan count.
+ *   F. Turunan totalPages untuk paginasi arsip surat & tempat sampah.
  *
  * Jalankan: npm run test:unit   (dari folder backend)
  */
@@ -35,6 +36,7 @@ import { getAuditLogs } from '../controllers/audit.controller';
 import { EKSTENSI_DOKUMEN, ekstensiDokumen } from '../middlewares/upload.middleware';
 import { pangkasRetensi } from '../services/retensi.service';
 import { nomorTiketBerikutnya } from '../controllers/ticket.controller';
+import { batasHalaman } from '../lib/paginasi';
 
 let lulus = 0;
 const gagal: string[] = [];
@@ -201,6 +203,13 @@ async function main(): Promise<void> {
   uji(
     'nomor tiket: 0001/0002/0004 hari ini -> 0005, bukan 0004',
     (await nomorTiketBerikutnya(stubTx, '20261103')) === 'TKT-20261103-0005'
+  );
+
+  // --- F. Halaman arsip & tempat sampah (Item 5) ---------------------------
+  // Paginasi keduanya aditif; yang rawan salah hitung cuma turunan totalPages.
+  uji(
+    'totalPages: 0/20 -> 0, 200/20 -> 10, 201/20 -> 11',
+    batasHalaman(0, 20) === 0 && batasHalaman(200, 20) === 10 && batasHalaman(201, 20) === 11
   );
 
   console.log(`\n--- RINGKASAN UNIT TEST ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);

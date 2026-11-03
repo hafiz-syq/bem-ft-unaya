@@ -1,10 +1,13 @@
-import { Loader2, Trash2, Undo2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Trash2, Undo2 } from 'lucide-react';
 import { formatTanggal, type StudentSampah } from './data-mahasiswa';
 
 interface Props {
   sampah: StudentSampah[];
   memuatSampah: boolean;
   sedangProses: string | null;
+  halaman: number;
+  totalHalaman: number;
+  setHalaman: (pengatur: (p: number) => number) => void;
   pulihkanSiswa: (s: StudentSampah) => void;
   hapusPermanen: (s: StudentSampah) => void;
 }
@@ -14,6 +17,9 @@ export default function TabelSampah({
   sampah,
   memuatSampah,
   sedangProses,
+  halaman,
+  totalHalaman,
+  setHalaman,
   pulihkanSiswa,
   hapusPermanen,
 }: Props) {
@@ -71,6 +77,30 @@ export default function TabelSampah({
           </tbody>
         </table>
       </div>
+
+      {!memuatSampah && totalHalaman > 1 && (
+        <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-800">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Halaman {halaman} dari {totalHalaman}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setHalaman((p) => Math.max(1, p - 1))}
+              disabled={halaman === 1}
+              className="p-2 text-gray-600 border border-gray-300 rounded-lg dark:text-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setHalaman((p) => Math.min(totalHalaman, p + 1))}
+              disabled={halaman === totalHalaman}
+              className="p-2 text-gray-600 border border-gray-300 rounded-lg dark:text-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

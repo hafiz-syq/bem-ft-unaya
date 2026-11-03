@@ -8,6 +8,7 @@ import {
   softDeleteStudentAccount,
   HARI_TEMPAT_SAMPAH,
 } from '../services/student-trash.service';
+import { batasHalaman } from '../lib/paginasi';
 
 type AksiMassal = 'AKTIFKAN' | 'NONAKTIFKAN' | 'PUTUS_PERANGKAT' | 'UBAH_ROLE' | 'HAPUS';
 
@@ -226,11 +227,18 @@ export const getTrashStudents = async (req: any, res: Response, next: NextFuncti
       where.OR = [{ nim: { contains: search } }, { profile: { nama: { contains: search } } }];
     }
 
+    // Paginasi aditif: tanpa `page`/`limit` hasilnya tetap 100 baris pertama
+    // seperti sebelumnya, jadi pemanggil lama tidak berubah.
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 100));
+    const skip = (page - 1) * limit;
+
     const [data, total] = await Promise.all([
       prisma.user.findMany({
         where,
         orderBy: { deletedAt: 'desc' },
-        take: 100,
+        skip,
+        take: limit,
         select: {
           id: true,
           nim: true,
@@ -246,7 +254,7 @@ export const getTrashStudents = async (req: any, res: Response, next: NextFuncti
 
     res.status(200).json({
       data,
-      meta: { total, hariTempatSampah: HARI_TEMPAT_SAMPAH },
+      meta: { total, page, limit, totalPages: batasHalaman(total, limit), hariTempatSampah: HARI_TEMPAT_SAMPAH },
     });
   } catch (error) {
     next(error);

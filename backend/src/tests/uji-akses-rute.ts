@@ -501,7 +501,29 @@ const BARIS: Baris[] = [
     catatan: 'pembuatan akun ADMIN hanya untuk SUPERADMIN, jadi ADMIN pun ditolak.',
   },
   { metode: 'POST', jalur: '/students/import/simpan', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
-  { metode: 'GET', jalur: '/students/trash', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' } },
+  {
+    metode: 'GET',
+    jalur: '/students/trash',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    // Sama seperti /documents: paginasi ditambahkan tanpa membuang medan lama
+    // dan dengan bawaan yang sama dengan plafon lama (page 1, limit 100).
+    cek: (peran, hasil) => {
+      if (peran !== 'admin') return null;
+      let isi: any;
+      try {
+        isi = JSON.parse(hasil.body);
+      } catch {
+        return 'Balasan /students/trash bukan JSON yang valid.';
+      }
+      const m = isi.meta;
+      if (!m || typeof m.total !== 'number') return 'meta.total hilang setelah paginasi ditambahkan.';
+      if (m.page !== 1 || m.limit !== 100) return `bawaan berubah: page=${m.page}, limit=${m.limit} (harusnya 1 dan 100).`;
+      if (m.totalPages !== Math.ceil(m.total / m.limit)) return 'totalPages bukan ceil(total/limit).';
+      if (!Array.isArray(isi.data) || isi.data.length > m.limit) return 'jumlah baris melebihi limit.';
+      if (typeof m.hariTempatSampah !== 'number') return 'medan meta lama hariTempatSampah hilang.';
+      return null;
+    },
+  },
   {
     metode: 'PATCH',
     jalur: '/students/bulk',
@@ -628,6 +650,26 @@ const BARIS: Baris[] = [
     metode: 'GET',
     jalur: '/documents',
     harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
+    // Kontrak aditif: meta lama utuh + paginasi baru dengan nilai baku sama
+    // seperti plafon lama (page 1, limit 150), jadi pemanggil lama tidak rusak.
+    cek: (peran, hasil) => {
+      if (peran !== 'admin') return null;
+      let isi: any;
+      try {
+        isi = JSON.parse(hasil.body);
+      } catch {
+        return 'Balasan /documents bukan JSON yang valid.';
+      }
+      const m = isi.meta;
+      if (!m || typeof m.total !== 'number') return 'meta.total hilang setelah paginasi ditambahkan.';
+      if (m.page !== 1 || m.limit !== 150) return `bawaan berubah: page=${m.page}, limit=${m.limit} (harusnya 1 dan 150).`;
+      if (m.totalPages !== Math.ceil(m.total / m.limit)) return 'totalPages bukan ceil(total/limit).';
+      if (!Array.isArray(isi.data) || isi.data.length > m.limit) return 'jumlah baris melebihi limit.';
+      if (typeof m.diajukan !== 'number' || typeof m.disetujui !== 'number' || !Array.isArray(m.organisasi)) {
+        return 'medan meta lama (diajukan/disetujui/organisasi) hilang.';
+      }
+      return null;
+    },
   },
   {
     metode: 'POST',

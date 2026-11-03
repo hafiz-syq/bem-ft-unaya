@@ -7,6 +7,7 @@ import { isAdminRole } from '../lib/roles';
 import {
   FolderArchive, Plus, Loader2, X, FileText, CheckCircle, XCircle, Send,
   Trash2, Paperclip, Archive, Search, ArrowDownLeft, ArrowUpRight, ShieldAlert,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
 interface Organisasi {
@@ -34,6 +35,9 @@ interface Dokumen {
 
 interface MetaArsip {
   total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
   diajukan: number;
   disetujui: number;
   bolehArah: boolean;
@@ -80,6 +84,7 @@ export default function Documents() {
   const [filterOrganisasi, setFilterOrganisasi] = useState('ALL');
   const [arah, setArah] = useState<'MASUK' | 'KELUAR'>('KELUAR');
   const [cari, setCari] = useState('');
+  const [halaman, setHalaman] = useState(1);
   const [form, setForm] = useState({
     type: 'SURAT',
     number: '',
@@ -107,6 +112,8 @@ export default function Documents() {
           // Pemilah arah hanya dikirim admin; server juga mengabaikannya untuk peran lain.
           direction: bolehArah ? arah : undefined,
           search: cari.trim() || undefined,
+          page: halaman,
+          limit: 20,
         },
         signal,
       });
@@ -118,7 +125,7 @@ export default function Documents() {
     } finally {
       if (!batal) setLoading(false);
     }
-  }, [filterTipe, filterOrganisasi, arah, bolehArah, cari]);
+  }, [filterTipe, filterOrganisasi, arah, bolehArah, cari, halaman]);
 
   useEffect(() => {
     if (!bolehBuka) return;
@@ -234,7 +241,7 @@ export default function Documents() {
                 role="tab"
                 aria-selected={aktif}
                 type="button"
-                onClick={() => setArah(nilai)}
+                onClick={() => { setArah(nilai); setHalaman(1); }}
                 className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-colors ${
                   aktif
                     ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-gray-100'
@@ -277,18 +284,18 @@ export default function Documents() {
             type="text"
             placeholder="Cari nomor, judul, atau keterangan..."
             value={cari}
-            onChange={(e) => setCari(e.target.value)}
+            onChange={(e) => { setCari(e.target.value); setHalaman(1); }}
             className="w-full py-2 pl-9 pr-3 text-sm border border-gray-300 rounded-lg dark:bg-gray-900 dark:border-gray-700"
           />
         </div>
-        <select value={filterTipe} onChange={(e) => setFilterTipe(e.target.value)} className="px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-900 dark:border-gray-700">
+        <select value={filterTipe} onChange={(e) => { setFilterTipe(e.target.value); setHalaman(1); }} className="px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-900 dark:border-gray-700">
           <option value="ALL">Semua jenis</option>
           <option value="SURAT">Surat</option>
           <option value="PROPOSAL">Proposal</option>
         </select>
         <select
           value={filterOrganisasi}
-          onChange={(e) => setFilterOrganisasi(e.target.value)}
+          onChange={(e) => { setFilterOrganisasi(e.target.value); setHalaman(1); }}
           aria-label="Saring menurut organisasi"
           className="px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-900 dark:border-gray-700"
         >
@@ -377,6 +384,32 @@ export default function Documents() {
               </div>
             </article>
           ))}
+
+          {meta && meta.totalPages > 1 && (
+            <div className="flex items-center justify-between gap-3 p-3 bg-white border border-gray-100 rounded-xl dark:bg-gray-900 dark:border-gray-800">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Halaman {meta.page} dari {meta.totalPages} · {meta.total} arsip
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setHalaman((p) => Math.max(1, p - 1))}
+                  disabled={meta.page <= 1 || loading}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-gray-100 rounded-lg disabled:opacity-40 dark:bg-gray-800 dark:text-gray-200"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" /> Sebelumnya
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHalaman((p) => Math.min(meta.totalPages, p + 1))}
+                  disabled={meta.page >= meta.totalPages || loading}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-gray-100 rounded-lg disabled:opacity-40 dark:bg-gray-800 dark:text-gray-200"
+                >
+                  Berikutnya <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
