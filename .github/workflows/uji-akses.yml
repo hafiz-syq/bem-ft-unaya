@@ -68,6 +68,17 @@ jobs:
         working-directory: backend
         run: npx prisma migrate deploy
 
+      # Retensi dibangun dan diukur di MariaDB 10.4, produksinya MySQL 8.4: DELETE/UPDATE
+      # ... LIMIT tanpa ORDER BY adalah perilaku per mesin (binlog & perencana). Langkah ini
+      # menjalankan kelima pernyataan itu di atas mysql:8 dengan RETENSI_AKTIF=1 dan memastikan
+      # yang hilang persis baris tua. Sengaja SEBELUM server dinyalakan: tabelnya hanya berisi
+      # baris berpenanda, jadi selisih hitungan bisa dipastikan.
+      - name: Retensi — verifikasi 5 pernyataan di MySQL 8
+        working-directory: backend
+        env:
+          RETENSI_AKTIF: '1'
+        run: npm run uji:retensi
+
       - name: Bangun backend
         working-directory: backend
         run: npm run build
