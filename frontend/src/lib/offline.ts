@@ -106,7 +106,9 @@ const jalurLengkap = (url: string, baseURL?: string): string => {
 
 /**
  * Jalur yang tidak boleh masuk antrean: autentikasi, push, status online,
- * obrolan langsung, endpoint internal, dan konversi gambar.
+ * obrolan langsung, endpoint internal, konversi gambar, dan pembuatan akun
+ * admin (body-nya membawa password, dan antrean tersimpan di IndexedDB
+ * perangkat — di laptop kampus itu berarti password orang lain tertinggal).
  */
 const JALUR_DIABAIKAN = [
   /^\/auth(?:\/|$)/,
@@ -115,6 +117,7 @@ const JALUR_DIABAIKAN = [
   /^\/chat(?:\/|$)/,
   /^\/internal(?:\/|$)/,
   /^\/image-convert(?:\/|$)/,
+  /^\/students\/admin(?:\/|$)/,
 ];
 
 const METODE_TULIS = ['post', 'put', 'patch', 'delete'];
@@ -193,6 +196,29 @@ export async function kosongkanAntrean(): Promise<void> {
     await selesaikan(db.transaction(NAMA_STORE, 'readwrite').objectStore(NAMA_STORE).clear());
   } catch {
     // Penyimpanan diblokir: tidak ada antrean yang bisa dibersihkan.
+  }
+}
+
+/**
+ * Antrean lama menyimpan url yang sudah digabung baseURL (mis.
+ * `/api/students/admin`), jadi polanya tidak sama dengan JALUR_DIABAIKAN yang
+ * menguji url relatif. Entri bawaan-kreditensial dibuang untuk SEMUA pemilik:
+ * tanpa langkah ini, password admin yang terlanjur tersimpan di laptop kampus
+ * tetap ikut diputar ulang begitu perangkat kembali online.
+ */
+const POLA_ANTREAN_KREDENSIAL = /\/students\/admin(\/|\?|#|$)/i;
+
+export async function buangAntreanKredensial(): Promise<number> {
+  try {
+    const db = await bukaDb();
+    const semua = await selesaikan<ItemAntrean[]>(
+      db.transaction(NAMA_STORE, 'readonly').objectStore(NAMA_STORE).getAll()
+    );
+    const bahaya = semua.filter((item) => POLA_ANTREAN_KREDENSIAL.test(String(item.url)));
+    for (const item of bahaya) await hapusAntrean(item.id);
+    return bahaya.length;
+  } catch {
+    return 0;
   }
 }
 
@@ -334,6 +360,9 @@ export async function bersihkanCacheOffline(): Promise<void> {
 export function pasangPemantauKoneksi(): void {
   if (pemantauTerpasang || typeof window === 'undefined') return;
   pemantauTerpasang = true;
+
+  // Sekali di awal sesi: buang entri lama yang masih membawa kredensial.
+  void buangAntreanKredensial();
 
   window.addEventListener('online', () => {
     void prosesAntrean();
