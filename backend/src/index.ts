@@ -17,13 +17,19 @@ const produksiSebenarnya = process.env.VERCEL_ENV
   ? process.env.VERCEL_ENV === 'production'
   : process.env.NODE_ENV === 'production';
 
+const peringatanCron =
+  'CRON_SECRET belum disetel. Cron Vercel mengirim GET /api/internal/cron dengan header ' +
+  'Authorization: Bearer <CRON_SECRET>; tanpa env itu cron menjawab 401 dan siklus akun, ' +
+  'notifikasi perpanjangan, purge tempat sampah, serta pengingat laporan bulanan tidak ' +
+  'pernah jalan. Setel CRON_SECRET di Vercel Project Settings -> Environment Variables.';
+
 if (produksiSebenarnya && !(process.env.CRON_SECRET || '').trim()) {
-  throw new Error(
-    'CRON_SECRET belum disetel. Cron Vercel mengirim GET /api/internal/cron dengan header ' +
-      'Authorization: Bearer <CRON_SECRET>; tanpa env itu cron menjawab 401 dan siklus akun, ' +
-      'notifikasi perpanjangan, purge tempat sampah, serta pengingat laporan bulanan tidak ' +
-      'pernah jalan. Setel CRON_SECRET di Vercel Project Settings -> Environment Variables.'
-  );
+  // Gagal-keras hanya untuk listener mandiri (Hostinger), satu-satunya tempat cron bisa
+  // mati tanpa ada yang melihat. Di function Vercel, throw saat modul diimpor ikut
+  // membunuh SETIAP permintaan /api — health dan login ikut 500 — padahal rute cron sudah
+  // menolak 401 sendiri, dan penolakan itulah kegagalan yang perlu terlihat.
+  if (jalankanListener) throw new Error(peringatanCron);
+  console.error(`[cron] ${peringatanCron}`);
 }
 
 // Vercel Function mengimpor app dan menangani request sendiri. Jangan buka
