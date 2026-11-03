@@ -1030,6 +1030,98 @@ async function ujiBatasPerangkat(
   }
 }
 
+/**
+ * IZINKAN pada akun yang sudah DI ATAS batasnya — batas pernah diturunkan
+ * sementara perangkat lama tetap terdaftar. Menyetujui satu perangkat baru
+ * hanya boleh MENAMBAH perangkat; bila kunci utama ikut berpindah, seluruh
+ * sesi akun terputus (sessionVersion naik) padahal admin tidak meminta itu.
+ */
+async function ujiIzinkanDiAtasBatas(
+  akun: Record<Exclude<Peran, 'tamu'>, AkunUji>,
+  laporan: Laporan
+): Promise<void> {
+  const stempel = Date.now();
+  const target = akun.mahasiswa;
+  const kunciUtama = `uji-utama-${stempel}`;
+
+  const asal = await prisma.user.findUniqueOrThrow({
+    where: { id: target.id },
+    select: { maxDevices: true },
+  });
+
+  await prisma.user.update({
+    where: { id: target.id },
+    data: {
+      deviceId: kunciUtama,
+      deviceLabel: 'Perangkat utama uji',
+      maxDevices: 1,
+      pendingDeviceId: `uji-baru-${stempel}`,
+      pendingDeviceLabel: 'Perangkat baru uji',
+      pendingDeviceAt: new Date(),
+    },
+  });
+  await prisma.userDevice.createMany({
+    data: [
+      { userId: target.id, deviceId: `uji-tambahan-1-${stempel}`, label: 'Tambahan 1' },
+      { userId: target.id, deviceId: `uji-tambahan-2-${stempel}`, label: 'Tambahan 2' },
+    ],
+  });
+
+  const sebelum = await prisma.user.findUniqueOrThrow({
+    where: { id: target.id },
+    select: { sessionVersion: true, deviceId: true },
+  });
+  const tambahanSebelum = await prisma.userDevice.count({ where: { userId: target.id } });
+
+  try {
+    const hasil = await minta(`/devices/${target.id}/reset`, {
+      metode: 'POST',
+      cookie: akun.admin.cookie,
+      body: { mode: 'IZINKAN' },
+    });
+
+    const sesudah = await prisma.user.findUniqueOrThrow({
+      where: { id: target.id },
+      select: { sessionVersion: true, deviceId: true, pendingDeviceId: true },
+    });
+    const tambahanSesudah = await prisma.userDevice.count({ where: { userId: target.id } });
+
+    const namaPesan = `POST /devices/:id/reset [admin] IZINKAN akun di atas batas → 200, pesan menyebut di atas batas`;
+    if (hasil.status !== 200 || !hasil.body.includes('atas batas')) {
+      laporan.gagalkan(`${namaPesan} — status ${hasil.status}, badan ${hasil.body.slice(0, 120)}`, 'pesan tanpa kata "atas batas"', 'pesan menyebut akun di atas batas');
+    } else laporan.luluskan(`${namaPesan} → 200`);
+
+    const namaTambah = 'perangkat baru menambah satu baris UserDevice';
+    if (tambahanSesudah !== tambahanSebelum + 1) {
+      laporan.gagalkan(namaTambah, tambahanSesudah, tambahanSebelum + 1);
+    } else laporan.luluskan(`${namaTambah} (${tambahanSebelum} -> ${tambahanSesudah})`);
+
+    const namaSesi = 'sessionVersion akun TETAP (tidak ada sesi yang terputus)';
+    if (sesudah.sessionVersion !== sebelum.sessionVersion) {
+      laporan.gagalkan(namaSesi, sesudah.sessionVersion, sebelum.sessionVersion);
+    } else laporan.luluskan(`${namaSesi} (v=${sesudah.sessionVersion})`);
+
+    const namaKunci = 'deviceId utama tidak berpindah ke perangkat yang disetujui';
+    if (sesudah.deviceId !== sebelum.deviceId) {
+      laporan.gagalkan(namaKunci, sesudah.deviceId, sebelum.deviceId);
+    } else laporan.luluskan(`${namaKunci} (${sesudah.deviceId})`);
+
+    const namaBersih = 'percobaan perangkat (pendingDeviceId) dibersihkan';
+    if (sesudah.pendingDeviceId !== null) laporan.gagalkan(namaBersih, sesudah.pendingDeviceId, null);
+    else laporan.luluskan(namaBersih);
+  } finally {
+    await prisma.userDevice.deleteMany({ where: { userId: target.id } });
+    await prisma.user.update({
+      where: { id: target.id },
+      data: {
+        deviceId: null, deviceLabel: null, deviceBoundAt: null,
+        pendingDeviceId: null, pendingDeviceLabel: null, pendingDeviceAt: null,
+        maxDevices: asal.maxDevices,
+      },
+    });
+  }
+}
+
 // ─── Pemeriksaan kelengkapan: setiap rute terdaftar harus punya baris ──────
 interface RuteTerdaftar {
   kunci: string;
@@ -1117,6 +1209,9 @@ async function main(): Promise<void> {
 
     console.log('\n--- Batas perangkat ---');
     await ujiBatasPerangkat(akun, laporan);
+
+    console.log('\n--- IZINKAN pada akun di atas batas ---');
+    await ujiIzinkanDiAtasBatas(akun, laporan);
 
     console.log('\n--- Kelengkapan cakupan ---');
     const { terpasang, berkasTidakTerpasang } = daftarRuteTerpasang();

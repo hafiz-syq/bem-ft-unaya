@@ -7,13 +7,15 @@ import { isAdminRole } from '../lib/ticket-access';
  * Pengelolaan kunci perangkat oleh ADMIN/SUPERADMIN.
  *
  * Alur yang didukung:
- * - IZINKAN: akun yang sedang terikat dipindahkan ke perangkat yang terakhir
- *   mencoba login. Percobaan itu tercatat otomatis saat login ditolak.
+ * - IZINKAN: perangkat yang terakhir mencoba login didaftarkan. Hanya bila
+ *   jumlah perangkat sedang pas di batas, kunci utama ikut dipindahkan.
+ *   Percobaan itu tercatat otomatis saat login ditolak.
  * - LEPAS: kunci dilepas sehingga akun bisa login dari perangkat mana pun.
  * - TOLAK: percobaan perangkat baru diabaikan tanpa mengganggu perangkat lama.
  *
- * Setiap IZINKAN/LEPAS menaikkan `sessionVersion`, jadi token lama langsung
- * tidak berlaku. TOLAK tidak menyentuh sesi karena perangkat lama tetap sah.
+ * Pemindahan kunci utama (IZINKAN saat penuh) dan LEPAS menaikkan
+ * `sessionVersion`, jadi token lama langsung tidak berlaku. Menambah perangkat
+ * dan TOLAK tidak menyentuh sesi karena perangkat lama tetap sah.
  */
 
 const PILIHAN_AKUN = {
@@ -181,10 +183,14 @@ export const kelolaPerangkat = async (req: any, res: Response, next: NextFunctio
       }
 
       const jumlahTerpakai = (target.deviceId ? 1 : 0) + target.devices.length;
+      const batasAktif = Math.max(1, target.maxDevices);
 
-      // Bila batas perangkat akun masih menyisakan slot, perangkat baru cukup
-      // ditambahkan tanpa mengeluarkan perangkat lama.
-      if (jumlahTerpakai < Math.max(1, target.maxDevices)) {
+      // Hanya `jumlahTerpakai === batasAktif` yang memindahkan kunci perangkat
+      // (perilaku lama). Di bawah batas masih ada slot; di ATAS batas berarti
+      // batas pernah diturunkan sementara perangkat lama tetap terdaftar —
+      // memindahkan kunci di sana akan memutus semua sesi akun, padahal admin
+      // cuma menyetujui satu perangkat baru.
+      if (jumlahTerpakai !== batasAktif) {
         await prisma.userDevice.create({
           data: {
             userId: target.id,
@@ -207,7 +213,9 @@ export const kelolaPerangkat = async (req: any, res: Response, next: NextFunctio
         );
 
         res.status(200).json({
-          message: `Perangkat baru untuk ${nama} ditambahkan (${jumlahTerpakai + 1} dari ${target.maxDevices}). Perangkat lama tetap aktif.`,
+          message: jumlahTerpakai > batasAktif
+            ? `Akun ${nama} sedang di atas batas ${target.maxDevices} perangkat (${jumlahTerpakai} terdaftar). Perangkat baru tetap ditambahkan; tidak ada perangkat lama yang keluar.`
+            : `Perangkat baru untuk ${nama} ditambahkan (${jumlahTerpakai + 1} dari ${target.maxDevices}). Perangkat lama tetap aktif.`,
           perluLoginUlang: false,
         });
         return;
