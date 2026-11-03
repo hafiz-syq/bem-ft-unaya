@@ -74,7 +74,9 @@ router.delete('/gallery-comments/:id', ...pengelola, hapusKomentarGaleri);
 // --- Konten (Berita, Artikel, Program Kerja) ---
 router.get('/', getContents);
 router.post('/', ...pengelola, unggahKonten, createContent);
-router.get('/:id', getContentById);
+// optionalAuth, bukan tanpa auth: pengujung anonim hanya boleh membaca yang
+// sudah tayang, sementara pengelola butuh membuka draf untuk pratinjau.
+router.get('/:id', optionalAuth, getContentById);
 router.put('/:id', ...pengelola, unggahKonten, updateContent);
 router.delete('/:id', ...pengelola, deleteContent);
 

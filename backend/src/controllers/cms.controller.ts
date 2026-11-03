@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
 import { hitungAngkatan } from '../services/account-lifecycle.service';
 import { hapusGambarMedia, simpanGambarMedia } from '../lib/gambar-media';
+import { isAdminRole, isOfficer } from '../lib/ticket-access';
 
 /** Kunci pengaturan situs yang boleh diubah admin. */
 const ALLOWED_SETTINGS = ['visi', 'misi'] as const;
@@ -39,8 +40,13 @@ export const getContents = async (req: any, res: Response, next: NextFunction): 
 
 export const getContentById = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const content = await prisma.content.findUnique({
-      where: { id: req.params.id },
+    // Rute ini bisa dipanggil tanpa login, sedangkan daftar (`getContents`)
+    // menyaring status. Tanpa saringan yang sama, draf terbaca lewat URL id.
+    // Pengelola tetap boleh membuka draf untuk pratinjau sebelum tayang.
+    const pengelola = Boolean(req.user) && (isAdminRole(req.user.role) || isOfficer(req.user.role));
+
+    const content = await prisma.content.findFirst({
+      where: { id: req.params.id, ...(pengelola ? {} : { status: 'PUBLISHED' }) },
       include: { author: { select: { profile: { select: { nama: true } } } } }
     });
 
