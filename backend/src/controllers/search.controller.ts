@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
-import { isAdminRole, OFFICER_ROLES, ticketVisibilityWhere } from '../lib/ticket-access';
+import { isAdminRole, ticketVisibilityWhere } from '../lib/ticket-access';
 
 interface HasilCari {
   tipe: 'mahasiswa' | 'tiket' | 'organisasi' | 'posisi' | 'halaman';
@@ -31,33 +31,37 @@ export const globalSearch = async (req: any, res: Response, next: NextFunction):
     }
 
     const admin = isAdminRole(req.user.role);
-    const staff = admin || OFFICER_ROLES.includes(req.user.role);
     const hasil: HasilCari[] = [];
 
-    if (staff) {
-      const mahasiswa = await prisma.user.findMany({
-        where: {
-          deletedAt: null,
-          role: { notIn: admin && req.user.role === 'SUPERADMIN' ? ['SUPERADMIN'] : ['ADMIN', 'SUPERADMIN'] },
-          OR: [{ nim: { contains: q } }, { profile: { nama: { contains: q } } }],
-        },
-        take: 6,
-        select: {
-          id: true,
-          nim: true,
-          role: true,
-          profile: { select: { nama: true, program_studi: true } },
-        },
+    // Direktori nama/NIM sudah terbuka untuk semua akun yang login lewat
+    // GET /students dan dialog profil, jadi pencarian ikut menampilkannya.
+    // Aturan perannya dibuat sama persis dengan daftar itu: akun mahasiswa
+    // hanya melihat direktori akun aktif, dan ADMIN/SUPERADMIN tidak pernah
+    // muncul kecuali bagi SUPERADMIN sendiri.
+    const hanyaDirektori = req.user.role === 'MAHASISWA';
+    const mahasiswa = await prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        role: { notIn: admin && req.user.role === 'SUPERADMIN' ? ['SUPERADMIN'] : ['ADMIN', 'SUPERADMIN'] },
+        ...(hanyaDirektori ? { isActive: true } : {}),
+        OR: [{ nim: { contains: q } }, { profile: { nama: { contains: q } } }],
+      },
+      take: 6,
+      select: {
+        id: true,
+        nim: true,
+        role: true,
+        profile: { select: { nama: true, program_studi: true } },
+      },
+    });
+    for (const m of mahasiswa) {
+      hasil.push({
+        tipe: 'mahasiswa',
+        id: m.id,
+        judul: m.profile?.nama || m.nim,
+        keterangan: `${m.nim} • ${m.profile?.program_studi || m.role}`,
+        url: `/students?search=${encodeURIComponent(m.nim)}`,
       });
-      for (const m of mahasiswa) {
-        hasil.push({
-          tipe: 'mahasiswa',
-          id: m.id,
-          judul: m.profile?.nama || m.nim,
-          keterangan: `${m.nim} • ${m.profile?.program_studi || m.role}`,
-          url: `/students?search=${encodeURIComponent(m.nim)}`,
-        });
-      }
     }
 
     const tiket = await prisma.ticket.findMany({
