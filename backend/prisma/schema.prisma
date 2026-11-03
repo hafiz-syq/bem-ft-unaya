@@ -331,9 +331,9 @@ model Ticket {
   updatedAt        DateTime           @updatedAt
 
   @@index([status, priority, createdAt])
-  // EXPLAIN: rata-rata jam respons (jendela 2000 tiket terbaru) dan hitung
-  // nomor tiket harian sama-sama menyaring createdAt tanpa filter status;
-  // sebelumnya keduanya memindai seluruh tabel (24.888 baris).
+  // EXPLAIN: rata-rata jam respons (jendela 2000 tiket terbaru) menyaring createdAt
+  // tanpa filter status; sebelumnya query itu memindai seluruh tabel (24.888 baris).
+  // Bukan lagi untuk hitung nomor tiket harian: penomoran kini MAX pada ticket_no.
   @@index([createdAt])
 }
 

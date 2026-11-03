@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import ExcelJS from 'exceljs';
+import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { hapusLampiran, simpanLampiran, type HasilLampiran } from '../lib/lampiran';
 import { logActivity } from '../services/audit.service';
@@ -26,6 +27,25 @@ import {
 const ROLE_HAPUS_TIKET = ['PENGURUS_DPM', 'ADMIN', 'SUPERADMIN'];
 const bolehHapusTiket = (role: string | undefined): boolean =>
   !!role && ROLE_HAPUS_TIKET.includes(role);
+
+/**
+ * Nomor tiket berikutnya = nomor tertinggi hari itu + 1, bukan jumlah baris hari itu.
+ * DeleteTicket hard delete, jadi satu penghapusan membuat count lebih kecil dari
+ * nomor tertinggi dan semua tiket sesudahnya menabrak unique constraint ticket_no.
+ * shortcut: bukti EXPLAIN B2.1 untuk "hitung nomor tiket harian" (count pada
+ * Ticket_createdAt_idx, rows=63) TIDAK berlaku lagi — query sekarang rentang indeks
+ * unik ticket_no. Ticket_createdAt_idx tetap dipertahankan untuk jendela 2.000 tiket
+ * di dashboard-statistik.
+ */
+export async function nomorTiketBerikutnya(
+  tx: Prisma.TransactionClient,
+  hariUtc: string
+): Promise<string> {
+  const [b] = await tx.$queryRaw<{ n: bigint }[]>`
+    SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX(ticket_no, '-', -1) AS UNSIGNED)), 0) AS n
+    FROM Ticket WHERE ticket_no LIKE ${`TKT-${hariUtc}-%`}`;
+  return `TKT-${hariUtc}-${String(Number(b?.n ?? 0n) + 1).padStart(4, '0')}`;
+}
 
 /**
  * Menentukan siapa yang mendapat notifikasi (database + email) untuk sebuah tiket.
@@ -84,22 +104,18 @@ export const createTicket = async (req: any, res: Response, next: NextFunction):
       select: { id: true },
     });
 
-    // Nomor tiket = urutan baris hari itu, bukan acakan. Unique constraint pada
-    // ticket_no adalah penjaga sebenarnya: dua pengiriman serentak menghasilkan
-    // P2002 yang dijawab 409, bukan tiket bernomor ganda.
+    // Unique constraint pada ticket_no adalah penjaga sebenarnya: dua pengiriman
+    // serentak menghasilkan P2002 yang dijawab 409, bukan tiket bernomor ganda.
     // shortcut: sengaja TANPA isolationLevel Serializable — diukur 12 kirim
     // serentak, Serializable cuma meloloskan 1 (11x P2034 = 500), default
     // meloloskan 1 dan sisanya P2002 = 409 yang bisa diminta ulang.
-    const mulaiHariUtc = new Date();
-    mulaiHariUtc.setUTCHours(0, 0, 0, 0);
-    const dateStr = mulaiHariUtc.toISOString().slice(0, 10).replace(/-/g, '');
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
 
     let newTicket: { id: string; ticket_no: string };
     try {
       newTicket = await prisma.$transaction(
         async (tx) => {
-          const jumlahHariIni = await tx.ticket.count({ where: { createdAt: { gte: mulaiHariUtc } } });
-          const ticket_no = `TKT-${dateStr}-${String(jumlahHariIni + 1).padStart(4, '0')}`;
+          const ticket_no = await nomorTiketBerikutnya(tx, dateStr);
 
           const tiket = await tx.ticket.create({
             data: {
