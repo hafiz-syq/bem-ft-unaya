@@ -153,7 +153,7 @@ Uji pemulihan 21 Okt 2026 memakai dump `20261020_021725` (skema 25 tabel, tanpa 
 
 ## Batas Perangkat & Sesi
 
-Setiap akun boleh aktif di **beberapa perangkat** — bawaan **10** (HP, tablet, laptop, dan perangkat lain). Batas dapat diturunkan admin per akun antara 1–10.
+Setiap akun boleh aktif di **beberapa perangkat** — bawaan **3**. ADMIN/SUPERADMIN dapat menaikkan batas seorang akun sampai 10 dari halaman Perangkat & Sesi; angka di atas 3 berarti ada izin eksplisit admin. Menurunkan batas tidak memutus perangkat yang sudah terdaftar.
 
 - Login pertama otomatis mengikat akun ke browser/perangkat yang dipakai. ID perangkat dibuat acak oleh frontend dan disimpan di `localStorage`, lalu dikirim lewat header `X-Device-Id`.
 - Perangkat ke-2 dan seterusnya dicatat di tabel `UserDevice`; perangkat utama tetap di kolom `User.deviceId` agar data lama tidak perlu dimigrasikan.
@@ -162,7 +162,7 @@ Setiap akun boleh aktif di **beberapa perangkat** — bawaan **10** (HP, tablet,
   - **Izinkan perangkat baru** — menambahkan perangkat yang terakhir mencoba login bila batas masih tersisa; bila batas sudah penuh, akun dipindahkan ke perangkat itu dan perangkat lama langsung keluar.
   - **Tolak percobaan** — mengabaikan percobaan tanpa mengganggu perangkat lama.
   - **Putuskan** — mengeluarkan satu perangkat saja dari riwayat perangkat akun.
-  - **Atur batas** — mengubah jumlah perangkat yang boleh aktif bersamaan (1–10). Menurunkan batas tidak memutus perangkat yang sudah terdaftar.
+  - **Atur batas** — mengubah jumlah perangkat yang boleh aktif bersamaan (1–10; bawaan akun baru 3). Menurunkan batas tidak memutus perangkat yang sudah terdaftar — yang terkunci hanyalah pendaftaran perangkat baru.
   - **Lepas kunci** — membebaskan akun; perangkat pertama yang dipakai setelahnya akan mengikat lagi. Cocok bila perangkat lama dijual/rusak dan pengguna belum mencoba login dari perangkat baru.
 - Setiap izinkan/lepas menaikkan `sessionVersion`, sehingga cookie lama langsung tidak sah tanpa menunggu token kedaluwarsa.
 - ADMIN tidak dapat mengelola perangkat akun ADMIN/SUPERADMIN lain; aturan ini hanya untuk SUPERADMIN (sejalan dengan aturan pengelolaan akun yang sudah ada).

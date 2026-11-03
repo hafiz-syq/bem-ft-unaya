@@ -282,7 +282,9 @@ export const kelolaPerangkat = async (req: any, res: Response, next: NextFunctio
  * Mengatur berapa perangkat yang boleh aktif bersamaan untuk satu akun.
  *
  * 1 = perilaku lama (satu akun satu perangkat). Nilai maksimum dibatasi 10 agar
- * akun tidak dipakai berpindah-pindah tanpa kendali. Menurunkan batas TIDAK
+ * akun tidak dipakai berpindah-pindah tanpa kendali. Bawaan akun baru sekarang 3,
+ * jadi angka di atas 3 adalah izin yang diberikan admin lewat endpoint ini, bukan
+ * nilai awal akun. Menurunkan batas TIDAK
  * memutus perangkat yang sudah terdaftar; untuk memutus semuanya tetap pakai
  * mode LEPAS, supaya admin tidak tanpa sengaja mengeluarkan pengguna.
  */
