@@ -20,6 +20,8 @@
  *   H. Flag Secure cookie sesi (dipaksa saat VERCEL_ENV ada).
  *   I. Pemuat pdfjs di student-import.service — gagal muat tidak boleh
  *      melempar saat module load (seluruh /api ikut mati kalau ia melempar).
+ *   J. Keputusan "host ini boleh ditulis?" — satu sumber kebenaran untuk penahan
+ *      suite uji DAN jalur tulis non-tes (skrip src/scripts, prisma migrate / db push).
  *
  * Jalankan: npm run test:unit   (dari folder backend)
  */
@@ -51,6 +53,7 @@ import { pangkasRetensi } from '../services/retensi.service';
 import { nomorTiketBerikutnya, setTicketModeration } from '../controllers/ticket.controller';
 import { batasHalaman } from '../lib/paginasi';
 import { cookieHarusSecure } from '../lib/cookies';
+import { NAMA_ENV_TULIS, NAMA_ENV_UJI, adalahHostLokal, optInDinyalakan, sembunyikanKredensial } from '../lib/penahan-host';
 import { getNotifications } from '../controllers/notification.controller';
 import prisma from '../lib/prisma';
 import { readFileSync } from 'node:fs';
@@ -408,6 +411,54 @@ async function main(): Promise<void> {
         /pdfjs-dist/.test(pesanSaatDipakai)
     );
   }
+
+  console.log('\n=== J. Keputusan host boleh ditulis (satu sumber kebenaran) ===\n');
+
+  uji('J1 DATABASE_URL kosong dianggap boleh (job statis CI jalan tanpa basis data)', adalahHostLokal(''));
+
+  uji(
+    'J2 host mesin ini diterima: localhost, 127.0.0.1, [::1], ::1, dan tanpa port',
+    adalahHostLokal('mysql://root@localhost:3306/bem_ft_uji') &&
+      adalahHostLokal('mysql://root@127.0.0.1:3306/bem_ft_uji') &&
+      adalahHostLokal('mysql://root@[::1]:3306/bem_ft_uji') &&
+      adalahHostLokal('mysql://root@::1:3306/bem_ft_uji') &&
+      adalahHostLokal('mysql://root@127.0.0.1/bem_ft_uji')
+  );
+
+  uji(
+    'J3 host jauh ditolak (aivencloud & contoh jauh)',
+    !adalahHostLokal('mysql://avnadmin@db.i.aivencloud.com:14316/defaultdb') &&
+      !adalahHostLokal('mysql://avnadmin@jauh-sekali.example.com:14316/defaultdb')
+  );
+
+  uji(
+    'J4 userinfo/hostname mirip tidak menyulundupkan verdict lokal (gagal tertutup)',
+    !adalahHostLokal('mysql://root@127.0.0.1@jauh-sekali.example.com:14316/defaultdb') &&
+      !adalahHostLokal('mysql://root@meniru-127.0.0.1.example.com:14316/defaultdb')
+  );
+
+  uji(
+    'J5 opt-in hanya nilai "1"; 0/kosong/undefined/bukan-angka tidak membuka',
+    optInDinyalakan('1') &&
+      optInDinyalakan(' 1 ') &&
+      !optInDinyalakan('0') &&
+      !optInDinyalakan('true') &&
+      !optInDinyalakan('') &&
+      !optInDinyalakan(undefined)
+  );
+
+  uji(
+    'J6 pesan galat menyensor kredensial sebelum ditampilkan',
+    (() => {
+      const tersensor = sembunyikanKredensial('mysql://pengguna:sandi-uji@jauh-sekali.example.com:14316/defaultdb');
+      return !tersensor.includes('sandi-uji') && tersensor.includes('***@');
+    })()
+  );
+
+  uji(
+    'J7 nama opt-in suite uji dan jalur tulis berbeda (UJI_BOLEH_PRODUKSI tidak membuka skrip tulis)',
+    NAMA_ENV_UJI === 'UJI_BOLEH_PRODUKSI' && NAMA_ENV_TULIS === 'TULIS_BOLEH_JAUH'
+  );
 
   console.log(`\n--- RINGKASAN UNIT TEST ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
   if (gagal.length > 0) {

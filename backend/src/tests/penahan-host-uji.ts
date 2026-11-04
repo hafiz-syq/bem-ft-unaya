@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { NAMA_ENV_UJI, adalahHostLokal, optInDinyalakan, sembunyikanKredensial } from '../lib/penahan-host';
 
 /**
  * Penahan host untuk SEMUA suite uji, bukan hanya matriks akses.
@@ -15,16 +16,19 @@ import 'dotenv/config';
  * Default: DATABASE_URL yang menunjuk host jauh membuat proses keluar dengan kode 1.
  * Opt-in sadar: setel UJI_BOLEH_PRODUKSI=1. DATABASE_URL kosong dibiarkan, karena
  * job "statis" di CI berjalan tanpa basis data sama sekali (unit test murni).
+ *
+ * Keputusan host dan penyensoran kredensial diambil dari lib/penahan-host.ts,
+ * modul yang sama dipakai jalur tulis non-tes — regex-nya tidak boleh diduplikasi.
  */
 const urlUji = process.env.DATABASE_URL || '';
 
 /** true bila URL menunjuk mesin ini; kosong dianggap aman (tidak ada yang bisa ditulis). */
-export const hostLokal = !urlUji || /@(?:localhost|127\.0\.0\.1|\[::1\]|::1)(?::\d+)?\//i.test(urlUji);
+export const hostLokal = adalahHostLokal(urlUji);
 
-if (!hostLokal && (process.env.UJI_BOLEH_PRODUKSI || '').trim() !== '1') {
+if (!hostLokal && !optInDinyalakan(process.env[NAMA_ENV_UJI])) {
   console.error(
     '\n[penahan uji] DATABASE_URL tidak menunjuk host lokal: ' +
-      (urlUji.replace(/\/\/[^@]*@/, '//***@') || '(DATABASE_URL kosong)') +
+      (sembunyikanKredensial(urlUji) || '(DATABASE_URL kosong)') +
       '\nSuite uji membuat, menghapus, atau memangkas baris di database tersebut.' +
       '\nJalankan dengan basis data staging, misalnya:' +
       '\n  DATABASE_URL="mysql://<user>@127.0.0.1:3306/<db-uji>" npm test' +
