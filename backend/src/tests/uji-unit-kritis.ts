@@ -7,6 +7,8 @@
  *      DALAM controller SEBELUM query apa pun ke database, sehingga bila ada
  *      yang menghapus guard, test ini gagal (prisma akan tersentuh / next
  *      dipanggil) tanpa perlu server berjalan.
+ *   B2. Push perpanjangan studi — body layar kunci generik; email dan
+ *       Notification in-app tetap membawa nama, NIM, dan tanggal.
  *   C. Peta MIME -> ekstensi untuk lampiran/arsip (celah stored XSS P0.2).
  *   D. Gerbang retensi (B2.7) — penghapusan tidak boleh jalan tanpa flag.
  *   E. Nomor tiket sesudah hard delete (B2.6) — MAX hari itu, bukan count.
@@ -46,6 +48,8 @@ import { pangkasRetensi } from '../services/retensi.service';
 import { nomorTiketBerikutnya, setTicketModeration } from '../controllers/ticket.controller';
 import { batasHalaman } from '../lib/paginasi';
 import { cookieHarusSecure } from '../lib/cookies';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 let lulus = 0;
 const gagal: string[] = [];
@@ -179,6 +183,17 @@ async function main(): Promise<void> {
     let nextDipanggil = false;
     await getAuditLogs({ user: { id: 'u-uji', role: 'PENGURUS_BEM' }, query: {} }, res as never, (() => { nextDipanggil = true; }) as never);
     uji('getAuditLogs: PENGURUS ditolak 403 (khusus admin)', res.code === 403 && !nextDipanggil);
+  }
+
+  console.log('\n=== B2. Push perpanjangan studi: layar kunci generik, detail tetap di email & Notification ===\n');
+
+  {
+    const sumber = readFileSync(resolve(__dirname, '../lib/notifikasi-perpanjangan.helper.ts'), 'utf8');
+    const potongPush = sumber.slice(sumber.indexOf('kirimPushKeBanyak'), sumber.indexOf('url:'));
+    uji('push perpanjangan: body tidak lagi memakai `message`', !potongPush.includes('body: message'));
+    uji('push perpanjangan: body generik tanpa nama/NIM/tanggal', potongPush.includes("body: 'Ada peringatan perpanjangan masa studi."));
+    uji('Notification in-app masih menyimpan `message` lengkap', /pesan\.push\(message\)/.test(sumber) && /\n\s+message,\n/.test(sumber));
+    uji('email masih dipakai jalur nama + NIM + tanggal', sumber.includes('student.profile.email,') && sumber.includes('student.nim,'));
   }
 
   {

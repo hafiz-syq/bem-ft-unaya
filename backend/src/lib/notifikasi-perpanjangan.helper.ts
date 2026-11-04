@@ -85,11 +85,13 @@ export async function checkAndNotifyExpiringExtensions() {
     const message = `Perpanjangan masa studi ${student.profile?.nama || student.nim} (${student.nim}) akan berakhir dalam ${daysLeft} hari (${expiredAt.toLocaleDateString('id-ID')}).`;
     pesan.push(message);
 
-    // Push per mahasiswa, bukan per pasangan mahasiswa×admin: isinya berbeda
-    // tiap mahasiswa, jadi satu panggilan mengirim ke semua admin sekaligus.
+    // Push per mahasiswa, bukan per pasangan mahasiswa×admin: satu panggilan
+    // mengirim ke semua admin sekaligus.
+    // Body sengaja generik: layar kunci yang terlihat orang lain tidak boleh
+    // memuat nama, NIM, dan tanggal. Rinciannya tetap di email dan Notification.
     await kirimPushKeBanyak(idAdmins, {
       title: 'Peringatan Perpanjangan Studi',
-      body: message,
+      body: 'Ada peringatan perpanjangan masa studi. Buka aplikasi untuk nama, NIM, dan tanggalnya.',
       url: '/students',
     }).catch(() => undefined);
   }
