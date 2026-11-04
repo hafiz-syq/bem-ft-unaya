@@ -9,6 +9,9 @@
  *      dipanggil) tanpa perlu server berjalan.
  *   B2. Push perpanjangan studi — body layar kunci generik; email dan
  *       Notification in-app tetap membawa nama, NIM, dan tanggal.
+ *   B3. Header Cache-Control — pasangan endpoint personal (tanpa header, boleh
+ *       terbaca luring) dan endpoint admin (tetap no-store). Query disulih,
+ *       jadi tetap tanpa DB.
  *   C. Peta MIME -> ekstensi untuk lampiran/arsip (celah stored XSS P0.2).
  *   D. Gerbang retensi (B2.7) — penghapusan tidak boleh jalan tanpa flag.
  *   E. Nomor tiket sesudah hard delete (B2.6) — MAX hari itu, bukan count.
@@ -48,6 +51,8 @@ import { pangkasRetensi } from '../services/retensi.service';
 import { nomorTiketBerikutnya, setTicketModeration } from '../controllers/ticket.controller';
 import { batasHalaman } from '../lib/paginasi';
 import { cookieHarusSecure } from '../lib/cookies';
+import { getNotifications } from '../controllers/notification.controller';
+import prisma from '../lib/prisma';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -194,6 +199,24 @@ async function main(): Promise<void> {
     uji('push perpanjangan: body generik tanpa nama/NIM/tanggal', potongPush.includes("body: 'Ada peringatan perpanjangan masa studi."));
     uji('Notification in-app masih menyimpan `message` lengkap', /pesan\.push\(message\)/.test(sumber) && /\n\s+message,\n/.test(sumber));
     uji('email masih dipakai jalur nama + NIM + tanggal', sumber.includes('student.profile.email,') && sumber.includes('student.nim,'));
+  }
+
+  console.log('\n=== B3. Cache-Control: endpoint personal boleh luring, endpoint admin tetap no-store ===\n');
+
+  {
+    // Delegasi disulih supaya blok ini tetap "tanpa DB" seperti seluruh suite.
+    const delegateAsli = prisma.notification;
+    Object.defineProperty(prisma, 'notification', {
+      value: { findMany: async () => [] },
+      configurable: true,
+      writable: true,
+    });
+    const res = resPalsu();
+    let nextDipanggil = false;
+    await getNotifications({ user: { id: 'u-uji' } }, res as never, (() => { nextDipanggil = true; }) as never);
+    Object.defineProperty(prisma, 'notification', { value: delegateAsli, configurable: true, writable: true });
+    uji('getNotifications: 200 tanpa memanggil next (query tersulih, bukan DB)', res.code === 200 && !nextDipanggil);
+    uji('getNotifications: TIDAK mengirim header Cache-Control', res.header['cache-control'] === undefined);
   }
 
   {

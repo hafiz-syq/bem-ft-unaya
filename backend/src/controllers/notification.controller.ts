@@ -4,7 +4,6 @@ import prisma from '../lib/prisma';
 // Mengambil notifikasi user yang sedang login
 export const getNotifications = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    res.setHeader('Cache-Control', 'no-store');
     const notifications = await prisma.notification.findMany({
       where: { userId: req.user.id },
       orderBy: { createdAt: 'desc' },

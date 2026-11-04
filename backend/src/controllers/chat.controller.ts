@@ -35,7 +35,6 @@ export const getForumFilter = async (req: any, res: Response, next: NextFunction
       return;
     }
 
-    res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({ data: await bacaKataTerlarang() });
   } catch (error) { next(error); }
 };
@@ -124,7 +123,6 @@ const penulisSelect = {
 /** GET /api/chat/rooms — daftar ruang beserta jumlah pesan & aktivitas terakhir. */
 export const getRooms = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    res.setHeader('Cache-Control', 'no-store');
     const kelola = bolehKelolaRuang(req.user?.role);
     const forumTerbuka = kelola || (await adaRuangTerbuka());
 
@@ -326,7 +324,6 @@ export const getMessages = async (req: any, res: Response, next: NextFunction): 
     // tetap berurutan dari lama ke baru seperti yang diharapkan klien.
     if (memuatPenuh) pesan.reverse();
 
-    res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({
       data: pesan.map((p) => bentukPesan(p, kata)),
       ruang: {

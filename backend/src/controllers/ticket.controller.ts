@@ -229,7 +229,6 @@ export const createTicket = async (req: any, res: Response, next: NextFunction):
 // 2. Mengambil Daftar Tiket (dibatasi hak baca per organisasi)
 export const getTickets = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    res.setHeader('Cache-Control', 'no-store');
     const tickets = await prisma.ticket.findMany({
       where: ticketVisibilityWhere(req.user),
       include: {
