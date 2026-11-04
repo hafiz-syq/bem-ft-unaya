@@ -14,7 +14,9 @@ name: uji-akses
 
 on:
   push:
-    branches: [main]
+    # 'audit/*' hanya untuk membuktikan gramatika SQL migrasi di MySQL 8 runner
+    # sebelum main (dan karena itu produksi + Aiven) disentuh.
+    branches: [main, 'audit/*']
   pull_request:
 
 jobs:
