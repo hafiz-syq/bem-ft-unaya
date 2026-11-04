@@ -175,6 +175,57 @@ jobs:
         working-directory: backend
         run: npx prisma migrate status
 
+      # Statement pemulihan di 20261103225534 hanya bekerja kalau ada data, jadi
+      # `migrate deploy` di atas (basis data kosong) tidak membuktikan apa-apa soal
+      # baris itu. Langkah ini meniru keadaan produksi: satu akun dengan maxDevices
+      # 10 plus satu AuditLog DEVICE_LIMIT "... dari 2 menjadi 5", lalu file migrasi
+      # yang sama dijalankan ulang. Angka yang benar adalah 5 — bukan 3 (kalau
+      # UPDATE perataan menang) dan bukan 10 (kalau JOIN-nya diam-diam no-op).
+      # Dijalankan di MySQL 8 asli karena MariaDB staging sudah membuktikan bentuk
+      # UPDATE ... JOIN ini; yang belum terbukti adalah MySQL 8 (Aiven 8.4.11).
+      - name: Batas yang diberikan admin harus dipulihkan dari AuditLog
+        working-directory: backend
+        run: |
+          cat > p7c-benih.sql <<'SQL'
+          INSERT INTO `User` (`id`, `nim`, `password_hash`, `maxDevices`, `updatedAt`)
+          VALUES ('p7c-benih-1', '99990700', 'bukan-hash-nyata', 10, NOW(3));
+
+          INSERT INTO `AuditLog` (`id`, `action`, `entityType`, `entityId`, `description`)
+          VALUES ('p7c-audit-1', 'DEVICE_LIMIT', 'User', 'p7c-benih-1',
+                  'Mengubah batas perangkat 99990700 dari 2 menjadi 5');
+          SQL
+
+          cat > p7c-baca.cjs <<'JS'
+          const { PrismaClient } = require('@prisma/client');
+          const prisma = new PrismaClient();
+
+          (async () => {
+            const [versi] = await prisma.$queryRawUnsafe('SELECT VERSION() AS v');
+            const [akun] = await prisma.$queryRawUnsafe(
+              "SELECT maxDevices FROM User WHERE id = 'p7c-benih-1'"
+            );
+            await prisma.$disconnect();
+            console.log(`Versi basis data: ${versi.v}`);
+            if (!akun || akun.maxDevices !== 5) {
+              console.error(
+                `::error::maxDevices akun benih = ${akun ? akun.maxDevices : 'TIDAK ADA BARIS'}, harus 5.`
+              );
+              process.exit(1);
+            }
+            console.log('Batas perangkat dipulihkan dari AuditLog: maxDevices = 5.');
+          })().catch(async (error) => {
+            console.error(error);
+            await prisma.$disconnect();
+            process.exit(1);
+          });
+          JS
+
+          npx prisma db execute --schema prisma/schema.prisma --file p7c-benih.sql
+          npx prisma db execute --schema prisma/schema.prisma \
+            --file prisma/migrations/20261103225534_batas_perangkat_tiga/migration.sql
+          node p7c-baca.cjs
+          rm -f p7c-benih.sql p7c-baca.cjs
+
       # `--exit-code` dari `migrate diff`: 0 = tidak ada perbedaan, 2 = ada
       # perbedaan, 1 = gagal dijalankan. Perbedaan berarti isi schema.prisma
       # sudah berubah tanpa migrasi baru — persis keadaan yang membuat produksi
