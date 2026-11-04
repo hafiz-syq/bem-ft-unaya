@@ -43,6 +43,12 @@
   <link rel="icon" type="image/png" href="/favicon-64.png" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
+  <!-- iOS < 16.4 mengabaikan "display": standalone pada manifest, jadi
+       pemasangan ke layar utama butuh tag lama ini; padanannya yang tidak
+       deprecated diminta Chrome (tanpa itu konsol menampilkan peringatan). -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="BEM FT UNAYA" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- Warna chrome browser mengikuti tema aktif (terang: gray-50, gelap: #0a0a0f) -->
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f9fafb" />

@@ -12,6 +12,7 @@ import GalleryComments from '../components/GalleryComments';
 import UserAvatar from '../components/UserAvatar';
 import LazyImage from '../components/LazyImage';
 import MediaImage from '../components/MediaImage';
+import PasangAplikasi from '../components/PasangAplikasi';
 import { formatRentangTanggal, jumlahHariAgenda } from '../lib/tanggal';
 import { Send, LogIn, Code2, Users, Building, ShieldCheck, Loader2, Calendar, Newspaper, ArrowRight, MapPin, Clock, Image as ImageIcon, Landmark, X, ExternalLink, Menu, MessageSquare, Award, ChevronLeft, ChevronRight, Megaphone, AlertCircle, Layers, CornerDownRight, Share2, Lock, MoonStar, PartyPopper, Flag } from 'lucide-react';
 import axios from 'axios';
@@ -399,6 +400,9 @@ export default function Landing() {
               <a href="#berita" onClick={(e) => handleSmoothScroll(e, 'berita')} className="w-full px-6 py-3 font-bold transition-all duration-300 bg-white rounded-lg shadow-lg dark:bg-gray-900 sm:w-auto text-amber-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:scale-105 active:scale-95">Kabar Terbaru</a>
               <a href="#program" onClick={(e) => handleSmoothScroll(e, 'program')} className="w-full px-6 py-3 font-bold text-gray-900 transition-all duration-300 border rounded-lg sm:w-auto border-amber-300 dark:border-amber-700 bg-amber-400 hover:bg-amber-300 hover:scale-105 active:scale-95">Program Kerja</a>
             </div>
+          </RevealOnScroll>
+          <RevealOnScroll delay={650}>
+            <PasangAplikasi />
           </RevealOnScroll>
         </div>
       </section>
