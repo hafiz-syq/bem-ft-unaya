@@ -1,3 +1,4 @@
+import './penahan-host-uji';
 import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcrypt';

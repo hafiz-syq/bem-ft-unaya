@@ -7,8 +7,8 @@ import { NAMA_ENV_UJI, adalahHostLokal, optInDinyalakan, sembunyikanKredensial }
  * Suite uji menulis (akun 999900xx) dan menghapus baris. Dua kali ia ikut menulis
  * ke produksi hanya karena bentuk perintah shell membuat proses tes tidak mewarisi
  * env staging, sementara backend/.env menunjuk Aiven. Karena itu pemeriksaan ini
- * berdiri sendiri di modul kecil yang diimpor baris pertama tiap titik masuk:
- * bantu-uji.ts, uji-unit-kritis.ts, dan uji-retensi-mysql.ts.
+ * berdiri sendiri di modul kecil yang diimpor baris pertama tiap titik masuk uji:
+ * semua src/tests/uji-*.ts dan bantu-uji.ts, sebelum modul yang mengimpor lib/prisma.
  *
  * Sengaja BUKAN di lib/prisma.ts — modul itu dipakai boot produksi dan lemparan di
  * sana membunuh seluruh rute /api (lihat riwayat FUNCTION_INVOCATION_FAILED).
