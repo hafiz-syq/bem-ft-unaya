@@ -105,25 +105,29 @@ async function batasiCache(cache, batas) {
   }
 }
 
-// --- Umur maksimum entri cache data -------------------------------------
+// --- Umur maksimum entri cache data & gambar -----------------------------
 // Header `date` respons disimpan apa adanya oleh Cache API, jadi umur entri
 // bisa dibaca tanpa field tambahan. Entri tanpa header dibiarkan: umur tidak
 // diketahui, membuang buta akan menghapus data luring yang masih sah.
 const UMUR_MAKS_DATA = 7 * 24 * 60 * 60 * 1000;
 
+// Dua cache, satu plafon umur: CACHE_GAMBAR berisi unggahan/foto profil milik
+// orang lain, jadi tidak boleh menua tanpa batas seperti aset build.
 async function buangDataKedaluwarsa() {
-  try {
-    const cache = await caches.open(CACHE_DATA);
-    const sekarang = Date.now();
-    for (const permintaan of await cache.keys()) {
-      const tersimpan = await cache.match(permintaan);
-      const tanggal = tersimpan ? Date.parse(tersimpan.headers.get('date') || '') : NaN;
-      if (Number.isFinite(tanggal) && sekarang - tanggal > UMUR_MAKS_DATA) {
-        await cache.delete(permintaan);
+  for (const nama of [CACHE_DATA, CACHE_GAMBAR]) {
+    try {
+      const cache = await caches.open(nama);
+      const sekarang = Date.now();
+      for (const permintaan of await cache.keys()) {
+        const tersimpan = await cache.match(permintaan);
+        const tanggal = tersimpan ? Date.parse(tersimpan.headers.get('date') || '') : NaN;
+        if (Number.isFinite(tanggal) && sekarang - tanggal > UMUR_MAKS_DATA) {
+          await cache.delete(permintaan);
+        }
       }
+    } catch {
+      // Pembersihan bersifat pemeliharaan; kegagalannya tidak fatal.
     }
-  } catch {
-    // Pembersihan bersifat pemeliharaan; kegagalannya tidak fatal.
   }
 }
 
@@ -180,7 +184,12 @@ async function ambilGambar(event) {
 
   try {
     const respons = await fetch(request);
-    if (respons.ok || respons.type === 'opaque') {
+    // no-store juga berlaku untuk gambar: foto profil tidak boleh tertinggal.
+    // shortcut: respons opaque (tanpa CORS, mis. Cloudinary) tidak mengekspos
+    // header, jadi no-store-nya tidak terbaca dan entri tetap disimpan; naik
+    // level ke permintaan mode 'cors' begitu penyedia mengizinkan pembacaan.
+    const tanpaSimpan = /no-store/i.test(respons.headers.get('cache-control') || '');
+    if (!tanpaSimpan && (respons.ok || respons.type === 'opaque')) {
       await cache.put(request, respons.clone()).catch(() => undefined);
       void batasiCache(cache, 80);
     }
