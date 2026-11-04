@@ -1,4 +1,5 @@
 import { api } from './axios';
+import { keputusanKirim, type KeputusanKirim } from './offline-keputusan';
 
 /**
  * Mode offline & sinkronisasi otomatis.
@@ -28,6 +29,8 @@ export interface ItemAntrean {
   url: string;
   data?: unknown;
   createdAt: number;
+  /** Jumlah percobaan kirim ulang yang gagal; entri lama belum memilikinya (0). */
+  coba?: number;
 }
 
 export interface HasilAntrean {
@@ -190,6 +193,21 @@ export async function hapusAntrean(id: string): Promise<void> {
   }
 }
 
+/** Naikkan penghitung percobaan gagal sebuah entri tanpa mengubah isinya. */
+const catatPercobaan = async (item: ItemAntrean): Promise<void> => {
+  try {
+    const db = await bukaDb();
+    await selesaikan(
+      db
+        .transaction(NAMA_STORE, 'readwrite')
+        .objectStore(NAMA_STORE)
+        .put({ ...item, coba: (item.coba ?? 0) + 1 })
+    );
+  } catch {
+    // Gagal menulis hanya menunda plafon BATAS_PERCOBAAN; entri tetap utuh.
+  }
+};
+
 export async function kosongkanAntrean(): Promise<void> {
   try {
     const db = await bukaDb();
@@ -278,10 +296,13 @@ export async function antrekanPermintaan(permintaan: {
 /**
  * Kirim ulang seluruh antrean secara berurutan.
  *
- * Respons 4xx berarti permintaan ditolak permanen (mis. data sudah tidak
- * valid), jadi entri dibuang agar tidak menghalangi antrean berikutnya.
- * Gangguan jaringan/5xx menghentikan proses dan menyisakan entri untuk dicoba
- * lagi nanti.
+ * Hanya 400/422 (isi data benar-benar tidak valid) yang membuat entri dibuang.
+ * 4xx lain dipertahankan dan henti sampai flush berikutnya — 401 berarti sesi
+ * kedaluwarsa, 403 peran berubah, 429 limiter login — semuanya keadaan sementara
+ * yang bisa pulih sendiri. Jaringan/5xx juga berhenti tanpa menyalahkan entri.
+ * Entri yang dipertahankan dihitung percobaannya dan dibuang setelah
+ * BATAS_PERCOBAAN (5) kali gagal agar antrean tidak macet selamanya.
+ * Keputusan per percobaan ada di offline-keputusan.ts (murni, bisa dites).
  */
 export async function prosesAntrean(): Promise<HasilAntrean> {
   if (sedangMemproses || typeof navigator === 'undefined' || !navigator.onLine) {
@@ -295,6 +316,7 @@ export async function prosesAntrean(): Promise<HasilAntrean> {
     let gagal = 0;
 
     for (const item of daftar) {
+      let keputusan: KeputusanKirim;
       try {
         await api.request({
           method: item.method,
@@ -303,17 +325,24 @@ export async function prosesAntrean(): Promise<HasilAntrean> {
           data: item.data,
           headers: { 'X-Dari-Antrean': '1' },
         });
-        await hapusAntrean(item.id);
-        selesai += 1;
+        keputusan = keputusanKirim(true, undefined, 0);
       } catch (error) {
         const status = (error as { response?: { status?: number } })?.response?.status;
-        if (status && status >= 400 && status < 500) {
-          await hapusAntrean(item.id);
-          gagal += 1;
-          continue;
-        }
-        break;
+        keputusan = keputusanKirim(false, status, item.coba ?? 0);
       }
+
+      if (keputusan === 'hapus') {
+        await hapusAntrean(item.id);
+        selesai += 1;
+        continue;
+      }
+      if (keputusan === 'buang') {
+        await hapusAntrean(item.id);
+        gagal += 1;
+        continue;
+      }
+      if (keputusan === 'pertahankan') await catatPercobaan(item);
+      break;
     }
 
     const hasil: HasilAntrean = { selesai, gagal, sisa: await hitungAntrean() };

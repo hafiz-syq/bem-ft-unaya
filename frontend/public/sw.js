@@ -418,11 +418,18 @@ async function sinkronkanAntrean() {
       if (respons.ok) {
         await hapusAntreanSw(item.id);
         selesai += 1;
-      } else if (respons.status >= 400 && respons.status < 500) {
-        // Ditolak permanen (mis. data sudah tidak valid): buang agar tidak macet.
+      } else if (respons.status === 400 || respons.status === 422) {
+        // Isi data benar-benar tidak valid (satu-satunya yang layak dibuang):
+        // pengulangan dengan body yang sama akan ditolak lagi.
         await hapusAntreanSw(item.id);
         gagal += 1;
       } else {
+        // 4xx lain (401 sesi kedaluwarsa, 403 peran, 429 limiter) dan 5xx/jaringan
+        // adalah keadaan sementara — entri BERTAHAN. Sengaja berhenti, bukan
+        // lanjut, supaya urutan tidak kacau. shortcut: tanpa penghitung coba di
+        // sini (sw tidak bisa mengimpor src/lib/offline-keputusan); plafon 5x
+        // hanya berlaku saat halaman terbuka. Naikkan bila tab tertutup permanen
+        // mulai mengumpulkan entri macet.
         break;
       }
     } catch {

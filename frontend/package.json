@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:unit": "node --test \"uji/*.test.ts\"",
     "preview": "vite preview"
   },
   "dependencies": {
