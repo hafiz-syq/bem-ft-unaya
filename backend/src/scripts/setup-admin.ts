@@ -1,3 +1,4 @@
+import './penahan-host-tulis';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import readline from 'readline';

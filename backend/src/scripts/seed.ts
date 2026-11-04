@@ -1,3 +1,4 @@
+import './penahan-host-tulis';
 import prisma from '../lib/prisma';
 import fs from 'fs';
 import path from 'path';
