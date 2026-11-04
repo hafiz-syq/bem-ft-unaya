@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import bcrypt from 'bcrypt';
 import prisma from '../lib/prisma';
 import {
   API_URL,
@@ -1122,6 +1123,112 @@ async function ujiIzinkanDiAtasBatas(
   }
 }
 
+/**
+ * Gerbang perangkat saat login (auth.controller.ts:140 dan :175-202):
+ * selama akun masih di bawah batas, perangkat baru ikut terdaftar; begitu
+ * penuh, login ditolak dengan PERANGKAT_TERKUNCI dan percobaannya hanya
+ * dicatat di pendingDevice* — tanpa baris UserDevice dan tanpa menaikkan
+ * sessionVersion (sesi perangkat lama harus tetap hidup).
+ *
+ * Sengaja cuma dua kali POST /auth/login: limiter login 5 permintaan per 5
+ * menit per IP, jadi fixture ini boleh jalan maksimal dua kali per server
+ * hidup. Kalau muncul 429, restart server staging atau tunggu 5 menit —
+ * hasilnya tetap dilaporkan sebagai kegagalan, tidak dilewati.
+ */
+async function ujiGerbangPerangkatLogin(
+  akun: Record<Exclude<Peran, 'tamu'>, AkunUji>,
+  laporan: Laporan
+): Promise<void> {
+  const stempel = Date.now();
+  const nim = `9999${stempel}`;
+  const password = `UjiGerbangPerangkat-${stempel}`;
+  const utama = `uji-p4-utama-${stempel}`;
+  const tambahan = `uji-p4-satu-${stempel}`;
+  const diBawahBatas = `uji-p4-dua-${stempel}`;
+  const penuh = `uji-p4-tiga-${stempel}`;
+
+  const akunUji = await prisma.user.create({
+    data: {
+      nim,
+      password_hash: await bcrypt.hash(password, 10),
+      role: 'MAHASISWA',
+      first_login: false,
+      isActive: true,
+      maxDevices: 3,
+      deviceId: utama,
+      deviceLabel: 'Utama uji P4',
+      deviceBoundAt: new Date(),
+    },
+    select: { id: true, sessionVersion: true },
+  });
+  await prisma.userDevice.create({
+    data: { userId: akunUji.id, deviceId: tambahan, label: 'Tambahan uji P4' },
+  });
+
+  const sesiAwal = akunUji.sessionVersion;
+  const mulai = new Date();
+
+  try {
+    // (a) 2 dari 3 slot terpakai -> perangkat baru harus DITERIMA.
+    const masuk = await minta('/auth/login', {
+      metode: 'POST',
+      body: { nim, password },
+      headers: { 'X-Device-Id': diBawahBatas },
+    });
+    const namaTerima = 'POST /auth/login perangkat baru saat slot sisa (2 dari 3) → 200';
+    if (masuk.status !== 200) laporan.gagalkan(`${namaTerima} — status ${masuk.status}`, masuk.status, 200);
+    else laporan.luluskan(`${namaTerima} → 200`);
+
+    const terdaftarSetelahMasuk = await prisma.userDevice.count({ where: { userId: akunUji.id } });
+    const namaDaftar = 'perangkat yang diterima terdaftar di UserDevice';
+    if (terdaftarSetelahMasuk !== 2) laporan.gagalkan(namaDaftar, terdaftarSetelahMasuk, 2);
+    else laporan.luluskan(`${namaDaftar} (2 baris: utama tersimpan di kolom User)`);
+
+    // (b) 3 dari 3 -> perangkat keempat harus DITOLAK dengan PERANGKAT_TERKUNCI.
+    const tolak = await minta('/auth/login', {
+      metode: 'POST',
+      body: { nim, password },
+      headers: { 'X-Device-Id': penuh },
+    });
+    const namaTolak = 'POST /auth/login perangkat ke-4 (batas 3) → 403 PERANGKAT_TERKUNCI';
+    if (tolak.status !== 403 || !tolak.body.includes('PERANGKAT_TERKUNCI')) {
+      laporan.gagalkan(`${namaTolak} — status ${tolak.status}`, tolak.body.slice(0, 120), '403 + code PERANGKAT_TERKUNCI');
+    } else laporan.luluskan(`${namaTolak} → 403`);
+
+    const sesudah = await prisma.user.findUniqueOrThrow({
+      where: { id: akunUji.id },
+      select: { sessionVersion: true, deviceId: true, pendingDeviceId: true },
+    });
+
+    const namaCatat = 'percobaan perangkat keempat tercatat di pendingDeviceId';
+    if (sesudah.pendingDeviceId !== penuh) laporan.gagalkan(namaCatat, sesudah.pendingDeviceId, penuh);
+    else laporan.luluskan(namaCatat);
+
+    const namaTetapDaftar = 'penolakan tidak menambah baris UserDevice';
+    const jumlahTetap = await prisma.userDevice.count({ where: { userId: akunUji.id } });
+    if (jumlahTetap !== 2) laporan.gagalkan(namaTetapDaftar, jumlahTetap, 2);
+    else laporan.luluskan(`${namaTetapDaftar} (tetap 2 baris)`);
+
+    const namaTetapSesi = 'penolakan tidak menaikkan sessionVersion (sesi perangkat lama tetap hidup)';
+    if (sesudah.sessionVersion !== sesiAwal) laporan.gagalkan(namaTetapSesi, sesudah.sessionVersion, sesiAwal);
+    else laporan.luluskan(`${namaTetapSesi} (v=${sesudah.sessionVersion})`);
+
+    const namaTetapKunci = 'deviceId utama tidak berpindah saat login ditolak';
+    if (sesudah.deviceId !== utama) laporan.gagalkan(namaTetapKunci, sesudah.deviceId, utama);
+    else laporan.luluskan(`${namaTetapKunci} (${sesudah.deviceId})`);
+  } finally {
+    await prisma.userDevice.deleteMany({ where: { userId: akunUji.id } });
+    // Login yang ditolak menyebarkan notifikasi ke 150 akun ADMIN di staging.
+    // Dibersihkan sebatas yang tim fixture ini bikin (judul + sejak mulai), jadi
+    // baris yang sudah ada sebelum run tidak ikut hilang.
+    await prisma.notification.deleteMany({
+      where: { title: 'Ada percobaan login perangkat baru', createdAt: { gte: mulai } },
+    });
+    await prisma.auditLog.deleteMany({ where: { entityId: akunUji.id, action: 'NOTIF_PERANGKAT_BARU' } });
+    await prisma.user.delete({ where: { id: akunUji.id } });
+  }
+}
+
 // ─── Pemeriksaan kelengkapan: setiap rute terdaftar harus punya baris ──────
 interface RuteTerdaftar {
   kunci: string;
@@ -1212,6 +1319,9 @@ async function main(): Promise<void> {
 
     console.log('\n--- IZINKAN pada akun di atas batas ---');
     await ujiIzinkanDiAtasBatas(akun, laporan);
+
+    console.log('\n--- Gerbang perangkat saat login ---');
+    await ujiGerbangPerangkatLogin(akun, laporan);
 
     console.log('\n--- Kelengkapan cakupan ---');
     const { terpasang, berkasTidakTerpasang } = daftarRuteTerpasang();
