@@ -25,6 +25,14 @@ Semua perintah dijalankan dari folder `backend/`:
 | `build` | `npm run build` | Kompilasi TypeScript ke `dist/` |
 | `start` | `npm start` | Menjalankan hasil build produksi (`node server.js`) |
 
+Perintah yang menulis ke basis data (`migrate`, `prisma:push`, `seed`, `superadmin`,
+`verifikasi:akses`) berhenti sendiri bila `DATABASE_URL` menunjuk host jauh, karena
+default `backend/.env` menunjuk produksi (Aiven). Arahkan ke staging lokal, atau setel
+`TULIS_BOLEH_JAUH=1` bila memang sadar menargetkan database jauh. `prisma:deploy`
+sengaja tidak dijaga — itu jalur produksi yang sah. Suite uji punya penahan sendiri
+dengan nama flag berbeda (`UJI_BOLEH_PRODUKSI=1`), sehingga menyetujui salah satunya
+tidak membuka yang lain.
+
 Urutan pemakaian pertama kali:
 
 ```bash
