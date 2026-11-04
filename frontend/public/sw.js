@@ -87,7 +87,7 @@ self.addEventListener('activate', (event) => {
           .filter((nama) => nama.startsWith('bem-ft-') && !CACHE_AKTIF.includes(nama))
           .map((nama) => caches.delete(nama))
       );
-      await buangDataKedaluwarsa();
+      await buangKedaluwarsaSekali();
       await self.clients.claim();
     })()
   );
@@ -131,6 +131,19 @@ async function buangDataKedaluwarsa() {
   }
 }
 
+// --- Satu pemindaian umur per umur service worker ------------------------
+// Pemindaian dulu hanya jalan di activate, jadi perangkat yang service
+// worker-nya tidak pernah mendapat versi baru menyimpan data pribadi selamanya.
+// Toleransinya satu pemindaian penuh per umur SW — bukan jadwal: SW tidur saat
+// halaman tertutup, dan membangunkannya lewat timer hanya menambah lalu lintas.
+let sudahBuangKedaluwarsa = false;
+
+async function buangKedaluwarsaSekali() {
+  if (sudahBuangKedaluwarsa) return;
+  sudahBuangKedaluwarsa = true;
+  await buangDataKedaluwarsa();
+}
+
 // --- Strategi fetch -----------------------------------------------------
 
 const bukanApiSesi = (pathname) =>
@@ -138,6 +151,7 @@ const bukanApiSesi = (pathname) =>
 
 async function ambilDataApi(event) {
   const { request } = event;
+  event.waitUntil(buangKedaluwarsaSekali());
 
   try {
     const respons = await fetch(request);
@@ -178,6 +192,7 @@ async function ambilDataApi(event) {
 
 async function ambilGambar(event) {
   const { request } = event;
+  event.waitUntil(buangKedaluwarsaSekali());
   const cache = await caches.open(CACHE_GAMBAR);
   const tersimpan = await cache.match(request);
   if (tersimpan) return tersimpan;
