@@ -32,6 +32,14 @@ import prisma from '../lib/prisma';
 // node-pre-gyp/tar). Keduanya membaca teks dengan hasil yang sama; modern
 // hanya cadangan bila lingkungan Node tertentu menolak build legacy.
 //
+// Pemuatnya SENGAJA tidak pernah melempar. Keduanya kini berkas `.mjs`, dan
+// `require()` berkas ESM hanya sinkron pada Node >=20.19 / >=22.12; di runtime
+// yang lebih tua kedua cabang gagal dengan ERR_REQUIRE_ESM. Modul ini ikut
+// ter-impor oleh rantai rute, jadi lemparan di sini akan menggagalkan
+// pemuatan modul dan MEMATIKAN SELURUH /api, bukan hanya impor PDF. Karena itu
+// kegagalannya ditahan dan baru muncul saat ada yang benar-benar memakai
+// pdfjs (lihat `if (!pdfjs)` di bacaIsiPdf).
+//
 // Worker dimuat STATIS bersama pustakanya. Di Node, pdfjs memakai "fake worker"
 // yang memanggil require(workerSrc) secara dinamis; di Vercel pemanggilan itu
 // tidak terlacak saat fungsi dibundel, sehingga berkas pdf.worker.js tidak ikut
@@ -45,18 +53,26 @@ const muatPdfJs = () => {
       pdfjs: require('pdfjs-dist/legacy/build/pdf.mjs'),
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       worker: require('pdfjs-dist/legacy/build/pdf.worker.mjs'),
+      galatMuat: null as unknown,
     };
-  } catch {
-    return {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      pdfjs: require('pdfjs-dist/build/pdf.mjs'),
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      worker: require('pdfjs-dist/build/pdf.worker.mjs'),
-    };
+  } catch (galatLegacy) {
+    try {
+      return {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        pdfjs: require('pdfjs-dist/build/pdf.mjs'),
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        worker: require('pdfjs-dist/build/pdf.worker.mjs'),
+        galatMuat: null as unknown,
+      };
+    } catch (galatModern) {
+      // Path require dibiarkan literal (bukan variabel) supaya penelusuran
+      // dependensi Vercel tetap melihat kedua berkasnya.
+      return { pdfjs: null, worker: null, galatMuat: galatModern ?? galatLegacy };
+    }
   }
 };
 
-const { pdfjs, worker: pdfjsWorker } = muatPdfJs();
+const { pdfjs, worker: pdfjsWorker, galatMuat: galatMuatPdfJs } = muatPdfJs();
 
 if (pdfjsWorker?.WorkerMessageHandler) {
   (globalThis as any).pdfjsWorker = {
@@ -100,6 +116,15 @@ const POLA_BARIS =
  * Mengambil seluruh teks dari PDF, satu baris per baris aslinya.
  */
 async function bacaIsiPdf(buffer: Buffer): Promise<string> {
+  if (!pdfjs) {
+    // Kegagalan muat ditahan sampai sini: hanya fitur impor yang mati, bukan
+    // seluruh API. Pesan ini sampai ke admin lewat tangkatan rute unggah.
+    throw new Error(
+      'Pustaka pembaca PDF (pdfjs-dist) tidak dapat dimuat di runtime ini, jadi impor mahasiswa nonaktif. ' +
+        `Sebab: ${String(galatMuatPdfJs)}`
+    );
+  }
+
   // Salinan bersih: unggahan datang sebagai tampilan (view) memori yang lebih
   // besar dari isinya, jadi jangan langsung memberi bufer mentahnya ke pdfjs.
   const tugas = pdfjs.getDocument({

@@ -13,6 +13,8 @@
  *   F. Turunan totalPages untuk paginasi arsip surat & tempat sampah.
  *   G. Validasi login, nama berkas lampiran, dan daftar host SSRF.
  *   H. Flag Secure cookie sesi (dipaksa saat VERCEL_ENV ada).
+ *   I. Pemuat pdfjs di student-import.service — gagal muat tidak boleh
+ *      melempar saat module load (seluruh /api ikut mati kalau ia melempar).
  *
  * Jalankan: npm run test:unit   (dari folder backend)
  */
@@ -305,6 +307,57 @@ async function main(): Promise<void> {
     uji(
       'cookieHarusSecure: ikut protokol di luar Vercel, dipaksa aman selama VERCEL_ENV ada',
       httpPolos && headerHttps && tlsLangsung && dipaksaDiVercel
+    );
+  }
+
+  // --- I. Pemuat pdfjs tidak boleh melempar saat module load ----------------
+  {
+    // Risiko yang dijaga: sejak 4.x kedua build pdfjs adalah `.mjs`, dan
+    // `require()` ESM hanya sinkron pada Node >=20.19 / >=22.12. Kalau runtime
+    // (mis. Vercel, yang versinya tidak dipinjam di vercel.json) lebih tua,
+    // KEDUA cabang muatPdfJs() gagal. Service ini ikut ter-impor rantai rute,
+    // jadi satu lemparan di top-level module akan mematikan SELURUH /api.
+    // Loader sekarang menahan kegagalan itu, dan yang gagal hanya fiturnya.
+    const Modul = require('module') as { _load: (...a: unknown[]) => unknown };
+    const muatAsli = Modul._load;
+    const jalurLayanan = require.resolve('../services/student-import.service');
+    delete require.cache[jalurLayanan];
+    delete require.cache[require.resolve('../lib/prisma')];
+
+    let tahan: unknown = null;
+    let pesanSaatDipakai: string | null = null;
+    try {
+      Modul._load = function (permintaan: unknown, ...lainnya: unknown[]) {
+        if (typeof permintaan === 'string' && permintaan.startsWith('pdfjs-dist/')) {
+          throw Object.assign(new Error('require() of ES Module is not supported'), {
+            code: 'ERR_REQUIRE_ESM',
+          });
+        }
+        return muatAsli.call(Modul, permintaan, ...lainnya);
+      };
+      tahan = require('../services/student-import.service');
+    } catch {
+      tahan = null; // modul load melempar -> persis yang tidak boleh terjadi
+    } finally {
+      Modul._load = muatAsli;
+    }
+
+    const layanan = tahan as { parsingPdfMahasiswa?: (b: Buffer) => Promise<unknown> } | null;
+    if (layanan && typeof layanan.parsingPdfMahasiswa === 'function') {
+      try {
+        await layanan.parsingPdfMahasiswa(Buffer.from('%PDF-1.4\n%%EOF\n'));
+      } catch (error) {
+        pesanSaatDipakai = (error as Error).message;
+      }
+    }
+    delete require.cache[jalurLayanan];
+
+    uji(
+      'student-import.service: loader pdfjs yang gagal TOTAL tidak melempar saat module load, dan baru gagal saat fiturnya dipakai',
+      layanan !== null &&
+        typeof layanan.parsingPdfMahasiswa === 'function' &&
+        pesanSaatDipakai !== null &&
+        /pdfjs-dist/.test(pesanSaatDipakai)
     );
   }
 
