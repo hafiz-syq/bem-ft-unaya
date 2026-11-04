@@ -10,7 +10,7 @@ import SeasonalBadge from '../components/SeasonalBadge';
 import GlobalSearch from '../components/GlobalSearch';
 import PushToggle from '../components/PushToggle';
 import PasangAplikasi from '../components/PasangAplikasi';
-import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, MessagesSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2, Images, Smartphone, Palette, PanelLeftClose, PanelLeftOpen, Megaphone, FolderArchive, ShieldAlert } from 'lucide-react';
+import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, MessagesSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2, Images, Smartphone, Palette, PanelLeftClose, PanelLeftOpen, Megaphone, FolderArchive, ShieldAlert, Download } from 'lucide-react';
 import StatusOnline from '../components/StatusOnline';
 import { useAksesArsip } from '../lib/arsip-surat';
 
@@ -160,6 +160,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Perubahan Data', path: '/data-requests', icon: FileEdit, show: true },
     { name: 'Layanan Tiket', path: '/tickets', icon: MessageSquareWarning, show: true },
     { name: 'FAQ', path: '/faq', icon: HelpCircle, show: true },
+    // Halaman cara pasang portal sebagai aplikasi (PWA) untuk semua akun.
+    { name: 'Pasang Aplikasi', path: '/pasang-aplikasi', icon: Download, show: true },
     // Buku tamu terbuka untuk semua role; mahasiswa hanya bisa membaca,
     // tombol moderasi & balasan hanya muncul untuk pengurus dan admin.
     { name: 'Buku Tamu', path: '/buku-tamu', icon: MessageSquare, show: true },

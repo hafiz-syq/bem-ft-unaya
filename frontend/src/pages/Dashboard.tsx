@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useSyncExternalStore } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/axios';
+import { berlanggananMode, terpasangSaatIni } from '../lib/pasang-aplikasi';
 import {
   LayoutDashboard, Users, UserCheck, MessageSquare, AlertCircle, Clock, CheckCircle,
   Activity, Loader2, ShieldAlert, BarChart3, Timer, Inbox, UserMinus, Download, FileSpreadsheet,
+  Smartphone,
 } from 'lucide-react';
 import { isAdminRole, targetLabel } from '../lib/roles';
 import AgendaCalendar from '../components/AgendaCalendar';
@@ -86,6 +89,10 @@ export default function Dashboard() {
     fetchStats();
   }, []);
 
+  // Kartu pemasangan disembunyikan bila portal sudah berjalan sebagai aplikasi
+  // (snapshot 'false' saat build: status hanya boleh dibaca di klien).
+  const terpasang = useSyncExternalStore(berlanggananMode, terpasangSaatIni, () => false);
+
   // Banner sambutan hanya bergantung pada data sesi, bukan statistik. Ia
   // dirender lebih dulu supaya elemen terbesar di layar (LCP) tidak menunggu
   // dua permintaan /dashboard/* selesai.
@@ -164,6 +171,29 @@ export default function Dashboard() {
       {bannerSambutan}
 
       {error && <div className="p-4 text-sm text-red-600 rounded-lg bg-red-50 dark:bg-red-950/60 dark:text-red-300">{error}</div>}
+
+      {/* Pintu masuk halaman cara pasang aplikasi. Selama ini tombolnya hanya ada
+          di dalam menu lonceng, jadi hampir tidak pernah terlihat. */}
+      {!terpasang && (
+        <section className="flex flex-col gap-3 p-4 bg-white border border-gray-100 shadow-sm sm:flex-row sm:items-center sm:justify-between rounded-xl dark:bg-gray-900 dark:border-gray-800">
+          <div className="flex items-start gap-3">
+            <span className="flex items-center justify-center w-10 h-10 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300 shrink-0">
+              <Smartphone className="w-5 h-5" />
+            </span>
+            <div>
+              <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">Pasang portal ini sebagai aplikasi</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Ikon di layar utama, tetap bisa dibaca tanpa kuota, dan ada notifikasi kegiatan.</p>
+            </div>
+          </div>
+          <Link
+            to="/pasang-aplikasi"
+            className="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 shrink-0"
+          >
+            <Download className="w-4 h-4" />
+            Cara &amp; tombol download
+          </Link>
+        </section>
+      )}
 
       {isAdminRole(user?.role) && (
         <section className="flex flex-col gap-3 p-4 bg-white border border-gray-100 shadow-sm sm:flex-row sm:items-center sm:justify-between rounded-xl dark:bg-gray-900 dark:border-gray-800">
