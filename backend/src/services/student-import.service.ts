@@ -23,14 +23,14 @@ import prisma from '../lib/prisma';
 // sehingga admin yang mengunggah PDF bisa menerima pesan "berkas tidak dapat
 // dibaca" padahal berkasnya sahih. Karena jalur impor ini menyentuh data akun,
 // pemakaiannya diganti pdfjs-dist yang masih dirawat.
-// Build "modern" dipakai, bukan "legacy". Build legacy, saat modul diimpor,
-// mencoba memuat paket native `canvas` untuk mem-polyfill DOMMatrix/Path2D dan
-// mencetak peringatan "Cannot polyfill ..." di setiap start server. Jalur ini
-// hanya membaca teks PDF (tidak pernah merender halaman), jadi polyfill tersebut
-// tidak dibutuhkan dan build modern tidak menyentuh `canvas` sama sekali.
-// Build "modern" tetap dipakai lebih dulu karena tidak menyentuh `canvas`,
-// lalu legacy hanya sebagai cadangan bila lingkungan Node tertentu menolak
-// build modern. Keduanya membaca teks dengan hasil yang sama.
+// Sejak pdfjs-dist 4.x kedua build hanya terbit sebagai ESM (`.mjs`), tidak ada
+// lagi `.js` CJS. Build "legacy" dipakai lebih dulu karena itulah yang pdfjs
+// rekomendasikan untuk Node; build "modern" mencetak peringatan
+// "Please use the `legacy` build in Node.js environments." di setiap cold start.
+// Build legacy 4.x juga tidak lagi menyentuh `canvas` saat diimpor — canvas
+// opsional kini `@napi-rs/canvas` yang berprafitur (tanpa rantai
+// node-pre-gyp/tar). Keduanya membaca teks dengan hasil yang sama; modern
+// hanya cadangan bila lingkungan Node tertentu menolak build legacy.
 //
 // Worker dimuat STATIS bersama pustakanya. Di Node, pdfjs memakai "fake worker"
 // yang memanggil require(workerSrc) secara dinamis; di Vercel pemanggilan itu
@@ -42,16 +42,16 @@ const muatPdfJs = () => {
   try {
     return {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      pdfjs: require('pdfjs-dist/build/pdf.js'),
+      pdfjs: require('pdfjs-dist/legacy/build/pdf.mjs'),
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      worker: require('pdfjs-dist/build/pdf.worker.js'),
+      worker: require('pdfjs-dist/legacy/build/pdf.worker.mjs'),
     };
   } catch {
     return {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      pdfjs: require('pdfjs-dist/legacy/build/pdf.js'),
+      pdfjs: require('pdfjs-dist/build/pdf.mjs'),
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      worker: require('pdfjs-dist/legacy/build/pdf.worker.js'),
+      worker: require('pdfjs-dist/build/pdf.worker.mjs'),
     };
   }
 };

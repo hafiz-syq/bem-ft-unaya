@@ -40,7 +40,7 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.4.0",
     "nodemailer": "^10.1.1",
-    "pdfjs-dist": "^3.11.174",
+    "pdfjs-dist": "^4.10.38",
     "sharp": "^0.35.5",
     "web-push": "^3.6.7",
     "zod": "^4.6.5"
