@@ -241,6 +241,12 @@ export default function AgendaCalendar() {
               const kegiatan = agendaBulanIni.filter((a) => tanggalDalamAgenda(item.kunci, a));
               const terpilih = dipilih === item.kunci;
               const iniHariIni = hariIni === item.kunci;
+              // `aria-label` menimpa seluruh isi button, jadi judul kegiatan yang
+              // tampil di sel harus ikut masuk ke label atau hilang dari tree.
+              const ringkasKegiatan = kegiatan.length
+                ? `, ${kegiatan.length} kegiatan: ${kegiatan.slice(0, 2).map((a) => a.title).join(', ')}` +
+                  (kegiatan.length > 2 ? ` +${kegiatan.length - 2} lagi` : '')
+                : '';
 
               return (
                 <button
@@ -249,7 +255,7 @@ export default function AgendaCalendar() {
                   onClick={() => setDipilih(item.kunci)}
                   aria-label={`Pilih tanggal ${formatTanggal(item.kunci, {
                     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-                  })}`}
+                  })}${ringkasKegiatan}`}
                   aria-pressed={terpilih}
                   className={`flex flex-col w-full text-left min-h-[4.5rem] sm:min-h-[5.5rem] rounded-lg border p-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
                     terpilih
