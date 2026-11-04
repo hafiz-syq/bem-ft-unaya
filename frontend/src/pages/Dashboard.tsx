@@ -183,13 +183,13 @@ export default function Dashboard() {
               type="month"
               value={bulanLaporan}
               onChange={(e) => setBulanLaporan(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+              className="px-3 py-2 text-base sm:text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
             />
             <button
               type="button"
               onClick={unduhLaporan}
               disabled={mengunduhLaporan || !bulanLaporan}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50"
             >
               {mengunduhLaporan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               Unduh Excel

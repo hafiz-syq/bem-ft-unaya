@@ -301,11 +301,11 @@ export default function Announcements() {
             <div className="p-5 space-y-4">
               <div>
                 <label htmlFor="umum-judul" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Judul</label>
-                <input id="umum-judul" required maxLength={180} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700" />
+                <input id="umum-judul" required maxLength={180} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full p-2.5 text-base sm:text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700" />
               </div>
               <div>
                 <label htmlFor="umum-isi" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Isi Pengumuman</label>
-                <textarea id="umum-isi" required rows={5} maxLength={10000} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700" />
+                <textarea id="umum-isi" required rows={5} maxLength={10000} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="w-full p-2.5 text-base sm:text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700" />
               </div>
               {editingId ? (
                 <div className="p-3 text-sm border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-800/60 dark:border-gray-700">
@@ -321,7 +321,7 @@ export default function Announcements() {
                 <>
                   <div>
                     <label htmlFor="umum-segmen" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Kirim Kepada</label>
-                    <select id="umum-segmen" value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value as Segmen })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
+                    <select id="umum-segmen" value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value as Segmen })} className="w-full p-2.5 text-base sm:text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
                       <option value="SEMUA">Semua pengguna</option>
                       <option value="ROLE">Role tertentu</option>
                       <option value="ANGKATAN">Angkatan tertentu</option>
@@ -332,7 +332,7 @@ export default function Announcements() {
                   {form.audience === 'ROLE' && (
                     <div>
                       <label htmlFor="umum-role" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Role</label>
-                      <select id="umum-role" value={form.audienceRole} onChange={(e) => setForm({ ...form, audienceRole: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
+                      <select id="umum-role" value={form.audienceRole} onChange={(e) => setForm({ ...form, audienceRole: e.target.value })} className="w-full p-2.5 text-base sm:text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
                         {Object.entries(ROLE_LABEL).filter(([r]) => r !== 'TAMU').map(([r, label]) => (
                           <option key={r} value={r}>{label}</option>
                         ))}
@@ -343,14 +343,14 @@ export default function Announcements() {
                   {form.audience === 'ANGKATAN' && (
                     <div>
                       <label htmlFor="umum-angkatan" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Tahun Angkatan</label>
-                      <input id="umum-angkatan" type="number" min={2000} max={2099} value={form.audienceAngkatan} onChange={(e) => setForm({ ...form, audienceAngkatan: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700" />
+                      <input id="umum-angkatan" type="number" min={2000} max={2099} value={form.audienceAngkatan} onChange={(e) => setForm({ ...form, audienceAngkatan: e.target.value })} className="w-full p-2.5 text-base sm:text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700" />
                     </div>
                   )}
 
                   {form.audience === 'ORGANISASI' && (
                     <div>
                       <label htmlFor="umum-org" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Organisasi</label>
-                      <select id="umum-org" required value={form.audienceOrganizationId} onChange={(e) => setForm({ ...form, audienceOrganizationId: e.target.value })} className="w-full p-2.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
+                      <select id="umum-org" required value={form.audienceOrganizationId} onChange={(e) => setForm({ ...form, audienceOrganizationId: e.target.value })} className="w-full p-2.5 text-base sm:text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
                         <option value="">Pilih organisasi...</option>
                         {organisasi.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                       </select>

@@ -265,7 +265,7 @@ export default function Devices() {
           aria-label="Saring status perangkat"
           value={status}
           onChange={(e) => { setStatus(e.target.value); setHalaman(1); }}
-          className="px-3 py-2.5 text-sm font-medium bg-white border border-gray-300 rounded-lg outline-none dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-amber-400"
+          className="px-3 py-2.5 text-base sm:text-sm font-medium bg-white border border-gray-300 rounded-lg outline-none dark:bg-gray-900 dark:text-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-amber-400"
         >
           <option value="SEMUA">Semua akun</option>
           <option value="TERIKAT">Sudah terikat perangkat</option>

@@ -115,7 +115,7 @@ export default function ModalImpor({
               </div>
 
               {pratinjau.contoh.length > 0 && (
-                <div className="overflow-hidden border border-gray-200 rounded-lg dark:border-gray-800">
+                <div className="overflow-x-auto border border-gray-200 rounded-lg dark:border-gray-800">
                   <table className="w-full text-left">
                     <thead className="text-xs text-gray-500 bg-gray-50 dark:bg-gray-800 dark:text-gray-400">
                       <tr>

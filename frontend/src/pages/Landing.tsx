@@ -262,7 +262,7 @@ export default function Landing() {
           role="button"
           tabIndex={0}
           aria-label="TEKNIK UNAYA — Portal Resmi, kembali ke atas"
-          className="flex items-center gap-3 cursor-pointer group shrink-0"
+          className="flex items-center gap-3 min-h-11 cursor-pointer group shrink-0"
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); } }}
         >
@@ -303,7 +303,7 @@ export default function Landing() {
         {/* Tombol Burger Mobile */}
         <button
           ref={mobileMenuAnchorRef}
-          className="relative z-50 p-2 text-gray-600 rounded dark:text-gray-400 lg:hidden hover:text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 shrink-0"
+          className="relative z-50 p-2.5 text-gray-600 rounded dark:text-gray-400 lg:hidden hover:text-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 shrink-0"
           onClick={() => setIsMobileMenuOpen((prev) => !prev)}
           aria-label={isMobileMenuOpen ? 'Tutup menu' : 'Buka menu'}
           aria-expanded={isMobileMenuOpen}
@@ -326,22 +326,22 @@ export default function Landing() {
             }}
           >
             <div className="flex flex-col gap-1 p-5">
-              <a href="#sejarah" onClick={(e) => { handleSmoothScroll(e, 'sejarah'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 transition-colors dark:text-gray-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 dark:hover:text-amber-300">
+              <a href="#sejarah" onClick={(e) => { handleSmoothScroll(e, 'sejarah'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 min-h-11 px-4 py-3 text-sm font-bold text-gray-600 transition-colors dark:text-gray-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 dark:hover:text-amber-300">
                 <Landmark className="w-5 h-5" /> Sejarah
               </a>
-              <a href="#program" onClick={(e) => { handleSmoothScroll(e, 'program'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 transition-colors dark:text-gray-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 dark:hover:text-amber-300">
+              <a href="#program" onClick={(e) => { handleSmoothScroll(e, 'program'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 min-h-11 px-4 py-3 text-sm font-bold text-gray-600 transition-colors dark:text-gray-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 dark:hover:text-amber-300">
                 <Code2 className="w-5 h-5" /> Program Kerja
               </a>
-              <a href="#berita" onClick={(e) => { handleSmoothScroll(e, 'berita'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 transition-colors dark:text-gray-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 dark:hover:text-amber-300">
+              <a href="#berita" onClick={(e) => { handleSmoothScroll(e, 'berita'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 min-h-11 px-4 py-3 text-sm font-bold text-gray-600 transition-colors dark:text-gray-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 dark:hover:text-amber-300">
                 <Newspaper className="w-5 h-5" /> Berita Terbaru
               </a>
-              <a href="#agenda" onClick={(e) => { handleSmoothScroll(e, 'agenda'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 transition-colors dark:text-gray-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 dark:hover:text-amber-300">
+              <a href="#agenda" onClick={(e) => { handleSmoothScroll(e, 'agenda'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 min-h-11 px-4 py-3 text-sm font-bold text-gray-600 transition-colors dark:text-gray-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 dark:hover:text-amber-300">
                 <Clock className="w-5 h-5" /> Agenda Kegiatan
               </a>
-              <a href="#galeri" onClick={(e) => { handleSmoothScroll(e, 'galeri'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 transition-colors dark:text-gray-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 dark:hover:text-amber-300">
+              <a href="#galeri" onClick={(e) => { handleSmoothScroll(e, 'galeri'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 min-h-11 px-4 py-3 text-sm font-bold text-gray-600 transition-colors dark:text-gray-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 dark:hover:text-amber-300">
                 <ImageIcon className="w-5 h-5" /> Galeri Media
               </a>
-              <a href="#aspirasi" onClick={(e) => { handleSmoothScroll(e, 'aspirasi'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-600 transition-colors dark:text-gray-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 dark:hover:text-amber-300">
+              <a href="#aspirasi" onClick={(e) => { handleSmoothScroll(e, 'aspirasi'); setIsMobileMenuOpen(false); }} className="flex items-center gap-3 min-h-11 px-4 py-3 text-sm font-bold text-gray-600 transition-colors dark:text-gray-400 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/60 hover:text-amber-600 dark:hover:text-amber-300">
                 <Megaphone className="w-5 h-5" /> Aspirasi &amp; Keluhan
               </a>
               {/* Garis pemisah hanya berguna bila ada tombol Masuk di bawahnya;
@@ -446,10 +446,10 @@ export default function Landing() {
                 Seiring berjalannya waktu, BEM-FT hadir sebagai wadah perjuangan, inovasi, dan kreativitas mahasiswa teknik untuk menyalurkan gagasan dan menjaga tradisi solidaritas.
               </p>
               <div className="flex flex-wrap pt-2 gap-x-6 gap-y-3">
-                <Link to="/about" className="inline-flex items-center gap-2 font-bold transition-all text-amber-500 hover:text-amber-600 dark:hover:text-amber-300 hover:gap-3">
+                <Link to="/about" className="inline-flex items-center gap-2 min-h-11 font-bold transition-all text-amber-500 hover:text-amber-600 dark:hover:text-amber-300 hover:gap-3">
                   Lihat Struktur Kepengurusan <ArrowRight className="w-4 h-4 shrink-0" />
                 </Link>
-                <Link to="/demisioner" className="inline-flex items-center gap-2 font-bold text-gray-500 transition-all dark:text-gray-400 hover:text-amber-600 dark:hover:text-amber-300 hover:gap-3">
+                <Link to="/demisioner" className="inline-flex items-center gap-2 min-h-11 font-bold text-gray-500 transition-all dark:text-gray-400 hover:text-amber-600 dark:hover:text-amber-300 hover:gap-3">
                   Riwayat Demisioner <ArrowRight className="w-4 h-4 shrink-0" />
                 </Link>
               </div>
@@ -486,7 +486,7 @@ export default function Landing() {
                   </h3>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 sm:text-base">Jejak kepengurusan DPM &amp; BEM Teknik dari masa ke masa.</p>
                 </div>
-                <Link to="/demisioner" className="inline-flex items-center gap-2 text-sm font-bold text-amber-500 hover:text-amber-600 dark:hover:text-amber-300">
+                <Link to="/demisioner" className="inline-flex items-center gap-2 min-h-11 text-sm font-bold text-amber-500 hover:text-amber-600 dark:hover:text-amber-300">
                   Lihat Semua <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -524,10 +524,10 @@ export default function Landing() {
 
                       <div className="flex items-center justify-between pt-4 mt-6 border-t border-gray-100 dark:border-gray-800">
                         <div className="flex gap-2">
-                          <button onClick={() => geserDemo(-1)} aria-label="Demisioner sebelumnya" className="p-2 text-gray-600 transition bg-gray-100 rounded-full dark:text-gray-400 dark:bg-gray-800 hover:bg-amber-400 hover:text-gray-900">
+                          <button onClick={() => geserDemo(-1)} aria-label="Demisioner sebelumnya" className="p-3.5 text-gray-600 transition bg-gray-100 rounded-full dark:text-gray-400 dark:bg-gray-800 hover:bg-amber-400 hover:text-gray-900">
                             <ChevronLeft className="w-4 h-4" />
                           </button>
-                          <button onClick={() => geserDemo(1)} aria-label="Demisioner berikutnya" className="p-2 text-gray-600 transition bg-gray-100 rounded-full dark:text-gray-400 dark:bg-gray-800 hover:bg-amber-400 hover:text-gray-900">
+                          <button onClick={() => geserDemo(1)} aria-label="Demisioner berikutnya" className="p-3.5 text-gray-600 transition bg-gray-100 rounded-full dark:text-gray-400 dark:bg-gray-800 hover:bg-amber-400 hover:text-gray-900">
                             <ChevronRight className="w-4 h-4" />
                           </button>
                         </div>
@@ -707,7 +707,7 @@ export default function Landing() {
                 ))}
               </div>}
           <div className="mt-6 text-center md:hidden">
-            <Link to="/agenda" className="inline-flex items-center gap-2 font-bold text-amber-500 hover:text-amber-600 dark:hover:text-amber-300">Lihat Semua Agenda <ArrowRight className="w-4 h-4" /></Link>
+            <Link to="/agenda" className="inline-flex items-center gap-2 min-h-11 font-bold text-amber-500 hover:text-amber-600 dark:hover:text-amber-300">Lihat Semua Agenda <ArrowRight className="w-4 h-4" /></Link>
           </div>
         </div>
       </section>
@@ -757,7 +757,7 @@ export default function Landing() {
                 ))}
               </div>}
           <div className="mt-8 text-center md:hidden">
-            <Link to="/gallery" className="inline-flex items-center gap-2 font-bold text-amber-400 hover:text-amber-300">Lihat Semua Galeri <ArrowRight className="w-4 h-4" /></Link>
+            <Link to="/gallery" className="inline-flex items-center gap-2 min-h-11 font-bold text-amber-400 hover:text-amber-300">Lihat Semua Galeri <ArrowRight className="w-4 h-4" /></Link>
           </div>
         </div>
       </section>
@@ -785,7 +785,7 @@ export default function Landing() {
               <button
                 key={f.key}
                 onClick={() => setFilterTiket(f.key)}
-                className={`px-4 py-2 text-sm font-bold rounded-full transition ${
+                className={`min-h-11 px-4 py-2 text-sm font-bold rounded-full transition ${
                   filterTiket === f.key ? 'bg-amber-400 text-gray-900 shadow-md' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
               >

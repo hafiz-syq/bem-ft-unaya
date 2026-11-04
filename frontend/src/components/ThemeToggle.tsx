@@ -11,7 +11,7 @@ export default function ThemeToggle({ className = '' }: { className?: string }) 
   return (
     <button
       onClick={gantiTema}
-      className={`flex items-center gap-1.5 text-sm font-bold text-gray-600 dark:text-gray-400 transition hover:text-amber-500 dark:hover:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-400 rounded px-1 ${className}`}
+      className={`flex items-center justify-center gap-1.5 min-w-11 min-h-11 text-sm font-bold text-gray-600 dark:text-gray-400 transition hover:text-amber-500 dark:hover:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-400 rounded px-1 ${className}`}
       aria-label={tema === 'dark' ? 'Aktifkan tema terang' : 'Aktifkan tema gelap'}
       title={tema === 'dark' ? 'Aktifkan tema terang' : 'Aktifkan tema gelap'}
     >

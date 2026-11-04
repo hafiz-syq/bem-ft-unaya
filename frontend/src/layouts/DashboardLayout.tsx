@@ -278,7 +278,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               aria-label={isMobileMenuOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
               aria-expanded={isMobileMenuOpen}
-              className="relative z-50 inline-flex items-center justify-center text-gray-700 transition rounded-lg w-9 h-9 sm:w-10 sm:h-10 md:hidden hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800 shrink-0"
+              className="relative z-50 inline-flex items-center justify-center text-gray-700 transition rounded-lg w-11 h-11 md:hidden hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800 shrink-0"
             >
               <Menu className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />
             </button>
@@ -290,11 +290,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="flex items-center gap-1 sm:gap-2 md:hidden">
               {/* Label teks disembunyikan di layar sangat kecil, jadi nama
                   aksesibel diberikan eksplisit (ikon saja tidak terbaca). */}
-              <Link to="/" aria-label="Kembali ke beranda" title="Kembali ke beranda" className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-2 text-xs sm:text-sm font-bold text-gray-600 rounded-lg hover:bg-gray-100 transition shrink-0 dark:text-gray-300 dark:hover:bg-gray-800">
+              <Link to="/" aria-label="Kembali ke beranda" title="Kembali ke beranda" className="inline-flex items-center justify-center gap-1.5 min-w-11 min-h-11 px-2 sm:px-3 py-2 text-xs sm:text-sm font-bold text-gray-600 rounded-lg hover:bg-gray-100 transition shrink-0 dark:text-gray-300 dark:hover:bg-gray-800">
                 <svg aria-hidden="true" className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h18M15 6l-6 6 6 6"/></svg>
                 <span className="hidden sm:inline-block">Kembali</span>
               </Link>
-              <button type="button" onClick={handleLogout} aria-label="Keluar dari akun" title="Keluar dari akun" className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-2 text-xs sm:text-sm font-bold text-red-600 rounded-lg hover:bg-red-50 transition shrink-0 dark:text-red-400 dark:hover:bg-red-950/60">
+              <button type="button" onClick={handleLogout} aria-label="Keluar dari akun" title="Keluar dari akun" className="inline-flex items-center justify-center gap-1.5 min-w-11 min-h-11 px-2 sm:px-3 py-2 text-xs sm:text-sm font-bold text-red-600 rounded-lg hover:bg-red-50 transition shrink-0 dark:text-red-400 dark:hover:bg-red-950/60">
                 <LogOut className="w-4 h-4 shrink-0" aria-hidden="true" />
                 <span className="hidden sm:inline-block">Keluar</span>
               </button>
@@ -314,7 +314,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => setIsNotifOpen(!isNotifOpen)}
               aria-label={`Notifikasi${unreadCount > 0 ? `, ${unreadCount} belum dibaca` : ''}`}
               aria-expanded={isNotifOpen}
-              className="relative p-2 text-gray-500 transition rounded-full hover:bg-gray-100 shrink-0 dark:text-gray-400 dark:hover:bg-gray-800"
+              className="relative p-3 text-gray-500 transition rounded-full hover:bg-gray-100 shrink-0 dark:text-gray-400 dark:hover:bg-gray-800"
             >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-gray-900"></span>}
@@ -365,7 +365,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   onClick={() => user?.id && bukaProfil(user.id)}
                   title="Lihat profil saya"
                   aria-label="Lihat profil saya"
-                  className="rounded-full transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                  className="p-1.5 rounded-full transition hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
                 >
                   {user?.foto ? (
                     <img

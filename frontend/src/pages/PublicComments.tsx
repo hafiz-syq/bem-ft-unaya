@@ -471,7 +471,7 @@ export default function PublicComments() {
                     <input
                       type="text"
                       placeholder={`Balas sebagai ${ROLE_LABEL[user?.role || ''] || user?.role || 'staf'}...`}
-                      className="w-full p-2 pr-3 text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg outline-none pl-9 focus:ring-2 focus:ring-amber-300"
+                      className="w-full p-2 pr-3 text-base sm:text-sm bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg outline-none pl-9 focus:ring-2 focus:ring-amber-300"
                       value={draftBalasan[k.id] || ''}
                       onChange={(e) => setDraftBalasan({ ...draftBalasan, [k.id]: e.target.value })}
                       onKeyDown={(e) => {

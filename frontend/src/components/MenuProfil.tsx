@@ -71,7 +71,7 @@ export default function MenuProfil() {
         aria-controls={buka ? idMenu : undefined}
         aria-label={nama ? `Menu akun ${nama}` : 'Menu akun'}
         title={nama ? `Menu akun ${nama}` : 'Menu akun'}
-        className={`inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-amber-100 text-xs font-black text-amber-700 ring-2 transition dark:bg-amber-900/50 dark:text-amber-300 ${
+        className={`inline-flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-amber-100 text-xs font-black text-amber-700 ring-2 transition dark:bg-amber-900/50 dark:text-amber-300 ${
           buka
             ? 'ring-amber-400'
             : 'ring-transparent hover:ring-amber-300 focus-visible:ring-amber-500'

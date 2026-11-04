@@ -675,7 +675,7 @@ export default function Students() {
               placeholder="Cari NIM atau nama di tempat sampah..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full py-2 pl-9 pr-3 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700"
+              className="w-full py-2 pl-9 pr-3 text-base sm:text-sm text-gray-900 bg-white border border-gray-300 rounded-lg dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700"
             />
           </div>
           <button type="submit" className="px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500">

@@ -504,7 +504,7 @@ export default function CMSManager() {
               <label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Visi BEM-FT UNAYA</label>
               <textarea
                 rows={4}
-                className="w-full p-3 text-sm border border-gray-300 dark:border-gray-700 rounded-lg outline-none resize-none focus:ring-2 focus:ring-amber-300"
+                className="w-full p-3 text-base sm:text-sm border border-gray-300 dark:border-gray-700 rounded-lg outline-none resize-none focus:ring-2 focus:ring-amber-300"
                 value={settings.visi}
                 onChange={(e) => setSettings({ ...settings, visi: e.target.value })}
               />
@@ -514,7 +514,7 @@ export default function CMSManager() {
               <label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Misi BEM-FT UNAYA</label>
               <textarea
                 rows={6}
-                className="w-full p-3 text-sm border border-gray-300 dark:border-gray-700 rounded-lg outline-none resize-none focus:ring-2 focus:ring-amber-300"
+                className="w-full p-3 text-base sm:text-sm border border-gray-300 dark:border-gray-700 rounded-lg outline-none resize-none focus:ring-2 focus:ring-amber-300"
                 value={settings.misi}
                 onChange={(e) => setSettings({ ...settings, misi: e.target.value })}
               />

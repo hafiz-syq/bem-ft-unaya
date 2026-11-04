@@ -163,7 +163,7 @@ export default function AgendaCalendar() {
   };
 
   return (
-    <section className="p-4 bg-white border border-gray-100 shadow-sm dark:bg-gray-900 dark:border-gray-800 sm:p-6 rounded-xl">
+    <section className="px-2 py-4 bg-white border border-gray-100 shadow-sm dark:bg-gray-900 dark:border-gray-800 sm:p-6 rounded-xl">
       <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold text-gray-800 dark:text-gray-100">
@@ -180,7 +180,7 @@ export default function AgendaCalendar() {
             type="button"
             onClick={() => geserBulan(-1)}
             aria-label="Bulan sebelumnya"
-            className="p-2 text-gray-600 transition rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            className="p-3.5 text-gray-600 transition rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -191,14 +191,14 @@ export default function AgendaCalendar() {
             type="button"
             onClick={() => geserBulan(1)}
             aria-label="Bulan berikutnya"
-            className="p-2 text-gray-600 transition rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            className="p-3.5 text-gray-600 transition rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
           <button
             type="button"
             onClick={keHariIni}
-            className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 dark:hover:bg-amber-900/40"
+            className="min-w-11 px-2.5 py-1.5 text-xs font-bold rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 dark:hover:bg-amber-900/40"
           >
             Hari ini
           </button>
@@ -206,7 +206,7 @@ export default function AgendaCalendar() {
             type="button"
             onClick={() => void muat()}
             aria-label="Muat ulang agenda"
-            className="p-2 text-gray-600 transition rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            className="p-3.5 text-gray-600 transition rounded-lg hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -236,7 +236,7 @@ export default function AgendaCalendar() {
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-0 sm:gap-1">
             {sel.map((item) => {
               const kegiatan = agendaBulanIni.filter((a) => tanggalDalamAgenda(item.kunci, a));
               const terpilih = dipilih === item.kunci;

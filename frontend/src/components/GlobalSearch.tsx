@@ -118,7 +118,7 @@ export default function GlobalSearch() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="p-2 text-gray-500 rounded-full hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 sm:hidden"
+        className="p-3 text-gray-500 rounded-full hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 sm:hidden"
         aria-label="Buka pencarian global"
       >
         <Search className="w-5 h-5" />
