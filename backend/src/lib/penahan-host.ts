@@ -1,10 +1,10 @@
 /**
- * SATU-satunya tempat keputusan "host ini boleh dituli?" berada.
+ * SATU-satunya tempat keputusan "host ini boleh ditulis?" berada.
  *
  * Dua konsumen memakai logika ini dengan opt-in yang sengaja berbeda:
  *   - src/tests/penahan-host-uji.ts -> suite uji (UJI_BOLEH_PRODUKSI)
- *   - src/lib/penahan-host-tulis.ts -> jalur tulis non-tes: skrip di src/scripts dan
- *     preflight `prisma migrate dev` / `db push` (TULIS_BOLEH_JAUH)
+ *   - src/scripts/penahan-host-tulis.ts -> jalur tulis non-tes: skrip di src/scripts
+ *     dan preflight `prisma migrate dev` / `db push` (TULIS_BOLEH_JAUH)
  *
  * Regex host dan penyensor kredensial tidak boleh ditulis ulang di tempat lain;
  * kalau ada yang menyalinnya, matriks kelompok J di uji-unit-kritis tidak lagi
