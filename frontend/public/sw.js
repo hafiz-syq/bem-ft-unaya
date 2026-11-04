@@ -42,6 +42,11 @@ const DB_OFFLINE = 'bem-ft-offline';
 const STORE_ANTREAN = 'antrean';
 const TAG_SINKRON = 'bem-ft-sinkron';
 
+// Cermin src/lib/offline-keputusan.ts: service worker tidak bisa mengimpor
+// modul dari src, jadi plafon percobaan disimpan dua kali dan wajib diubah
+// bersama.
+const BATAS_PERCOBAAN = 5;
+
 // --- Pemasangan & pembersihan cache -------------------------------------
 
 self.addEventListener('install', (event) => {
@@ -420,6 +425,32 @@ function hapusAntreanSw(id) {
     .catch(() => undefined);
 }
 
+/** Naikkan penghitung percobaan gagal tanpa mengubah isi entri. */
+function catatPercobaanSw(item) {
+  return bukaDb()
+    .then(
+      (db) =>
+        new Promise((resolve) => {
+          const permintaan = db
+            .transaction(STORE_ANTREAN, 'readwrite')
+            .objectStore(STORE_ANTREAN)
+            .put({ ...item, coba: (item.coba ?? 0) + 1 });
+          permintaan.onsuccess = () => resolve();
+          permintaan.onerror = () => resolve();
+        })
+    )
+    .catch(() => undefined);
+}
+
+/**
+ * Keputusan untuk 4xx yang bukan 400/422 (sesi kedaluwarsa, peran berubah,
+ * limiter). 'hentikan' = 5xx/jaringan, entri tidak boleh disalahkan.
+ */
+function keputusanTahanSw(status, coba) {
+  if (status === undefined || status < 400 || status >= 500) return 'hentikan';
+  return coba + 1 >= BATAS_PERCOBAAN ? 'buang' : 'catat';
+}
+
 async function sinkronkanAntrean() {
   // Bila ada tab terbuka, biarkan halaman memutar antrean (sesi & UI-nya aktif).
   const daftarKlien = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
@@ -452,10 +483,12 @@ async function sinkronkanAntrean() {
       } else {
         // 4xx lain (401 sesi kedaluwarsa, 403 peran, 429 limiter) dan 5xx/jaringan
         // adalah keadaan sementara — entri BERTAHAN. Sengaja berhenti, bukan
-        // lanjut, supaya urutan tidak kacau. shortcut: tanpa penghitung coba di
-        // sini (sw tidak bisa mengimpor src/lib/offline-keputusan); plafon 5x
-        // hanya berlaku saat halaman terbuka. Naikkan bila tab tertutup permanen
-        // mulai mengumpulkan entri macet.
+        // lanjut, supaya urutan tidak kacau. Plafon coba dicermin dari
+        // src/lib/offline-keputusan.ts supaya tab tertutup pun tidak memutar
+        // entri selamanya; ubah keduanya sekaligus.
+        const keputusan = keputusanTahanSw(respons.status, item.coba ?? 0);
+        if (keputusan === 'buang') await hapusAntreanSw(item.id);
+        else if (keputusan === 'catat') await catatPercobaanSw(item);
         break;
       }
     } catch {
