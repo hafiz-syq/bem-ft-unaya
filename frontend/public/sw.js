@@ -291,6 +291,10 @@ self.addEventListener('fetch', (event) => {
 function keRuteHash(nilai) {
   try {
     const url = new URL(nilai || '/dashboard', self.location.origin);
+    // Cabang `url.hash` di bawah memakai href apa adanya: payload push berupa
+    // url absolut domain lain akan dibuka di jendela standalone tanpa address
+    // bar. Semua pengirim saat ini mengirim jalur relatif, jadi ini penjaga.
+    if (url.origin !== self.location.origin) return `${self.location.origin}/#/dashboard`;
     if (url.hash) return url.href;
     return `${self.location.origin}/#${url.pathname}${url.search}`;
   } catch {
