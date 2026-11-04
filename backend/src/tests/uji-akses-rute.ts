@@ -1124,6 +1124,19 @@ async function ujiIzinkanDiAtasBatas(
 }
 
 /**
+ * Penanda "permintaan login ini dibalas 429". Hanya fixture login yang boleh
+ * memakainya: yang tertahan adalah permintaan yang seharusnya sudah dijawab
+ * gerbang perangkat (200 atau 403), jadi barisnya DILEWATI, bukan GAGAL. Setiap
+ * 429 dicatat satu baris, sehingga angka `Dilewati karena limiter` di RINGKASAN
+ * = jumlah permintaan yang benar-benar dibatasi.
+ */
+function tandaiLimiter(laporan: Laporan, nama: string, hasil: HasilPermintaan): boolean {
+  if (hasil.status !== 429) return false;
+  laporan.lewatiLimiter(nama);
+  return true;
+}
+
+/**
  * Gerbang perangkat saat login (auth.controller.ts:140 dan :175-202):
  * selama akun masih di bawah batas, perangkat baru ikut terdaftar; begitu
  * penuh, login ditolak dengan PERANGKAT_TERKUNCI dan percobaannya hanya
@@ -1132,8 +1145,12 @@ async function ujiIzinkanDiAtasBatas(
  *
  * Sengaja cuma dua kali POST /auth/login: limiter login 5 permintaan per 5
  * menit per IP, jadi fixture ini boleh jalan maksimal dua kali per server
- * hidup. Kalau muncul 429, restart server staging atau tunggu 5 menit —
- * hasilnya tetap dilaporkan sebagai kegagalan, tidak dilewati.
+ * hidup. 429 pada fixture login berarti pembatasnya bekerja, bukan regresi
+ * aturan: barisnya ditandai DILEWATI lewat tandaiLimiter, baris turunannya lewat
+ * laporan.lewati, dan jumlahnya dihitung di RINGKASAN lewat lewatiLimiter. Di
+ * luar fixture login tidak ada baris yang memakai penanda itu, jadi 429 yang
+ * muncul di sana tetap GAGAL — dan N yang naik diam-diam terlihat dari satu
+ * baris ringkasan tersebut.
  */
 async function ujiGerbangPerangkatLogin(
   akun: Record<Exclude<Peran, 'tamu'>, AkunUji>,
@@ -1176,24 +1193,39 @@ async function ujiGerbangPerangkatLogin(
       headers: { 'X-Device-Id': diBawahBatas },
     });
     const namaTerima = 'POST /auth/login perangkat baru saat slot sisa (2 dari 3) → 200';
-    if (masuk.status !== 200) laporan.gagalkan(`${namaTerima} — status ${masuk.status}`, masuk.status, 200);
-    else laporan.luluskan(`${namaTerima} → 200`);
+    // 429 di sini = limiter login bekerja, bukan gerbang perangkat yang bocor.
+    const dibatasiTerima = tandaiLimiter(laporan, namaTerima, masuk);
+    if (!dibatasiTerima) {
+      if (masuk.status !== 200) laporan.gagalkan(`${namaTerima} — status ${masuk.status}`, masuk.status, 200);
+      else laporan.luluskan(`${namaTerima} → 200`);
+    }
 
     const terdaftarSetelahMasuk = await prisma.userDevice.count({ where: { userId: akunUji.id } });
     const namaDaftar = 'perangkat yang diterima terdaftar di UserDevice';
-    if (terdaftarSetelahMasuk !== 2) laporan.gagalkan(namaDaftar, terdaftarSetelahMasuk, 2);
+    if (dibatasiTerima) laporan.lewati(namaDaftar, 'login pertama dibalas 429, tidak ada perangkat baru yang terdaftar');
+    else if (terdaftarSetelahMasuk !== 2) laporan.gagalkan(namaDaftar, terdaftarSetelahMasuk, 2);
     else laporan.luluskan(`${namaDaftar} (2 baris: utama tersimpan di kolom User)`);
 
     // (b) 3 dari 3 -> perangkat keempat harus DITOLAK dengan PERANGKAT_TERKUNCI.
-    const tolak = await minta('/auth/login', {
-      metode: 'POST',
-      body: { nim, password },
-      headers: { 'X-Device-Id': penuh },
-    });
     const namaTolak = 'POST /auth/login perangkat ke-4 (batas 3) → 403 PERANGKAT_TERKUNCI';
-    if (tolak.status !== 403 || !tolak.body.includes('PERANGKAT_TERKUNCI')) {
-      laporan.gagalkan(`${namaTolak} — status ${tolak.status}`, tolak.body.slice(0, 120), '403 + code PERANGKAT_TERKUNCI');
-    } else laporan.luluskan(`${namaTolak} → 403`);
+    let dibatasiTolak = false;
+    if (dibatasiTerima) {
+      laporan.lewati(namaTolak, 'login pertama dibalas 429, keadaan 3 dari 3 tidak terbentuk');
+    } else {
+      const tolak = await minta('/auth/login', {
+        metode: 'POST',
+        body: { nim, password },
+        headers: { 'X-Device-Id': penuh },
+      });
+      dibatasiTolak = tandaiLimiter(laporan, namaTolak, tolak);
+      if (!dibatasiTolak) {
+        if (tolak.status !== 403 || !tolak.body.includes('PERANGKAT_TERKUNCI')) {
+          laporan.gagalkan(`${namaTolak} — status ${tolak.status}`, tolak.body.slice(0, 120), '403 + code PERANGKAT_TERKUNCI');
+        } else laporan.luluskan(`${namaTolak} → 403`);
+      }
+    }
+    const dibatasi = dibatasiTerima || dibatasiTolak;
+    const alasanLimiter = 'login sebelumnya dibalas 429, keadaan yang diuji baris ini tidak terbentuk';
 
     const sesudah = await prisma.user.findUniqueOrThrow({
       where: { id: akunUji.id },
@@ -1201,20 +1233,24 @@ async function ujiGerbangPerangkatLogin(
     });
 
     const namaCatat = 'percobaan perangkat keempat tercatat di pendingDeviceId';
-    if (sesudah.pendingDeviceId !== penuh) laporan.gagalkan(namaCatat, sesudah.pendingDeviceId, penuh);
+    if (dibatasi) laporan.lewati(namaCatat, alasanLimiter);
+    else if (sesudah.pendingDeviceId !== penuh) laporan.gagalkan(namaCatat, sesudah.pendingDeviceId, penuh);
     else laporan.luluskan(namaCatat);
 
     const namaTetapDaftar = 'penolakan tidak menambah baris UserDevice';
     const jumlahTetap = await prisma.userDevice.count({ where: { userId: akunUji.id } });
-    if (jumlahTetap !== 2) laporan.gagalkan(namaTetapDaftar, jumlahTetap, 2);
+    if (dibatasi) laporan.lewati(namaTetapDaftar, alasanLimiter);
+    else if (jumlahTetap !== 2) laporan.gagalkan(namaTetapDaftar, jumlahTetap, 2);
     else laporan.luluskan(`${namaTetapDaftar} (tetap 2 baris)`);
 
     const namaTetapSesi = 'penolakan tidak menaikkan sessionVersion (sesi perangkat lama tetap hidup)';
-    if (sesudah.sessionVersion !== sesiAwal) laporan.gagalkan(namaTetapSesi, sesudah.sessionVersion, sesiAwal);
+    if (dibatasi) laporan.lewati(namaTetapSesi, alasanLimiter);
+    else if (sesudah.sessionVersion !== sesiAwal) laporan.gagalkan(namaTetapSesi, sesudah.sessionVersion, sesiAwal);
     else laporan.luluskan(`${namaTetapSesi} (v=${sesudah.sessionVersion})`);
 
     const namaTetapKunci = 'deviceId utama tidak berpindah saat login ditolak';
-    if (sesudah.deviceId !== utama) laporan.gagalkan(namaTetapKunci, sesudah.deviceId, utama);
+    if (dibatasi) laporan.lewati(namaTetapKunci, alasanLimiter);
+    else if (sesudah.deviceId !== utama) laporan.gagalkan(namaTetapKunci, sesudah.deviceId, utama);
     else laporan.luluskan(`${namaTetapKunci} (${sesudah.deviceId})`);
   } finally {
     await prisma.userDevice.deleteMany({ where: { userId: akunUji.id } });

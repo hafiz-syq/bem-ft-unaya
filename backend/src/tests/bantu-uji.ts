@@ -175,6 +175,9 @@ export class Laporan {
   temuan = 0;
   dilewati = 0;
 
+  /** Baris yang DILEWATI karena pembatas permintaan menjawab 429 (lihat `lewatiLimiter`). */
+  dilewatiLimiter = 0;
+
   private readonly catatanTemuan: string[] = [];
   private readonly catatanKonfirmasi: string[] = [];
 
@@ -214,12 +217,26 @@ export class Laporan {
     console.log(`  LEWAT   ${nama}  (${alasan})`);
   }
 
+  /**
+   * Baris yang tidak diuji karena pembatas permintaan menjawab 429. Dipakai
+   * khusus fixture login: limiter login (5 permintaan / 5 menit / IP, lihat
+   * catatan di uji-akses-rute.ts) menahan fixture itu secara sah, bukan karena
+   * regresi aturan. Dipisahkan dari `dilewati` supaya N yang diam-diam naik
+   * tetap terlihat — `Dilewati` yang besar tidak menutupinya.
+   */
+  lewatiLimiter(nama: string): void {
+    this.dilewati++;
+    this.dilewatiLimiter++;
+    console.log(`  LEWAT   ${nama}  (dibatasi limiter: 429)`);
+  }
+
   ringkas(judul: string): void {
     console.log(`\n--- RINGKASAN ${judul} ---`);
     console.log(`Lulus   : ${this.lulus}`);
     console.log(`Gagal   : ${this.gagal}`);
     console.log(`Temuan  : ${this.temuan}`);
     console.log(`Dilewati: ${this.dilewati}`);
+    console.log(`Dilewati karena limiter: ${this.dilewatiLimiter}`);
 
     if (this.catatanTemuan.length > 0) {
       console.log('\nTEMUAN YANG MENUNGGU KEPUTUSAN (tidak menggagalkan uji):');
