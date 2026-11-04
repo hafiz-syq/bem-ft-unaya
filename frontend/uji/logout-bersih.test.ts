@@ -22,8 +22,8 @@ test('a. logout mengosongkan antrean dan membuang cache data & gambar', async ()
 
   assert.equal((await daftarAntrean()).length, 0, 'antrean kosong sesudah logout');
   assert.equal(isi.size, 0, 'store IndexedDB benar-benar di-clear');
-  assert.ok(!cache.has('bem-ft-data-v5'), 'cache JSON personal dibuang');
-  assert.ok(!cache.has('bem-ft-gambar-v5'), 'cache gambar dibuang');
+  assert.ok(!cache.has('bem-ft-data-v6'), 'cache JSON personal dibuang');
+  assert.ok(!cache.has('bem-ft-gambar-v6'), 'cache gambar dibuang');
 });
 
 test('b. cache kerangka tetap disimpan agar aplikasi masih terbuka offline', async () => {
@@ -31,7 +31,7 @@ test('b. cache kerangka tetap disimpan agar aplikasi masih terbuka offline', asy
 
   await offline.bersihkanCacheOffline();
 
-  assert.ok(cache.has('bem-ft-shell-v5'), 'shell tidak ikut terhapus');
+  assert.ok(cache.has('bem-ft-shell-v6'), 'shell tidak ikut terhapus');
 });
 
 test('c. pembersihan tetap selesai bila Cache Storage tidak tersedia', async () => {

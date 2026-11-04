@@ -10,10 +10,10 @@
  * Permintaan tulis (POST/PUT/PATCH/DELETE) tidak pernah di-cache; antreannya
  * ditangani aplikasi (lihat src/lib/offline.ts).
  */
-// Naikkan tiap kali isi aset yang diprecache berubah (mis. ikon diganti):
-// sw.js dengan byte sama tidak memicu install ulang, sehingga klien lama terus
-// memakai cache berisi aset lama.
-const VERSI = 'v5';
+// Naikkan tiap kali isi aset yang diprecache berubah (mis. ikon diganti) atau
+// tiap kali rute penyimpanan berubah: sw.js dengan byte sama tidak memicu
+// install ulang, dan cache lama hanya dibuang saat activate versi baru.
+const VERSI = 'v6';
 const CACHE_SHELL = `bem-ft-shell-${VERSI}`;
 const CACHE_DATA = `bem-ft-data-${VERSI}`;
 const CACHE_GAMBAR = `bem-ft-gambar-${VERSI}`;
@@ -227,8 +227,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Unggahan milik pengguna masuk cache gambar, bukan kerangka: yang pertama
+  // dibuang saat logout/ganti akun, yang kedua tidak.
   if (url.pathname.startsWith('/uploads/')) {
-    if (request.destination === 'image') event.respondWith(ambilAset(event));
+    if (request.destination === 'image') event.respondWith(ambilGambar(event));
     return;
   }
 

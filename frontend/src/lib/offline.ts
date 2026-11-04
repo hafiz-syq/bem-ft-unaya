@@ -365,7 +365,8 @@ export async function prosesAntrean(): Promise<HasilAntrean> {
 
 /**
  * Bersihkan antrean dan cache data milik akun (dipanggil saat logout atau
- * berganti akun). Cache gambar/galeri tidak perlu dihapus.
+ * berganti akun). Cache gambar ikut dibuang karena unggahan galeri dan foto
+ * profil disimpan di sana, bukan di cache kerangka.
  */
 export async function bersihkanCacheOffline(): Promise<void> {
   await kosongkanAntrean();

@@ -25,7 +25,7 @@ registerHooks({
 
 export type Item = { id: string; ownerId?: string; [key: string]: unknown };
 
-export const NAMA_CACHE = ['bem-ft-shell-v5', 'bem-ft-data-v5', 'bem-ft-gambar-v5'];
+export const NAMA_CACHE = ['bem-ft-shell-v6', 'bem-ft-data-v6', 'bem-ft-gambar-v6'];
 
 /** IndexedDB palsu: hanya metode yang dipakai offline.ts, diselesaikan lewat microtask. */
 export const pasangIdbPalsu = (isi: Map<string, Item>) => {
