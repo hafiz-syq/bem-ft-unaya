@@ -16,6 +16,7 @@ const HEADER_LAHAN = ['No', 'NIM', 'Nama', 'Program Studi', 'Email', 'No HP', 'A
  */
 export const exportMahasiswa = async (req: any, res: Response, next: NextFunction) => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     if (!req.user || !isAdminRole(req.user.role)) {
       res.status(403).json({ message: 'Hanya admin yang dapat mengekspor data mahasiswa.' });
       return;

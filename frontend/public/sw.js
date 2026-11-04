@@ -82,6 +82,7 @@ self.addEventListener('activate', (event) => {
           .filter((nama) => nama.startsWith('bem-ft-') && !CACHE_AKTIF.includes(nama))
           .map((nama) => caches.delete(nama))
       );
+      await buangDataKedaluwarsa();
       await self.clients.claim();
     })()
   );
@@ -94,6 +95,28 @@ async function batasiCache(cache, batas) {
     const kunci = await cache.keys();
     if (kunci.length <= batas) return;
     await Promise.all(kunci.slice(0, kunci.length - batas).map((req) => cache.delete(req)));
+  } catch {
+    // Pembersihan bersifat pemeliharaan; kegagalannya tidak fatal.
+  }
+}
+
+// --- Umur maksimum entri cache data -------------------------------------
+// Header `date` respons disimpan apa adanya oleh Cache API, jadi umur entri
+// bisa dibaca tanpa field tambahan. Entri tanpa header dibiarkan: umur tidak
+// diketahui, membuang buta akan menghapus data luring yang masih sah.
+const UMUR_MAKS_DATA = 7 * 24 * 60 * 60 * 1000;
+
+async function buangDataKedaluwarsa() {
+  try {
+    const cache = await caches.open(CACHE_DATA);
+    const sekarang = Date.now();
+    for (const permintaan of await cache.keys()) {
+      const tersimpan = await cache.match(permintaan);
+      const tanggal = tersimpan ? Date.parse(tersimpan.headers.get('date') || '') : NaN;
+      if (Number.isFinite(tanggal) && sekarang - tanggal > UMUR_MAKS_DATA) {
+        await cache.delete(permintaan);
+      }
+    }
   } catch {
     // Pembersihan bersifat pemeliharaan; kegagalannya tidak fatal.
   }

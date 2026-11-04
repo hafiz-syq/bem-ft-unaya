@@ -7,6 +7,7 @@ import { hitungAngkatan } from '../services/account-lifecycle.service';
 
 export const getMyProfile = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const userId = req.user.id; // Didapat dari auth.middleware
 
     // Ambil data user beserta relasi tabel StudentProfile (jika ada)
@@ -76,6 +77,7 @@ export const getMyProfile = async (req: any, res: Response, next: NextFunction):
  */
 export const getPublicProfile = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const { id } = req.params;
 
     if (!id) {

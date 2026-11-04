@@ -42,6 +42,7 @@ const gayaJudul = (sheet: ExcelJS.Worksheet, judul: string) => {
  */
 export const downloadMonthlyReport = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     if (!isAdminRole(req.user.role)) {
       res.status(403).json({ message: 'Hanya admin yang dapat mengunduh laporan bulanan.' });
       return;

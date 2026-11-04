@@ -218,6 +218,7 @@ export const bulkStudents = async (req: any, res: Response, next: NextFunction):
 /** Daftar akun yang sedang berada di tempat sampah. */
 export const getTrashStudents = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const search = String(req.query.search || '').trim();
     const where: any = {
       deletedAt: { not: null },

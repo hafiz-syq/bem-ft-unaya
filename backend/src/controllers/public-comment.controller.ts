@@ -402,6 +402,7 @@ export const getPublicComments = async (_req: Request, res: Response, next: Next
 
 export const getCommentsForManagement = async (req: Permintaan, res: Response, next: NextFunction) => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     if (!canModerateComment(req, res)) return;
 
     const { status } = req.query as { status?: string };

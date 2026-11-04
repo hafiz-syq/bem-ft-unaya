@@ -24,6 +24,7 @@ const HALAMAN: { judul: string; keterangan: string; url: string; kata: string[] 
 /** Pencarian global untuk command palette (Ctrl/⌘+K). */
 export const globalSearch = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const q = String(req.query.q || '').trim();
     if (q.length < 2) {
       res.status(200).json({ data: [] });

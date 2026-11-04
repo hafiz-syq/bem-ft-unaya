@@ -76,6 +76,7 @@ const akunPublikSelect = {
 // 1. Daftar akun (Mahasiswa & Pengurus) dengan pencarian, filter status, dan role
 export const getStudents = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const search = (req.query.search as string) || '';

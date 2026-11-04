@@ -32,6 +32,7 @@ export const createRequest = async (req: any, res: Response, next: NextFunction)
 // 2. Admin melihat semua pengajuan
 export const getRequests = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const user = req.user;
     // Hanya ADMIN/SUPERADMIN yang melihat seluruh pengajuan. Role pengurus lain
     // (PENGURUS, BEM, DPM, himpunan) dipaksa ke barisnya sendiri: include di

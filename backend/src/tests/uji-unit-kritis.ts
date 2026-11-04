@@ -60,13 +60,22 @@ function uji(nama: string, kondisi: boolean): void {
   }
 }
 
-/** Res palsu sederhana yang mencatat status & payload terakhir. */
-function resPalsu(): { code: number | null; payload: unknown; status: (c: number) => unknown; json: (p: unknown) => unknown } {
+/** Res palsu sederhana yang mencatat status, header & payload terakhir. */
+function resPalsu(): {
+  code: number | null;
+  payload: unknown;
+  header: Record<string, string>;
+  status: (c: number) => unknown;
+  json: (p: unknown) => unknown;
+  setHeader: (k: string, v: string) => unknown;
+} {
   const res = {
     code: null as number | null,
     payload: null as unknown,
+    header: {} as Record<string, string>,
     status(c: number) { res.code = c; return res; },
     json(p: unknown) { res.payload = p; return res; },
+    setHeader(k: string, v: string) { res.header[k.toLowerCase()] = v; return res; },
   };
   return res;
 }
@@ -162,6 +171,7 @@ async function main(): Promise<void> {
     let nextDipanggil = false;
     await getAuditLogs({ user: nonAdmin, query: {} }, res as never, (() => { nextDipanggil = true; }) as never);
     uji('getAuditLogs: MAHASISWA ditolak 403 tanpa query DB', res.code === 403 && !nextDipanggil);
+    uji('getAuditLogs: Cache-Control no-store ikut terpasang', res.header['cache-control'] === 'no-store');
   }
 
   {

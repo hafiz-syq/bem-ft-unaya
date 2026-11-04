@@ -5,6 +5,7 @@ import { logActivity } from '../services/audit.service';
 
 export const getErrorLogs = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     if (!isAdminRole(req.user.role)) {
       res.status(403).json({ message: 'Hanya admin yang dapat melihat pemantauan kesalahan.' });
       return;

@@ -50,6 +50,7 @@ const bolehKelola = (aktor: { id: string; role: string }, target: { id: string; 
 
 export const getPerangkat = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const halaman = Math.max(1, parseInt(String(req.query.page ?? '1'), 10) || 1);
     const batas = Math.min(50, Math.max(5, parseInt(String(req.query.limit ?? '20'), 10) || 20));
     const cari = typeof req.query.search === 'string' ? req.query.search.trim() : '';
@@ -381,6 +382,7 @@ const daftarPerangkat = (akun: {
  */
 export const getPerangkatAkun = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const target = await prisma.user.findUnique({
       where: { id: req.params.id },
       select: PILIHAN_AKUN,

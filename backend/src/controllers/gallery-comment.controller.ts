@@ -197,6 +197,7 @@ export const getKomentarGaleriUntukModerasi = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const status = String(req.query?.status ?? 'ALL').toUpperCase();
     const where: Record<string, unknown> = {};
     if (['PENDING', 'APPROVED', 'REJECTED'].includes(status)) where.status = status;

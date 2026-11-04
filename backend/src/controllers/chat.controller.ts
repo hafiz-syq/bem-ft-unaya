@@ -124,6 +124,7 @@ const penulisSelect = {
 /** GET /api/chat/rooms — daftar ruang beserta jumlah pesan & aktivitas terakhir. */
 export const getRooms = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const kelola = bolehKelolaRuang(req.user?.role);
     const forumTerbuka = kelola || (await adaRuangTerbuka());
 

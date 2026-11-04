@@ -11,6 +11,7 @@ const UMUR_MINIMUM_HAPUS_ADMIN = 7;
 
 export const getAuditLogs = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     // [PERBAIKAN KEAMANAN] Log audit hanya boleh dibaca ADMIN/SUPERADMIN.
     if (!isAdminRole(req.user?.role)) {
       res.status(403).json({ message: 'Akses ditolak: khusus Admin.' });

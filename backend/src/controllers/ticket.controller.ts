@@ -229,6 +229,7 @@ export const createTicket = async (req: any, res: Response, next: NextFunction):
 // 2. Mengambil Daftar Tiket (dibatasi hak baca per organisasi)
 export const getTickets = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     const tickets = await prisma.ticket.findMany({
       where: ticketVisibilityWhere(req.user),
       include: {
@@ -683,6 +684,7 @@ export const deleteTicket = async (req: any, res: Response, next: NextFunction):
 // 10. Ekspor data keluhan ke Excel (hanya ADMIN & PENGURUS DPM)
 export const exportKeluhanExcel = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
+    res.setHeader('Cache-Control', 'no-store');
     if (!canExportKeluhan(req.user.role)) {
       res.status(403).json({ message: 'Hanya PENGURUS DPM dan Admin yang dapat mengaudit data keluhan.' });
       return;
