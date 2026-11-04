@@ -43,3 +43,7 @@ backend/uploads/*
 # Berkas data sementara (hasil ekspor/impor, PDF kerjaan) — sama seperti
 # uploads: isinya milik pengguna, bukan bagian dari kode.
 backend/data/
+
+# Cache pengetahuan Repo Wiki yang dibuat Qoder di mesin ini — artefak alat,
+# bukan sumber proyek, dan isinya berubah sendiri saat indeks diperbarui.
+.qoder/
