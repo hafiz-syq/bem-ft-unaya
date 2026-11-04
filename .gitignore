@@ -47,3 +47,8 @@ backend/data/
 # Cache pengetahuan Repo Wiki yang dibuat Qoder di mesin ini — artefak alat,
 # bukan sumber proyek, dan isinya berubah sendiri saat indeks diperbarui.
 .qoder/
+
+# Skrip sekali-pakai (cek kolom, assert host DB, set password staging). Sering
+# memuat kredensial uji dan tidak seharusnya masuk riwayat, jadi pola ini yang
+# menahannya — termasuk saat `git add -A`.
+*.tmp.cjs
