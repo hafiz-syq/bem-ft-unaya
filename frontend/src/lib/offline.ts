@@ -270,8 +270,15 @@ const kabarkanAntrean = (hasil: HasilAntrean): void => {
 export async function mintaSinkronLatar(): Promise<void> {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
   try {
-    const daftar = (await navigator.serviceWorker.ready) as RegistrasiDenganSync;
-    if (daftar.sync) await daftar.sync.register('bem-ft-sinkron');
+    // `navigator.serviceWorker.ready` adalah janji yang TIDAK pernah resolve
+    // selama tidak ada service worker aktif (mode privat iOS, registrasi gagal,
+    // dev tanpa SW). Pemanggil fungsi ini menunggu kita, jadi antrean
+    // tersimpan tapi permintaan aslinya menggantung selamanya. getRegistration()
+    // selalu selesai: undefined bila belum ada registrasi.
+    const daftar = (await navigator.serviceWorker.getRegistration()) as
+      | RegistrasiDenganSync
+      | undefined;
+    if (daftar?.sync) await daftar.sync.register('bem-ft-sinkron');
   } catch {
     // Browser tidak mendukung Background Sync; sinkronisasi tetap terjadi saat halaman terbuka.
   }
