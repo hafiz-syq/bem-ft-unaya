@@ -18,8 +18,9 @@
     "seed": "ts-node src/scripts/seed.ts",
     "superadmin": "ts-node src/scripts/buat-superadmin.ts",
     "verifikasi:akses": "ts-node src/scripts/verifikasi-akses-non-admin.ts",
-    "migrate": "prisma migrate dev",
-    "prisma:push": "npx prisma db push",
+    "jaga-host-tulis": "ts-node -T src/scripts/jaga-host-tulis.ts",
+    "migrate": "npm run -s jaga-host-tulis -- \"npm run migrate\" && prisma migrate dev",
+    "prisma:push": "npm run -s jaga-host-tulis -- \"npm run prisma:push\" && npx prisma db push",
     "prisma:generate": "npx prisma generate"
   },
   "keywords": [],
