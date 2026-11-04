@@ -10,6 +10,10 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import VercelAnalytics from './components/VercelAnalytics';
 import { pasangPemantauKoneksi } from './lib/offline';
 import { pasangPrecacheGambar } from './lib/precache-gambar';
+// Dimuat di chunk awal, bukan lewat dashboard yang lazy: Chromium hanya
+// mengirim beforeinstallprompt sekali per sesi, padahal tombol pasangnya baru
+// dirender setelah pengguna login.
+import './lib/pasang-aplikasi';
 import './index.css';
 // Dimuat SETELAH index.css agar aksen musiman menimpa utilitas Tailwind.
 import './tema-musiman.css';

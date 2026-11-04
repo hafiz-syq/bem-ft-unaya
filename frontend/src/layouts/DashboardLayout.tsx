@@ -9,6 +9,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import SeasonalBadge from '../components/SeasonalBadge';
 import GlobalSearch from '../components/GlobalSearch';
 import PushToggle from '../components/PushToggle';
+import PasangAplikasi from '../components/PasangAplikasi';
 import { LogOut, Menu, LayoutDashboard, Users, MessageSquareWarning, MessageSquare, MessagesSquare, UserCircle, UserPlus, FileEdit, Activity, Bell, Check, Globe, Home, HelpCircle, Building2, Images, Smartphone, Palette, PanelLeftClose, PanelLeftOpen, Megaphone, FolderArchive, ShieldAlert } from 'lucide-react';
 import StatusOnline from '../components/StatusOnline';
 import { useAksesArsip } from '../lib/arsip-surat';
@@ -329,6 +330,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   )}
                 </div>
                 <PushToggle />
+                {/* Pemasangan aplikasi khusus pemilik akun: tidak dipasang di
+                    halaman publik. */}
+                {user && <PasangAplikasi />}
                 <div className="overflow-y-auto max-h-[55vh]">
                   {notifications.length === 0 ? (
                     <div className="p-5 text-sm text-center text-gray-500 dark:text-gray-400">Tidak ada notifikasi.</div>

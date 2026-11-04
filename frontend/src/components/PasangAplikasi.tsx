@@ -3,10 +3,10 @@ import { Download, Loader2, Smartphone } from 'lucide-react';
 import { berlanggananMode, mintaPasang, modeSaatIni, type ModePasang } from '../lib/pasang-aplikasi';
 
 /**
- * Kartu memasang portal ini sebagai aplikasi di HP/laptop (PWA). Peramban yang
- * tidak mendukung pemasangan (Firefox desktop, browser lama) tidak melihat apa
- * pun; Safari Apple mendapat panduan manual karena iOS tidak mengenal
- * beforeinstallprompt.
+ * Baris "pasang sebagai aplikasi" (PWA) di menu notifikasi, khusus pengguna
+ * yang punya akun. Peramban yang tidak mendukung pemasangan (Firefox desktop,
+ * browser lama) tidak melihat apa pun; Safari Apple mendapat panduan manual
+ * karena iOS tidak mengenal beforeinstallprompt.
  */
 export default function PasangAplikasi() {
   // Snapshot 'sembunyi' saat build/prerender: mode hanya boleh dibaca di klien.
@@ -27,52 +27,37 @@ export default function PasangAplikasi() {
     }
   };
 
-  return (
-    <div className="mx-auto max-w-2xl text-left">
-      <div className="flex flex-col items-center gap-4 rounded-2xl border border-white/15 bg-white/10 px-5 py-4 sm:flex-row sm:justify-between">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-gray-900">
-            <Smartphone className="h-6 w-6" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="text-sm font-bold text-white">Pasang sebagai aplikasi</p>
-            <p className="text-xs text-white/80">
-              Ikon di layar utama, tetap bisa dibaca tanpa kuota, dan ada notifikasi kegiatan.
-            </p>
-          </div>
-        </div>
+  const gayaTombol =
+    'flex w-full items-center gap-2 px-2 py-2 text-xs font-bold rounded-lg transition disabled:opacity-50 text-amber-700 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/60 dark:hover:bg-amber-900/60';
 
-        {mode === 'otomatis' ? (
-          <button
-            type="button"
-            onClick={pasang}
-            disabled={sibuk}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-amber-300 bg-amber-400 px-5 py-2.5 text-sm font-bold text-gray-900 transition-all duration-300 hover:bg-amber-300 hover:scale-105 active:scale-95 disabled:opacity-70 sm:w-auto"
-          >
-            {sibuk ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Download className="h-4 w-4" aria-hidden="true" />
-            )}
-            Pasang aplikasi
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setBukaPanduan((buka) => !buka)}
-            aria-expanded={bukaPanduan}
-            aria-controls="panduan-pasang-ios"
-            className="w-full rounded-lg border border-amber-300 bg-amber-400 px-5 py-2.5 text-sm font-bold text-gray-900 transition-all duration-300 hover:bg-amber-300 hover:scale-105 active:scale-95 sm:w-auto"
-          >
-            Cara pasang di iPhone/iPad
-          </button>
-        )}
-      </div>
+  return (
+    <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-800">
+      {mode === 'otomatis' ? (
+        <button type="button" onClick={pasang} disabled={sibuk} className={gayaTombol}>
+          {sibuk ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <Download className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          )}
+          Pasang sebagai aplikasi
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setBukaPanduan((buka) => !buka)}
+          aria-expanded={bukaPanduan}
+          aria-controls="panduan-pasang-ios"
+          className={gayaTombol}
+        >
+          <Smartphone className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          Cara pasang di iPhone/iPad
+        </button>
+      )}
 
       {mode === 'manual' && bukaPanduan && (
         <ol
           id="panduan-pasang-ios"
-          className="mt-3 list-decimal space-y-1 rounded-xl bg-black/30 px-6 py-4 text-xs text-white/90"
+          className="mt-2 list-decimal space-y-1 rounded-lg bg-gray-50 px-4 py-2 text-[10px] leading-snug text-gray-600 dark:bg-gray-800 dark:text-gray-300"
         >
           <li>Buka halaman ini di Safari.</li>
           <li>
@@ -84,6 +69,10 @@ export default function PasangAplikasi() {
           </li>
         </ol>
       )}
+
+      <p className="mt-1 text-[10px] leading-snug text-gray-500 dark:text-gray-400">
+        Ikon di layar utama, tetap bisa dibaca tanpa kuota, dan ada notifikasi kegiatan.
+      </p>
     </div>
   );
 }
