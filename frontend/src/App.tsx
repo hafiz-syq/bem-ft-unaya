@@ -18,6 +18,7 @@ const DashboardLayout = lazy(() => import('./layouts/DashboardLayout'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Students = lazy(() => import('./pages/Students'));
 const Devices = lazy(() => import('./pages/Devices'));
+const PasangAplikasiHalaman = lazy(() => import('./pages/PasangAplikasi'));
 const DeviceDetail = lazy(() => import('./pages/DeviceDetail'));
 const Tickets = lazy(() => import('./pages/Tickets'));
 const Organizations = lazy(() => import('./pages/Organizations'));
@@ -271,6 +272,15 @@ function App() {
         <ProtectedRoute>
           <DashboardLayout>
             <Faq />
+          </DashboardLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* Cara pasang portal sebagai aplikasi (PWA) untuk semua akun login. */}
+      <Route path="/pasang-aplikasi" element={
+        <ProtectedRoute>
+          <DashboardLayout>
+            <PasangAplikasiHalaman />
           </DashboardLayout>
         </ProtectedRoute>
       } />

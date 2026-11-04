@@ -61,9 +61,12 @@ if (typeof window !== 'undefined') {
   });
 }
 
+/** true bila halaman sudah berjalan (atau baru saja) sebagai aplikasi terpasang. */
+export const terpasangSaatIni = (): boolean => sudahTerpasang || berjalanSebagaiAplikasi();
+
 export const modeSaatIni = (): ModePasang =>
   tentukanMode({
-    terpasang: sudahTerpasang || berjalanSebagaiAplikasi(),
+    terpasang: terpasangSaatIni(),
     ios: adalahIOS(),
     punyaPrompt: promptTersimpan !== null,
   });
