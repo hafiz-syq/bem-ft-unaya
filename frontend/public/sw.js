@@ -10,7 +10,10 @@
  * Permintaan tulis (POST/PUT/PATCH/DELETE) tidak pernah di-cache; antreannya
  * ditangani aplikasi (lihat src/lib/offline.ts).
  */
-const VERSI = 'v4';
+// Naikkan tiap kali isi aset yang diprecache berubah (mis. ikon diganti):
+// sw.js dengan byte sama tidak memicu install ulang, sehingga klien lama terus
+// memakai cache berisi aset lama.
+const VERSI = 'v5';
 const CACHE_SHELL = `bem-ft-shell-${VERSI}`;
 const CACHE_DATA = `bem-ft-data-${VERSI}`;
 const CACHE_GAMBAR = `bem-ft-gambar-${VERSI}`;
