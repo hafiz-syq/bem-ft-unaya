@@ -14,7 +14,7 @@ const MANFAAT = 'Ikon di layar utama, tetap bisa dibaca tanpa kuota, dan ada not
 // Diisi setelah Release APK pertama terbit (GitHub > Actions > APK Android).
 // Kosong = baris unduh tidak dirender, jadi halaman tidak menunjuk URL mati.
 const URL_APK: string =
-  'https://github.com/hafiz-syq/bem-ft-unaya/releases/download/apk-v1.0.0/bem-ft-unaya-1.0.0.apk';
+  'https://github.com/hafiz-syq/bem-ft-unaya/releases/download/apk-v1.0.1/bem-ft-unaya-1.0.1.apk';
 
 const PANDUAN = [
   {
