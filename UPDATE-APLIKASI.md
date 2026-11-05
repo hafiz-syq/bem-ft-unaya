@@ -19,7 +19,12 @@ yang menunjuk satu URL.
 - Nama cache mengandung versi (`bem-ft-shell-${VERSI}`, `bem-ft-data-`,
   `bem-ft-gambar-`); cache versi lama dibuang pada `activate`.
 - Konsekuensinya penting untuk support: **setiap deploy Vercel sampai ke semua
-  user, termasuk yang membuka portal lewat APK.**
+  user, termasuk yang membuka portal lewat APK.** Jaminannya bukan pada `VERSI`,
+  melainkan pada strategi fetch: navigasi selalu **coba jaringan dulu** dan cache
+  hanya dipakai saat luring (`sw.js` blok `request.mode === 'navigate'`).
+- `const VERSI = 'v6'` di kepala `sw.js` naikkan dengan tangan, bukan otomatis.
+  Naikkan bila yang berubah adalah aset yang di-precache atau rute penyimpanan
+  (ikon diganti, aturan cache berubah) — bukan untuk setiap deploy.
 
 ## 2. Yang manual: cangkang APK
 
