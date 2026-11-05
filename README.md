@@ -89,6 +89,10 @@ Panduan lengkap ada di [DEPLOY.md](DEPLOY.md): satu aplikasi Node di **Hostinger
 - Setel `UPLOAD_DIR` ke folder persisten di luar folder aplikasi, dan `RUN_STARTUP_JOBS=0` karena job dijalankan oleh cron hPanel ke `/api/internal/cron`.
 - `server.js` adalah startup file yang dipilih di hPanel; jangan set `PORT` karena Hostinger menyuntikkan nilainya.
 
+## Update Aplikasi (PWA & APK)
+
+Konten portal ter-update otomatis ke semua user lewat deploy. Cangkang APK Android tidak, dan hanya perlu dirilis ulang kalau domain, nama/ikon/warna, keystore, atau komponen manifestnya yang berubah. Rinciannya: [UPDATE-APLIKASI.md](UPDATE-APLIKASI.md).
+
 ## Struktur Singkat
 
 ```
