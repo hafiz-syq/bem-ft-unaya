@@ -315,7 +315,7 @@ export default function Landing() {
         {/* Menu Mobile Dropdown */}
         <div
           id="mobile-menu"
-          className={`absolute left-0 right-0 top-[100%] z-50 flex flex-col w-full px-4 py-2 lg:hidden transition-all duration-[700ms] ${isMobileMenuOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}
+          className={`absolute left-0 right-0 top-[100%] z-50 flex flex-col w-full px-4 py-2 lg:hidden transition-all duration-[700ms] ${isMobileMenuOpen ? 'pointer-events-auto' : 'pointer-events-none invisible'}`}
         >
           <div
             className="w-full max-w-sm mx-auto overflow-hidden bg-white shadow-2xl dark:bg-gray-900 rounded-2xl"
