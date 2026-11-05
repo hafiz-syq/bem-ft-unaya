@@ -158,10 +158,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, show: true },
     { name: 'Profil Saya', path: '/profile', icon: UserCircle, show: true },
     { name: 'Perubahan Data', path: '/data-requests', icon: FileEdit, show: true },
-    { name: 'Layanan Tiket', path: '/tickets', icon: MessageSquareWarning, show: true },
+    { name: 'Aspirasi & Keluhan', path: '/tickets', icon: MessageSquareWarning, show: true },
     { name: 'FAQ', path: '/faq', icon: HelpCircle, show: true },
-    // Halaman cara pasang portal sebagai aplikasi (PWA) untuk semua akun.
-    { name: 'Pasang Aplikasi', path: '/pasang-aplikasi', icon: Download, show: true },
+
     // Buku tamu terbuka untuk semua role; mahasiswa hanya bisa membaca,
     // tombol moderasi & balasan hanya muncul untuk pengurus dan admin.
     { name: 'Buku Tamu', path: '/buku-tamu', icon: MessageSquare, show: true },
@@ -182,6 +181,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Komentar Galeri', path: '/galeri-komentar', icon: Images, show: isStaff(role) },
     { name: 'Audit Log', path: '/audit', icon: Activity, show: isAdminRole(role) },
     { name: 'Pemantauan', path: '/pemantauan', icon: ShieldAlert, show: isAdminRole(role) },
+    // Halaman cara pasang portal sebagai aplikasi (PWA) untuk semua akun.
+    { name: 'Pasang Aplikasi', path: '/pasang-aplikasi', icon: Download, show: true },
   ];
 
   const allowedMenus = menuItems.filter(item => item.show);
