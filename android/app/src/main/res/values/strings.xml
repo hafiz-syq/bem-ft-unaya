@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="appName">BEM-FT UNAYA — Portal Mahasiswa</string>
+    <string name="launcherName">BEM FT UNAYA</string>
+    <string name="hostName">bem-ft-unaya.vercel.app</string>
+    <string name="launchUrl">https://bem-ft-unaya.vercel.app/</string>
+
+    <!-- Hubungan aplikasi <-> situs menurut format Digital Asset Links. Ini pihak
+         "app menyatakan situs"; sisi situs menjawab lewat
+         /.well-known/assetlinks.json yang memuat sidik jari sertifikat penanda
+         tangan APK. -->
+    <string name="assetStatements">
+        [{
+            \"relation\": [\"delegate_permission/common.handle_all_urls\"],
+            \"target\": {
+                \"namespace\": \"web\",
+                \"site\": \"https://bem-ft-unaya.vercel.app\"
+            }
+        }]
+    </string>
+</resources>

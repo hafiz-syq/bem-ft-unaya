@@ -1,0 +1,21 @@
+// Cangkang Android (Trusted Web Activity) untuk portal BEM FT UNAYA.
+// Struktur berkas ini meniru template resmi Google Bubblewrap
+// (packages/core/template_project di GoogleChromeLabs/bubblewrap, branch main),
+// dengan jcenter() yang sudah mati diganti mavenCentral() dan atribut
+// package= dihapus karena AGP 8 memakai `namespace`.
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.2'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}

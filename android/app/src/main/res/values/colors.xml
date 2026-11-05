@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Diwarisi dari token yang sudah dipakai web: theme_color #fbbf24 di
+         manifest.webmanifest dan amber-500 #f59e0b dari kelas Tailwind. -->
+    <color name="colorPrimary">#fbbf24</color>
+    <color name="colorPrimaryDark">#f59e0b</color>
+</resources>

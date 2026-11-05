@@ -1,0 +1,73 @@
+name: APK Android
+
+# Hanya jalan atas perintah pemilik (Actions > APK Android > Run workflow),
+# bukan pada push: rakitan ini menyentuh keystore dan membuat Release publik.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+
+jobs:
+  apk:
+    name: Rakit, tanda tangani, terbitkan
+    runs-on: ubuntu-24.04
+    env:
+      BEM_KEYSTORE_PASSWORD: ${{ secrets.BEM_KEYSTORE_PASSWORD }}
+      BEM_KEY_ALIAS: ${{ secrets.BEM_KEY_ALIAS }}
+      BEM_KEY_PASSWORD: ${{ secrets.BEM_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Tulis keystore dari secret
+        env:
+          BEM_KEYSTORE_BASE64: ${{ secrets.BEM_KEYSTORE_BASE64 }}
+        run: |
+          echo "$BEM_KEYSTORE_BASE64" \
+            | base64 -d \
+            > "$RUNNER_TEMP/bem-ft-unaya.keystore"
+
+      - name: Cetak sidik jari sertifikat salinan assetlinks.json
+        run: |
+          keytool -list -v \
+            -keystore "$RUNNER_TEMP/bem-ft-unaya.keystore" \
+            -alias "$BEM_KEY_ALIAS" \
+            -storepass "$BEM_KEYSTORE_PASSWORD" \
+            | grep -E 'SHA256:'
+
+      - name: Rakit APK bertanda tangan
+        env:
+          BEM_KEYSTORE_FILE: ${{ runner.temp }}/bem-ft-unaya.keystore
+        run: gradle -p android assembleRelease
+
+      - name: Terbitkan Release dan buktikan URL unduhannya
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(grep -oP "versionName '\K[^']+" android/app/build.gradle)
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          cp "$APK" "bem-ft-unaya-$VERSION.apk"
+          SHA=$(sha256sum "bem-ft-unaya-$VERSION.apk" | cut -d' ' -f1)
+          TAG="apk-v$VERSION"
+          NOTES="APK cangkang (Trusted Web Activity) untuk https://bem-ft-unaya.vercel.app
+SHA-256 berkas ini: $SHA"
+          gh release create "$TAG" "bem-ft-unaya-$VERSION.apk" \
+            --title "BEM FT UNAYA $VERSION (Android)" \
+            --notes "$NOTES" \
+            || gh release upload "$TAG" "bem-ft-unaya-$VERSION.apk" --clobber
+          URL=$(gh release view "$TAG" --json assets -q \
+            '.assets[] | select(.name|test("apk$")) | .url')
+          KODE=$(curl -sIL -o /dev/null -w '%{http_code}' "$URL")
+          echo "URL unduhan: $URL (HTTP $KODE)"

@@ -1,0 +1,50 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Keystore TIDAK PERNAH masuk repo. CI menyuplainya lewat env; tanpa env ini
+// rakitan release tetap jalan tetapi hasilnya tidak bertanda tangan.
+def fileKeystore = System.getenv('BEM_KEYSTORE_FILE')
+
+android {
+    namespace 'com.bemftunaya.portal'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.bemftunaya.portal'
+        // androidbrowserhelper 2.7.4 menuntut minSdk 24 (lihat uses-sdk di AAR-nya).
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    signingConfigs {
+        release {
+            if (fileKeystore) {
+                storeFile file(fileKeystore)
+                storePassword System.getenv('BEM_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('BEM_KEY_ALIAS')
+                keyPassword System.getenv('BEM_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            if (fileKeystore) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.4'
+}
