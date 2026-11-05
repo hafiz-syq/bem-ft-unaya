@@ -11,6 +11,10 @@ import { berlanggananMode, mintaPasang, modeSaatIni, terpasangSaatIni } from '..
 
 const MANFAAT = 'Ikon di layar utama, tetap bisa dibaca tanpa kuota, dan ada notifikasi kegiatan.';
 
+// Diisi setelah Release APK pertama terbit (GitHub > Actions > APK Android).
+// Kosong = baris unduh tidak dirender, jadi halaman tidak menunjuk URL mati.
+const URL_APK: string = '';
+
 const PANDUAN = [
   {
     id: 'android',
@@ -113,6 +117,33 @@ export default function PasangAplikasi() {
         <p className="p-4 text-sm text-gray-600 bg-white border border-gray-100 rounded-xl dark:text-gray-300 dark:bg-gray-900 dark:border-gray-800">
           Pemasangan dibatalkan. Muat ulang halaman ini untuk memunculkan dialog pasang lagi.
         </p>
+      )}
+
+      {/* Berkas APK (cangkang TWA) — hanya muncul setelah Release pertama terbit. */}
+      {URL_APK && (
+        <section className="flex flex-col gap-3 p-4 bg-white border border-gray-100 shadow-sm sm:flex-row sm:items-center sm:justify-between rounded-xl dark:bg-gray-900 dark:border-gray-800">
+          <div className="flex items-start gap-3">
+            <span className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0 bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300">
+              <Download className="w-5 h-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                Berkas APK untuk Android
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Versi cangkang: ikonnya tetap membuka portal yang sama. Buka berkas hasil unduhan di HP,
+                lalu izinkan instal dari sumber tidak dikenal. Tidak diperbarui otomatis — unduh ulang bila
+                ada versi baru. iPhone/iPad tidak memakai berkas ini.
+              </p>
+            </div>
+          </div>
+          <a
+            href={URL_APK}
+            className="inline-flex items-center justify-center gap-2 min-h-11 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 shrink-0"
+          >
+            <Download className="w-4 h-4" /> Unduh APK
+          </a>
+        </section>
       )}
 
       {/* Langkah per perangkat */}
