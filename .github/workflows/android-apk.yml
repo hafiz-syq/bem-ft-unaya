@@ -35,13 +35,28 @@ jobs:
         env:
           BEM_KEYSTORE_BASE64: ${{ secrets.BEM_KEYSTORE_BASE64 }}
         run: |
-          echo "$BEM_KEYSTORE_BASE64" \
+          # Diagnostik hanya mencetak panjang + tanda baca sisa; huruf dan angka
+          # dibuang lebih dulu sehingga isi kunci tidak pernah muncul di log.
+          PANJANG=${#BEM_KEYSTORE_BASE64}
+          echo "Panjang secret: $PANJANG karakter."
+          if [ "$PANJANG" -eq 0 ]; then
+            echo "BEM_KEYSTORE_BASE64 kosong: belum disimpan, atau nama baris secret beda."
+            exit 1
+          fi
+          ASING=$(printf '%s' "$BEM_KEYSTORE_BASE64" | tr -d 'A-Za-z0-9+/=\n\r' | wc -c)
+          if [ "$ASING" -ne 0 ]; then
+            echo "Ada $ASING karakter di luar alfabet base64. Sisanya (tanda baca saja):"
+            printf '%s' "$BEM_KEYSTORE_BASE64" | tr -d 'A-Za-z0-9+/=\n\r' | head -c 20 | od -An -c | head -2
+            exit 1
+          fi
+          printf '%s' "$BEM_KEYSTORE_BASE64" \
             | base64 -d \
             > "$RUNNER_TEMP/bem-ft-unaya.keystore"
           test -s "$RUNNER_TEMP/bem-ft-unaya.keystore" || {
-            echo "Secret BEM_KEYSTORE_BASE64 kosong atau bukan base64 keystore."
+            echo "Secret terdekode tapi hasilnya 0 byte."
             exit 1
           }
+          echo "Keystore terdekoding: $(wc -c < "$RUNNER_TEMP/bem-ft-unaya.keystore") byte."
 
       - name: Cetak sidik jari dan paksa cocok dengan assetlinks.json
         run: |
