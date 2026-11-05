@@ -43,13 +43,27 @@ jobs:
             exit 1
           }
 
-      - name: Cetak sidik jari sertifikat salinan assetlinks.json
+      - name: Cetak sidik jari dan paksa cocok dengan assetlinks.json
         run: |
-          keytool -list -v \
+          test -f frontend/public/.well-known/assetlinks.json || {
+            echo "assetlinks.json belum ada di repo. Dorong komitnya dulu sebelum merakit."
+            exit 1
+          }
+          SIDIK=$(keytool -list -v \
             -keystore "$RUNNER_TEMP/bem-ft-unaya.keystore" \
             -alias "$BEM_KEY_ALIAS" \
             -storepass "$BEM_KEYSTORE_PASSWORD" \
-            | grep -E 'SHA256:'
+            | grep -E 'SHA256:' | head -n1 | sed 's/^.*SHA256:[[:space:]]*//' | tr -d '[:space:]')
+          echo "Sidik jari APK: [$SIDIK]"
+          test -n "$SIDIK" || {
+            echo "keytool tidak mencetak baris SHA256. Cek BEM_KEY_ALIAS dan BEM_KEYSTORE_PASSWORD."
+            exit 1
+          }
+          grep -qF "$SIDIK" frontend/public/.well-known/assetlinks.json || {
+            echo "Beda: keystore ini bukan keystore yang diumumkan assetlinks.json."
+            echo "Tautan https://bem-ft-unaya.vercel.app tidak akan membuka aplikasi."
+            exit 1
+          }
 
       - name: Rakit APK bertanda tangan
         env:

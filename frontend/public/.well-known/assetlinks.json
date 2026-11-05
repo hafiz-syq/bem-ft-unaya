@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.bemftunaya.portal",
+      "sha256_cert_fingerprints": [
+        "B7:85:87:9F:9C:73:25:A9:FE:A6:6E:46:9A:C7:73:67:4E:81:C5:7B:DF:98:08:3B:AD:A0:6F:D1:A0:31:A7:E4"
+      ]
+    }
+  }
+]
