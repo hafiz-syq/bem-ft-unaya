@@ -158,7 +158,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, show: true },
     { name: 'Profil Saya', path: '/profile', icon: UserCircle, show: true },
     { name: 'Perubahan Data', path: '/data-requests', icon: FileEdit, show: true },
-    { name: 'Aspirasi & Keluhan', path: '/tickets', icon: MessageSquareWarning, show: true },
+    
     
     // Buku tamu terbuka untuk semua role; mahasiswa hanya bisa membaca,
     // tombol moderasi & balasan hanya muncul untuk pengurus dan admin.
@@ -172,6 +172,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // Direktori mahasiswa terbuka untuk semua akun yang login; mahasiswa
     // menerima data terbatas dari server (tanpa email/telepon/status akun).
     { name: 'Data Mahasiswa', path: '/students', icon: Users, show: true },
+    { name: 'Aspirasi & Keluhan', path: '/tickets', icon: MessageSquareWarning, show: true },
     { name: 'Perangkat & Sesi', path: '/devices', icon: Smartphone, show: isAdminRole(role) },
     { name: 'Master Organisasi', path: '/organizations', icon: Building2, show: isAdminRole(role) },
     { name: 'Kepengurusan', path: '/positions', icon: UserPlus, show: isAdminRole(role) },
