@@ -60,6 +60,24 @@
 
         <activity android:name="com.google.androidbrowserhelper.trusted.FocusActivity" />
 
+        <!-- ABH memanggil setComponentEnabledSetting untuk komponen ini di setiap
+             LauncherActivity.onCreate (ManageDataLauncherActivity.java:393); komponen
+             yang tidak dideklarasikan = IllegalArgumentException dan cangkang mati
+             sebelum menampilkan apa pun. AAR 2.7.4 tidak mendeklarasikannya, jadi
+             kewajiban itu ada di sini.
+             Filter di bawah bukan untuk pemanggil eksternal: getSiteSettingsShortcutOrNull
+             memakai queryIntentActivities, yang menolak komponen tanpa filter, jadi
+             tanpanya pintasan lama-tekan "Site settings" (kelola notifikasi/izinan
+             situs) tidak pernah muncul meski browser mendukungnya. -->
+        <activity
+            android:name="com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.support.customtabs.action.ACTION_MANAGE_TRUSTED_WEB_ACTIVITY_DATA" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name="com.google.androidbrowserhelper.trusted.WebViewFallbackActivity"
             android:configChanges="orientation|screenSize" />
