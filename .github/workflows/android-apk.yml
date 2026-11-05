@@ -38,6 +38,10 @@ jobs:
           echo "$BEM_KEYSTORE_BASE64" \
             | base64 -d \
             > "$RUNNER_TEMP/bem-ft-unaya.keystore"
+          test -s "$RUNNER_TEMP/bem-ft-unaya.keystore" || {
+            echo "Secret BEM_KEYSTORE_BASE64 kosong atau bukan base64 keystore."
+            exit 1
+          }
 
       - name: Cetak sidik jari sertifikat salinan assetlinks.json
         run: |
@@ -62,7 +66,7 @@ jobs:
           SHA=$(sha256sum "bem-ft-unaya-$VERSION.apk" | cut -d' ' -f1)
           TAG="apk-v$VERSION"
           NOTES="APK cangkang (Trusted Web Activity) untuk https://bem-ft-unaya.vercel.app
-SHA-256 berkas ini: $SHA"
+          SHA-256 berkas ini: $SHA"
           gh release create "$TAG" "bem-ft-unaya-$VERSION.apk" \
             --title "BEM FT UNAYA $VERSION (Android)" \
             --notes "$NOTES" \
@@ -70,4 +74,5 @@ SHA-256 berkas ini: $SHA"
           URL=$(gh release view "$TAG" --json assets -q \
             '.assets[] | select(.name|test("apk$")) | .url')
           KODE=$(curl -sIL -o /dev/null -w '%{http_code}' "$URL")
-          echo "URL unduhan: $URL (HTTP $KODE)"
+          echo "URL unduhan (tempel di URL_APK): $URL (HTTP $KODE)"
+          test "$KODE" = "200"
