@@ -38,6 +38,16 @@ const PESAN_BUKAN_PDF =
 const pdfSah = (buffer?: Buffer): boolean =>
   Boolean(buffer && buffer.length >= 5 && buffer.subarray(0, 5).toString('latin1') === '%PDF-');
 
+/**
+ * Galat impor yang sudah membawa kalimatnya sendiri (mis. jumlah halaman lewat
+ * batas) ditampilkan apa adanya; yang lain tetap memakai kalimat baku di atas,
+ * karena admin tidak perlu tahu detail internal parser.
+ */
+const pesanGalatPdf = (error: unknown): string =>
+  error instanceof Error && (error as { kalimatAdmin?: boolean }).kalimatAdmin
+    ? error.message
+    : PESAN_PDF_TIDAK_BISA;
+
 /** Sematkan ringkasan impor ke log aktivitas supaya AudtLog tetap menangkap
  * siapa, kapan, dan berapa yg dibuat/dilewati/gagal. */
 const catatImporMassal = async (
@@ -91,7 +101,7 @@ export const pratinjauImpor = async (req: any, res: Response, next: NextFunction
         '[impor mahasiswa] Gagal membaca PDF:',
         error instanceof Error ? error.message : error
       );
-      res.status(400).json({ message: PESAN_PDF_TIDAK_BISA });
+      res.status(400).json({ message: pesanGalatPdf(error) });
       return;
     }
 
@@ -153,7 +163,7 @@ export const simpanImpor = async (req: any, res: Response, next: NextFunction): 
         '[impor mahasiswa] Gagal membaca PDF:',
         error instanceof Error ? error.message : error
       );
-      res.status(400).json({ message: PESAN_PDF_TIDAK_BISA });
+      res.status(400).json({ message: pesanGalatPdf(error) });
       return;
     }
 

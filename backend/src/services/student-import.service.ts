@@ -105,6 +105,26 @@ export interface HasilParsing {
 const POLA_NIM = /^\d{8}[A-Za-z]?$/;
 
 /**
+ * Batas jumlah halaman PDF impor (keputusan pemilik, AUDIT-13).
+ *
+ * Diperiksa SEKALI pada numPages sebelum loop halaman, jadi dokumen yang terlalu
+ * panjang ditolak dalam milidetik (terukur 11-15 ms) dan loop `1..numPages` tidak
+ * pernah jalan. Skala nyata terukur pada PDF akademik: 34,2 baris/halaman, jadi
+ * 6001 mahasiswa hanya butuh ~176 halaman; 2.000 halaman = ~58.000 mahasiswa dan
+ * loop halaman pada materi serupa terukur 11,5 ms/halaman (~23 s untuk 2.000
+ * halaman, ~10 menit untuk 50.000) — itulah yang dibayar di depan pagar ini.
+ */
+export const BATAS_HALAMAN_PDF = 2000;
+
+/**
+ * Galat yang kalimatnya sudah adres untuk admin, jadi controller boleh
+ * menampilkannya apa adanya. Galat lain tetap memakai kalimat baku yang sudah ada
+ * ("PDF tidak dapat dibaca"), yang memang benar untuk kegagalan parser.
+ */
+const galatKalimatAdmin = (pesan: string): Error =>
+  Object.assign(new Error(pesan), { kalimatAdmin: true });
+
+/**
  * Pola baris data pada PDF akademik: "Nama | NIM | Program Studi".
  * Nama dan NIM boleh tertukar urutannya, pemisahnya pipa atau spasi.
  * Hanya tiga program studi teknik yang dikenali, sama seperti seed.
@@ -136,6 +156,17 @@ async function bacaIsiPdf(buffer: Buffer): Promise<string> {
     verbosity: 0,
   });
   const dokumen = await tugas.promise;
+
+  // Seharga satu properti: numPages sudah tersedia dari header PDF, jadi
+  // dokumen 2.001 halaman berhenti di sini, bukan setelah ~23 s mem-parse
+  // seluruh halaman (11,5 ms/halaman terukur pada PDF akademik nyata).
+  if (dokumen.numPages > BATAS_HALAMAN_PDF) {
+    await dokumen.destroy();
+    throw galatKalimatAdmin(
+      `PDF ini punya ${dokumen.numPages} halaman, padahal impor mahasiswa dibatasi ${BATAS_HALAMAN_PDF} halaman. ` +
+        'Bagi berkasnya per angkatan atau per program studi, lalu unggah ulang.'
+    );
+  }
 
   const baris: string[] = [];
   for (let nomor = 1; nomor <= dokumen.numPages; nomor++) {
