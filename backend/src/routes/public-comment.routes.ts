@@ -16,7 +16,7 @@ import {
 } from '../controllers/public-comment.controller';
 import { requireAuth, requireRole } from '../middlewares/auth.middleware';
 import { OFFICER_ROLES } from '../lib/ticket-access';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 // Laporan publik tidak butuh login, jadi dibatasi per IP agar tidak dipakai
 // untuk membanjiri antrean moderasi.
@@ -26,6 +26,18 @@ const batasLaporan = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { message: 'Terlalu banyak laporan dari perangkat ini. Coba lagi nanti.' },
+});
+
+// Laporan dari akun yang login menyebar satu baris Notification ke SEMUA admin
+// (terukur: 5 laporan satu akun = 755 baris), jadi dibatasi juga — per PENGGUNA,
+// bukan per IP, karena seluruh kampus berbagi satu alamat keluar.
+const batasLaporanLogin = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  keyGenerator: (req: any) => req.user?.id || ipKeyGenerator(req.ip),
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { message: 'Terlalu banyak laporan dari akun ini. Coba lagi nanti.' },
 });
 
 // Pengiriman komentar tamu juga dibatasi per IP: tanpa ini siapa pun bisa
@@ -63,7 +75,7 @@ router.get('/', getPublicComments);  router.post('/', batasKomentar, createComme
 router.get('/:commentId/replies', ...pengelola, getRepliesForComment);
 router.patch('/:commentId/replies/:replyId', ...pengelola, updateReply);
 router.delete('/:commentId/replies/:replyId', ...pengelola, deleteReply);
-router.post('/:commentId/report', requireAuth, reportComment);
+router.post('/:commentId/report', requireAuth, batasLaporanLogin, reportComment);
 // Tombol "Laporkan" untuk pengunjung tanpa akun di halaman buku tamu publik.
 router.post('/:commentId/laporkan', batasLaporan, laporkanKomentarPublik);
 

@@ -460,6 +460,23 @@ async function main(): Promise<void> {
     NAMA_ENV_UJI === 'UJI_BOLEH_PRODUKSI' && NAMA_ENV_TULIS === 'TULIS_BOLEH_JAUH'
   );
 
+  console.log('\n=== C1. Laporan komentar ber-login punya limiter per pengguna ===\n');
+
+  {
+    // Rantainya yang diuji, bukan perilaku express-rate-limit (sudah terbukti
+    // HTTP: laporan ke-11 dibalas 429 di staging). Dua assert sumber ini jatuh
+    // kalau limiter itu dilepas atau berkuncinya dipindah kembali ke IP.
+    const sumber = readFileSync(resolve(__dirname, '../routes/public-comment.routes.ts'), 'utf8');
+    uji(
+      'POST /:commentId/report memakai limiter setelah requireAuth dan sebelum controller',
+      /router\.post\('\/:commentId\/report',\s*requireAuth,\s*batasLaporanLogin,\s*reportComment\)/.test(sumber)
+    );
+    uji(
+      'limiter laporan login berkunci id pengguna, bukan IP kampus yang dibagi bersama',
+      /batasLaporanLogin[\s\S]{0,400}keyGenerator: \(req: any\) => req\.user\?\.id \|\| ipKeyGenerator\(req\.ip\)/.test(sumber)
+    );
+  }
+
   console.log(`\n--- RINGKASAN UNIT TEST ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
   if (gagal.length > 0) {
     console.log('GAGAL:');
