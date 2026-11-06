@@ -441,7 +441,7 @@ export default function CMSManager() {
                         {jumlah} FOTO
                       </span>
                     )}
-                    <div className="absolute inset-0 flex items-center justify-center gap-2 transition-opacity opacity-0 bg-black/40 group-hover:opacity-100">
+                    <div className="absolute inset-0 flex items-center justify-center gap-2 transition-opacity opacity-0 bg-black/40 group-hover:opacity-100 group-focus-within:opacity-100">
                       <button onClick={() => openEditGallery(item)} className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-gray-800 dark:text-gray-100 bg-white dark:bg-gray-900 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"><Pencil className="w-4 h-4" /> Edit</button>
                       <button onClick={() => handleDelete(item.id, 'GALERI')} className="flex items-center gap-2 px-3 py-2 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700"><Trash2 className="w-4 h-4" /></button>
                     </div>
