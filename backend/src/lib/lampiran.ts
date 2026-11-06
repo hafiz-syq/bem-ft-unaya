@@ -121,7 +121,13 @@ export const simpanLampiran = async (file: Express.Multer.File): Promise<HasilLa
     } else {
       try {
         webp = await keWebp(isi);
-      } catch {
+      } catch (error) {
+        // Penyebab asli sharp harus tercatat: galat 400 tidak melewati cabang
+        // pencatatan app.ts. Teks untuk klien sengaja tidak berubah.
+        console.error(
+          `[webp] konversi gagal untuk "${nama}":`,
+          error instanceof Error ? error.message : error
+        );
         throw galatLampiran(
           `Gambar "${nama}" tidak dapat diproses. Gunakan JPG, PNG, WEBP, HEIC, atau format gambar lain (bukan SVG).`,
           400

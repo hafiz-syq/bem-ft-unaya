@@ -47,7 +47,7 @@ import { processRequest } from '../controllers/data-request.controller';
 import { getAuditLogs } from '../controllers/audit.controller';
 import { loginSchema } from '../controllers/auth.controller';
 import { EKSTENSI_DOKUMEN, ekstensiDokumen } from '../middlewares/upload.middleware';
-import { namaAman } from '../lib/lampiran';
+import { namaAman, simpanLampiran } from '../lib/lampiran';
 import { hostTidakAman, unduh } from '../lib/http';
 import { pangkasRetensi } from '../services/retensi.service';
 import { nomorTiketBerikutnya, setTicketModeration } from '../controllers/ticket.controller';
@@ -58,6 +58,8 @@ import { getNotifications } from '../controllers/notification.controller';
 import prisma from '../lib/prisma';
 import { konversiGambarKeWebp, UPLOAD_LIMITS } from '../middlewares/upload.middleware';
 import sharp from 'sharp';
+import { simpanGambarMedia } from '../lib/gambar-media';
+import { simpanFotoProfil } from '../lib/foto-profil';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -619,6 +621,75 @@ async function main(): Promise<void> {
         foto.mimetype === 'image/webp' &&
         foto.size <= UPLOAD_LIMITS.foto
     );
+  }
+
+  console.log('\n=== E1. Penyebab galat sharp tercatat di SEMUA situs konversi gambar ===\n');
+
+  {
+    // Empat situs menyimpan gambar dengan pola try/catch yang sama. Middleware
+    // sudah ditutup di D2; tiga sisanya (galeri/cover, lampiran, foto profil)
+    // membuang penyebab asli sharp dan melempar galat ber-status 400, jadi
+    // cabang pencatatan app.ts (hanya untuk >=500) tidak pernah menyentuhnya.
+    // Semua dipanggil langsung tanpa DB & tanpa Cloudinary: kegagalan terjadi
+    // sebelum jalur unggah/disk.
+    const PESAN_LAMA =
+      'Gambar "uji-e1.png" tidak dapat diproses. Gunakan JPG, PNG, WEBP, HEIC, atau format gambar lain (bukan SVG).';
+    const bahanRusak = Buffer.from('ini sama sekali bukan gambar\n'.repeat(10));
+    const situs: { nama: string; label: string; jalan: () => Promise<unknown> }[] = [
+      {
+        nama: 'lib/gambar-media.ts (galeri & cover CMS)',
+        label: '[webp]',
+        jalan: () =>
+          simpanGambarMedia({
+            buffer: bahanRusak,
+            mimetype: 'image/png',
+            originalname: 'uji-e1.png',
+          } as any),
+      },
+      {
+        nama: 'lib/lampiran.ts (lampiran tiket & arsip dokumen)',
+        label: '[webp]',
+        jalan: () =>
+          simpanLampiran({
+            buffer: bahanRusak,
+            mimetype: 'image/png',
+            originalname: 'uji-e1.png',
+          } as any),
+      },
+      {
+        nama: 'lib/foto-profil.ts (foto profil, jalur AVIF)',
+        label: '[avif]',
+        jalan: () =>
+          simpanFotoProfil({
+            buffer: bahanRusak,
+            originalname: 'uji-e1.png',
+          }),
+      },
+    ];
+
+    const consoleErrorAsli = console.error;
+    for (const situsItem of situs) {
+      const catatanLog: string[] = [];
+      console.error = (...argumen: unknown[]) => catatanLog.push(argumen.map(String).join(' '));
+      let galat: any;
+      try {
+        await situsItem.jalan();
+      } catch (e) {
+        galat = e;
+      }
+      console.error = consoleErrorAsli;
+
+      uji(
+        `${situsItem.nama}: teks klien byte-identik dengan kalimat lama dan tetap 400`,
+        galat?.message === PESAN_LAMA && galat?.statusCode === 400
+      );
+      uji(
+        `${situsItem.nama}: penyebab asli sharp sampai ke log server`,
+        catatanLog.some(
+          (s) => s.includes(situsItem.label) && /unsupported image format|exceeds pixel limit/i.test(s)
+        )
+      );
+    }
   }
 
   console.log(`\n--- RINGKASAN UNIT TEST ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);

@@ -54,7 +54,14 @@ export const simpanGambarMedia = async (
   let webp: Buffer;
   try {
     webp = await keWebp(sumber);
-  } catch {
+  } catch (error) {
+    // Penyebab asli sharp (mis. "Input image exceeds pixel limit") harus sampai
+    // ke log server: galat di bawah membawa statusCode 400, jadi app.ts tidak
+    // pernah mencatatnya. Teks untuk klien sengaja tidak berubah.
+    console.error(
+      `[webp] konversi gagal untuk "${file.originalname ?? 'yang diunggah'}":`,
+      error instanceof Error ? error.message : error
+    );
     const err: any = new Error(
       `Gambar "${file.originalname ?? 'yang diunggah'}" tidak dapat diproses. Gunakan JPG, PNG, WEBP, HEIC, atau format gambar lain (bukan SVG).`
     );

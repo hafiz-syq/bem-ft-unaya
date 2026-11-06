@@ -62,7 +62,13 @@ export const simpanFotoProfil = async (file: {
   let avif: Buffer;
   try {
     avif = await ubahFotoKeAvif(file.buffer);
-  } catch {
+  } catch (error) {
+    // Penyebab asli sharp harus tercatat: galat 400 tidak melewati cabang
+    // pencatatan app.ts. Teks untuk klien sengaja tidak berubah.
+    console.error(
+      `[avif] konversi gagal untuk "${file.originalname ?? 'yang diunggah'}":`,
+      error instanceof Error ? error.message : error
+    );
     throw galatFoto(
       `Gambar "${file.originalname ?? 'yang diunggah'}" tidak dapat diproses. Gunakan JPG, PNG, WEBP, HEIC, atau format gambar lain (bukan SVG).`,
       400
