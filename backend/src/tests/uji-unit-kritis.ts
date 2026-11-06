@@ -477,6 +477,32 @@ async function main(): Promise<void> {
     );
   }
 
+  console.log('\n=== D3. Batas ukuran punya angka untuk semua field unggahan ===\n');
+
+  {
+    // Perilaku aslinya terbukti lewat HTTP di staging (6 kasus: images, file,
+    // foto, tiket, dokumen, impor). Assert sumber ini menjaga agar kunci
+    // "images" tidak dilepas lagi sehingga pesan kembali tanpa angka.
+    const sumber = readFileSync(resolve(__dirname, '../app.ts'), 'utf8');
+    uji(
+      'field "images" dipetakan ke kunci UPLOAD_LIMITS yang benar',
+      /const kunciBatas = err\.field === 'images' \? 'file' : err\.field;[\s\S]{0,220}\[kunciBatas\]/.test(sumber)
+    );
+    uji(
+      'setiap nama field multer di routes punya kunci batas',
+      (() => {
+        const batasSrc = readFileSync(resolve(__dirname, '../middlewares/upload.middleware.ts'), 'utf8');
+        const kunci = new Set(
+          (batasSrc.match(/^\s{2}(\w+): \d+ \* 1024 \* 1024/mg) || []).map((s) => s.trim().split(':')[0])
+        );
+        // "dokumen" & "pdfImpor" dibaca lewat cabang URL, "images" lewat kunciBatas.
+        const field = ['foto', 'file', 'images'];
+        const adaLangsung = field.filter((f) => kunci.has(f));
+        return adaLangsung.includes('foto') && adaLangsung.includes('file') && sumber.includes("'images' ? 'file'");
+      })()
+    );
+  }
+
   console.log(`\n--- RINGKASAN UNIT TEST ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
   if (gagal.length > 0) {
     console.log('GAGAL:');

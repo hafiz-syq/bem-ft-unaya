@@ -229,11 +229,16 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     // dan lampiran/cover biasa (file). Jalur permintaan menentukan angkanya.
     const imporPdf = /\/students\/import\//.test(String(req.originalUrl || req.url || ''));
     const arsipDokumen = /\/documents(?:\/|$)/.test(String(req.originalUrl || req.url || ''));
+    // Field "images" (galeri & cover CMS) tidak punya kunci sendiri di
+    // UPLOAD_LIMITS: kedua instance multer yang menerimanya
+    // (uploadGambarMemori & uploadAttachment) membatasi fileSize dengan
+    // UPLOAD_LIMITS.file, jadi angkanya dibaca dari kunci itu.
+    const kunciBatas = err.field === 'images' ? 'file' : err.field;
     const batas = imporPdf
       ? UPLOAD_LIMITS.pdfImpor
       : arsipDokumen
         ? UPLOAD_LIMITS.dokumen
-        : (UPLOAD_LIMITS as Record<string, number>)[err.field];
+        : (UPLOAD_LIMITS as Record<string, number>)[kunciBatas];
     const pesanMulter: Record<string, string> = {
       LIMIT_FILE_SIZE: batas
         ? `Ukuran file terlalu besar. Maksimal ${Math.round(batas / 1024 / 1024)} MB.`
