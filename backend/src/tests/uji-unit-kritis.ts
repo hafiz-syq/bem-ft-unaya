@@ -63,6 +63,8 @@ import { konversiGambarKeWebp, UPLOAD_LIMITS } from '../middlewares/upload.middl
 import sharp from 'sharp';
 import { simpanGambarMedia } from '../lib/gambar-media';
 import { simpanFotoProfil } from '../lib/foto-profil';
+import { requireAdmin } from '../controllers/student.controller';
+import mahasiswaRouter from '../routes/student.routes';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -695,6 +697,47 @@ async function main(): Promise<void> {
       );
     }
   }
+
+  console.log('\n=== M. Pengelolaan akun mahasiswa khusus admin (AUDIT-14 I1) ===\n');
+
+  const layerStatus = (mahasiswaRouter as any).stack?.find(
+    (l: any) => l.route?.path === '/:id/status' && l.route?.methods?.patch
+  );
+  const tumpukanStatus: any[] = layerStatus?.route?.stack ?? [];
+
+  uji(
+    'M1 tumpukan rute PATCH /:id/status memuat requireAdmin sebagai fungsi middleware (bukan hanya teks sumber)',
+    tumpukanStatus.some((h) => h.handle === requireAdmin)
+  );
+
+  uji(
+    'M2 handler terakhir PATCH /:id/status tetap updateStudentStatus, jadi perbaikannya hanya di tumpukan',
+    tumpukanStatus.length > 0 &&
+      tumpukanStatus[tumpukanStatus.length - 1]?.handle?.name === 'updateStudentStatus'
+  );
+
+  const cobaRequireAdmin = (role: string) => {
+    let kode: number | undefined;
+    let diteruskan = false;
+    requireAdmin(
+      { user: { role } } as any,
+      { status: (c: number) => { kode = c; return { json: () => undefined }; } } as any,
+      () => { diteruskan = true; }
+    );
+    return { kode, diteruskan };
+  };
+
+  const pengurus = cobaRequireAdmin('PENGURUS_TEKNIK_SIPIL');
+  uji(
+    'M3 requireAdmin menolak pengurus prodi lain dengan 403 tanpa memanggil next()',
+    pengurus.kode === 403 && !pengurus.diteruskan
+  );
+
+  const admin = cobaRequireAdmin('ADMIN');
+  uji(
+    'M4 requireAdmin meloloskan ADMIN ke next() tanpa menyentuh res.status',
+    admin.diteruskan && admin.kode === undefined
+  );
 
   console.log(`\n--- RINGKASAN UNIT TEST ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
   if (gagal.length > 0) {

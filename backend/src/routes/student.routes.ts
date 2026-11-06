@@ -46,7 +46,9 @@ router.get('/', requireAuth, getStudents);
 router.post('/', requireOfficer, requireAdmin, createStudent);
 // Tambah akun administrator baru, khusus SUPERADMIN.
 router.post('/admin', requireRole(['SUPERADMIN']), createAdminAccount);
-router.patch('/:id/status', requireOfficer, updateStudentStatus);
+// Menonaktifkan akun = dampak ketersediaan lintas prodi, jadi khusus admin
+// seperti saudaranya di bawah; tombolnya pun sudah hanya muncul untuk admin.
+router.patch('/:id/status', requireOfficer, requireAdmin, updateStudentStatus);
 // Perpanjangan masa studi & geser tenggat hapus: hanya admin, karena menyangkut
 // keberadaan akun.
 router.patch('/:id/perpanjangan', requireOfficer, requireAdmin, perpanjangAkun);
