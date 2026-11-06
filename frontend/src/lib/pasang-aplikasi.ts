@@ -37,7 +37,7 @@ const daftarPengamat = new Set<Pengamat>();
 const beriTahu = (): void => daftarPengamat.forEach((pengamat) => pengamat());
 
 /** Safari Apple tidak mengenal beforeinstallprompt; pemasangannya lewat Bagikan. */
-const adalahIOS = (): boolean =>
+export const adalahIOS = (): boolean =>
   /iPad|iPhone|iPod/.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 

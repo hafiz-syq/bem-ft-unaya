@@ -1,6 +1,6 @@
 import { useState, useSyncExternalStore } from 'react';
 import { CheckCircle2, Download, Loader2, Smartphone } from 'lucide-react';
-import { berlanggananMode, mintaPasang, modeSaatIni, terpasangSaatIni } from '../lib/pasang-aplikasi';
+import { berlanggananMode, adalahIOS, mintaPasang, modeSaatIni, terpasangSaatIni } from '../lib/pasang-aplikasi';
 
 /**
  * Halaman khusus "cara memasang portal ini sebagai aplikasi" (PWA).
@@ -51,6 +51,9 @@ export default function PasangAplikasi() {
   // Snapshot 'sembunyi'/'false' saat build: status hanya boleh dibaca di klien.
   const mode = useSyncExternalStore(berlanggananMode, modeSaatIni, () => 'sembunyi' as const);
   const terpasang = useSyncExternalStore(berlanggananMode, terpasangSaatIni, () => false);
+  // Snapshot server = false (baris dirender): hanya Landing yang ikut di-prerender, jadi
+  // nilai server ini tidak pernah masuk HTML yang dikirim ke user mana pun.
+  const ios = useSyncExternalStore(berlanggananMode, adalahIOS, () => false);
   const [sibuk, setSibuk] = useState(false);
   const [hasil, setHasil] = useState<'accepted' | 'dismissed' | undefined>(undefined);
 
@@ -120,8 +123,9 @@ export default function PasangAplikasi() {
         </p>
       )}
 
-      {/* Berkas APK (cangkang TWA) — hanya muncul setelah Release pertama terbit. */}
-      {URL_APK && (
+      {/* Berkas APK (cangkang TWA) — hanya muncul setelah Release pertama terbit, dan
+          hanya di non-iOS: tidak ada berkas iOS yang bisa diunduh, tombolnya buntu. */}
+      {URL_APK && !ios && (
         <section className="flex flex-col gap-3 p-4 bg-white border border-gray-100 shadow-sm sm:flex-row sm:items-center sm:justify-between rounded-xl dark:bg-gray-900 dark:border-gray-800">
           <div className="flex items-start gap-3">
             <span className="flex items-center justify-center w-10 h-10 rounded-lg shrink-0 bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300">
