@@ -155,11 +155,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
    * maupun admin, sehingga role pengurus baru otomatis ikut terdaftar.
    */
   const menuItems = [
+    //Tampilan yang hanya dapat dilihat oleh pengguna Mahasiswa
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, show: true },
     { name: 'Profil Saya', path: '/profile', icon: UserCircle, show: true },
     { name: 'Perubahan Data', path: '/data-requests', icon: FileEdit, show: true },
-    
-    
     // Buku tamu terbuka untuk semua role; mahasiswa hanya bisa membaca,
     // tombol moderasi & balasan hanya muncul untuk pengurus dan admin.
     { name: 'Buku Tamu', path: '/buku-tamu', icon: MessageSquare, show: true },
@@ -168,23 +167,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // membuat/membuka ruang pertama.
     { name: 'Forum Diskusi', path: '/forum', icon: MessagesSquare, show: bolehKelolaForum || forumTerbuka },
     { name: 'Pengumuman', path: '/pengumuman', icon: Megaphone, show: true },
-    { name: 'Arsip Surat', path: '/dokumen', icon: FolderArchive, show: bolehArsip },
     // Direktori mahasiswa terbuka untuk semua akun yang login; mahasiswa
     // menerima data terbatas dari server (tanpa email/telepon/status akun).
     { name: 'Data Mahasiswa', path: '/students', icon: Users, show: true },
     { name: 'Aspirasi & Keluhan', path: '/tickets', icon: MessageSquareWarning, show: true },
+    { name: 'FAQ', path: '/faq', icon: HelpCircle, show: true },
+    // Halaman cara pasang portal sebagai aplikasi (PWA) untuk semua akun.
+    { name: 'Pasang Aplikasi', path: '/pasang-aplikasi', icon: Download, show: true },
+
+    //Halaman Arsip hanya bisa dibuka oleh SuperAdmin/Admin/Pengururs DPM
+    { name: 'Arsip Surat', path: '/dokumen', icon: FolderArchive, show: bolehArsip },
     { name: 'Perangkat & Sesi', path: '/devices', icon: Smartphone, show: isAdminRole(role) },
     { name: 'Master Organisasi', path: '/organizations', icon: Building2, show: isAdminRole(role) },
     { name: 'Kepengurusan', path: '/positions', icon: UserPlus, show: isAdminRole(role) },
     
     { name: 'Konten Web Publik', path: '/cms', icon: Globe, show: isStaff(role) },
     { name: 'Komentar Galeri', path: '/galeri-komentar', icon: Images, show: isStaff(role) },
-    { name: 'FAQ', path: '/faq', icon: HelpCircle, show: true },
-    // Halaman cara pasang portal sebagai aplikasi (PWA) untuk semua akun.
-    { name: 'Pasang Aplikasi', path: '/pasang-aplikasi', icon: Download, show: true },
+    
     { name: 'Tema Musiman', path: '/tema-musiman', icon: Palette, show: role === ROLE_SUPERADMIN },
     { name: 'Audit Log', path: '/audit', icon: Activity, show: isAdminRole(role) },
     { name: 'Pemantauan', path: '/pemantauan', icon: ShieldAlert, show: isAdminRole(role) },
+    
+    
     
   ];
 
