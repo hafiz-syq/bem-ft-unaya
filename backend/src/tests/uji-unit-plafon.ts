@@ -2,7 +2,8 @@
  * Unit test plafon AUDIT-13 — tanpa server & tanpa database.
  *
  *   K. Plafon dimensi inside 3200 pada jalur konversi WebP (H1): bahan 60 MP,
- *      kontrol byte-identik untuk gambar <= plafon, dan pagar byte pasca-konversi.
+ *      kontrol byte-identik untuk gambar <= plafon, pagar byte pasca-konversi,
+ *      dan K(d) mengunci EXIF orientation 6 + sisi di atas plafon = potret (J1).
  *   L. Batas 2.000 halaman PDF impor mahasiswa (H2): penolakan terjadi SEBELUM
  *      loop halaman, data di bawah batas tetap terekstrak sama, dan kalimat
  *      barunya sampai ke klien lewat pratinjauImpor sebagai 400.
@@ -118,6 +119,48 @@ async function main(): Promise<void> {
     uji(
       'K(c): artefak > 5 MB pada dimensi <= plafon tetap ditolak dengan LIMIT_FILE_SIZE (pagar D1 masih bekerja)',
       hasilBising.galat?.code === 'LIMIT_FILE_SIZE' && (await tanpaPlafon(bising)).length > UPLOAD_LIMITS.file
+    );
+
+    // K(d) — AUDIT-15 J1. Kamera HP menyimpan foto potret sebagai kanvas
+    // landscape + EXIF orientation 6/8, jadi sisi TERPANJANG ada di sumbu X
+    // SEBELUM rotasi. Bila .rotate() hilang (atau dipindah ke belakang sebuah
+    // resize yang plafonnya hanya satu sumbu), 3200 memotong sumbu yang salah
+    // dan foto potret keluar sebagai landscape. Kontrol `tanpaRotasi` di bawah
+    // membuktikan assertion ini membedakan kedua keadaan, bukan selalu benar.
+    const mulaiKd = Date.now();
+    const rawPotret = Buffer.alloc(4032 * 3024 * 3);
+    for (let y = 0; y < 3024; y++)
+      rawPotret.fill(40 + Math.floor((y / 3024) * 6) * 30, y * 4032 * 3, (y + 1) * 4032 * 3);
+    const bahanPotret = await sharp(rawPotret, { raw: { width: 4032, height: 3024, channels: 3 } })
+      .withMetadata({ orientation: 6 })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+
+    const hasilPotret = await unggah(bahanPotret, 'uji-k-d.jpg');
+    const metaPotret = await sharp(hasilPotret.berkas.buffer).metadata();
+    const metaBahan = await sharp(bahanPotret).metadata();
+    const tanpaRotasi = await sharp(bahanPotret, { failOn: 'none' })
+      .resize({ width: 3200, height: 3200, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 82, effort: 4 })
+      .toBuffer();
+    const metaTanpaRotasi = await sharp(tanpaRotasi).metadata();
+    const msKd = Date.now() - mulaiKd;
+    uji(
+      `K(d): EXIF orientation=${metaBahan.orientation} + 4032 di ATAS plafon -> POTRET ${metaPotret.width}x${metaPotret.height} ` +
+        `(sisi terpanjang vertikal 3200), orientasi tidak terbawa, bahan ${(bahanPotret.length / 1024).toFixed(1)} KB -> ` +
+        `${(hasilPotret.berkas.size / 1024).toFixed(1)} KB dalam ${msKd} ms [kontrol tanpa .rotate(): ` +
+        `${metaTanpaRotasi.width}x${metaTanpaRotasi.height}]`,
+      hasilPotret.galat === undefined &&
+        metaBahan.orientation === 6 &&
+        metaPotret.orientation === undefined &&
+        metaPotret.height === 3200 &&
+        metaPotret.width === 2400 &&
+        // kontrol yang sama tanpa .rotate() WAJIB landscape: tanpa baris ini
+        // test-nya buta terhadap urutan rantai.
+        metaTanpaRotasi.width === 3200 &&
+        metaTanpaRotasi.height === 2400 &&
+        bahanPotret.length < 200_000 &&
+        msKd < 5000
     );
   }
 
