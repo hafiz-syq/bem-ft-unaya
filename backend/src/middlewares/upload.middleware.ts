@@ -93,6 +93,12 @@ export const uploadGambarMemori = multer({
 //
 // PDF tidak disentuh: hanya lampiran tiket yang boleh PDF.
 
+// Plafon dimensi jalur konversi tanpa-resize (keputusan pemilik, AUDIT-13).
+// Alasannya terukur: papan-catur 2-D 60 MP masuk 72 KB keluar 13,29 MB dengan
+// +661 MB RSS dan ~3,0 s CPU SEBELUM pagar byte di bawah menolak; di dalam 3200
+// artefak yang sama keluar ~401 KB dengan +63 MB. Gambar <= 3200 tidak disentuh.
+const SISI_MAKSIMAL_KONVERSI = 3200;
+
 const kumpulanFile = (req: any): Express.Multer.File[] => {
   const hasil: Express.Multer.File[] = [];
   if (req.file) hasil.push(req.file);
@@ -121,6 +127,12 @@ const konversiSatuGambar = async (file: Express.Multer.File, batasUkuran?: numbe
       limitInputPixels: 60_000_000,
     })
       .rotate() // menghormati orientasi EXIF dari kamera HP
+      .resize({
+        width: SISI_MAKSIMAL_KONVERSI,
+        height: SISI_MAKSIMAL_KONVERSI,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
       .webp({ quality: 82, effort: 4 })
       .toBuffer();
   } catch (error) {

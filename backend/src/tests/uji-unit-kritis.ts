@@ -23,6 +23,9 @@
  *   J. Keputusan "host ini boleh ditulis?" — satu sumber kebenaran untuk penahan
  *      suite uji DAN jalur tulis non-tes (skrip src/scripts, prisma migrate / db push).
  *
+ * Plafon AUDIT-13 (konversi WebP inside 3200 dan batas 2.000 halaman PDF impor)
+ * diuji di berkas sendiri: uji-unit-plafon.ts, agar berkas ini tidak membengkak.
+ *
  * Jalankan: npm run test:unit   (dari folder backend)
  */
 
@@ -549,7 +552,8 @@ async function main(): Promise<void> {
   {
     // Perilaku sungguhan, tanpa DB & tanpa Cloudinary.
     // Bahan: kotak-catur 4000x3000 (12 MP). PNG-nya hanya ~185 KB, tetapi
-    // WebP q82 hasil konversi terukur ~2,57 MB — lebih besar dari
+    // WebP q82 hasil konversi terukur ~3,94 MB sejak plafon 3200 (penurunan
+    // 4000->3200 pada pola kaku memunculkan moire) — tetap lebih besar dari
     // UPLOAD_LIMITS.foto (2 MB). Rasio ekspansi ditentukan pemakai, jadi yang
     // ditahan adalah ukuran hasil konversi, bukan hanya berkas yang masuk.
     const lebar = 4000;
