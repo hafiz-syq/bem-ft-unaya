@@ -56,7 +56,8 @@ import { cookieHarusSecure } from '../lib/cookies';
 import { NAMA_ENV_TULIS, NAMA_ENV_UJI, adalahHostLokal, optInDinyalakan, sembunyikanKredensial } from '../lib/penahan-host';
 import { getNotifications } from '../controllers/notification.controller';
 import prisma from '../lib/prisma';
-import { konversiGambarKeWebp } from '../middlewares/upload.middleware';
+import { konversiGambarKeWebp, UPLOAD_LIMITS } from '../middlewares/upload.middleware';
+import sharp from 'sharp';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -538,6 +539,85 @@ async function main(): Promise<void> {
     uji(
       'penyebab asli sharp tetap sampai ke log server (tidak lagi dibuang)',
       catatanLog.some((s) => s.includes('[webp]') && /unsupported image format|exceeds pixel limit/i.test(s))
+    );
+  }
+
+  console.log('\n=== D1. Artefak hasil konversi tidak boleh melebihi batas jalur ===\n');
+
+  {
+    // Perilaku sungguhan, tanpa DB & tanpa Cloudinary.
+    // Bahan: kotak-catur 4000x3000 (12 MP). PNG-nya hanya ~185 KB, tetapi
+    // WebP q82 hasil konversi terukur ~2,57 MB — lebih besar dari
+    // UPLOAD_LIMITS.foto (2 MB). Rasio ekspansi ditentukan pemakai, jadi yang
+    // ditahan adalah ukuran hasil konversi, bukan hanya berkas yang masuk.
+    const lebar = 4000;
+    const tinggi = 3000;
+    const blok = (warna: number) => Buffer.alloc(6, warna); // 2 piksel satu warna
+    const baris = (mulaiPutih: boolean) => {
+      const bagian: Buffer[] = [];
+      for (let x = 0; x < lebar / 4; x++) {
+        bagian.push(blok(mulaiPutih ? 255 : 0), blok(mulaiPutih ? 0 : 255));
+      }
+      return Buffer.concat(bagian);
+    };
+    const barisA = baris(true);
+    const barisB = baris(false);
+    const kotakPng = await sharp(
+      Buffer.concat(Array.from({ length: tinggi }, (_, y) => (y % 4 < 2 ? barisA : barisB))),
+      { raw: { width: lebar, height: tinggi, channels: 3 } }
+    )
+      .png()
+      .toBuffer();
+
+    const berkas = {
+      buffer: kotakPng,
+      mimetype: 'image/png',
+      originalname: 'uji-d1.png',
+      fieldname: 'foto',
+      size: kotakPng.length,
+    };
+    const galat: any = await new Promise((selesai) =>
+      konversiGambarKeWebp({ files: { foto: [berkas] } } as any, {} as any, selesai as any, UPLOAD_LIMITS.foto)
+    );
+
+    uji(
+      'artefak WebP di atas batas jalur ditolak dengan galat multer yang sudah ada',
+      galat?.name === 'MulterError' && galat?.code === 'LIMIT_FILE_SIZE' && galat?.field === 'foto'
+    );
+    uji(
+      'berkas yang ditolak tidak diganti, jadi artefak besarnya tidak sampai ke Cloudinary',
+      berkas.mimetype === 'image/png' && berkas.buffer.equals(kotakPng)
+    );
+
+    // Kontrol: gambar wajar tetap lolos dan memang berubah menjadi WebP.
+    const gradasi = Buffer.alloc(1200 * 800 * 3);
+    for (let y = 0; y < 800; y++) {
+      for (let x = 0; x < 1200; x++) {
+        const i = (y * 1200 + x) * 3;
+        gradasi[i] = Math.round((x * 255) / 1199);
+        gradasi[i + 1] = Math.round((y * 255) / 799);
+        gradasi[i + 2] = Math.round(((x + y) * 255) / 1999);
+      }
+    }
+    const fotoJpg = await sharp(gradasi, { raw: { width: 1200, height: 800, channels: 3 } })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    const foto = {
+      buffer: fotoJpg,
+      mimetype: 'image/jpeg',
+      originalname: 'uji-d1-foto.jpg',
+      fieldname: 'foto',
+      size: fotoJpg.length,
+    };
+    const hasilFoto: any = await new Promise((selesai) =>
+      konversiGambarKeWebp({ files: { foto: [foto] } } as any, {} as any, selesai as any, UPLOAD_LIMITS.foto)
+    );
+
+    uji(
+      'gambar wajar tetap lolos dan hasilnya WebP di bawah batas',
+      hasilFoto === undefined &&
+        foto.mimetype === 'image/webp' &&
+        foto.size <= UPLOAD_LIMITS.foto
     );
   }
 

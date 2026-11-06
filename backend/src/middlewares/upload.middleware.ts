@@ -109,11 +109,12 @@ const kumpulanFile = (req: any): Express.Multer.File[] => {
   return hasil;
 };
 
-const konversiSatuGambar = async (file: Express.Multer.File): Promise<void> => {
+const konversiSatuGambar = async (file: Express.Multer.File, batasUkuran?: number): Promise<void> => {
   if (!file.buffer?.length) return;
 
+  let webp: Buffer;
   try {
-    const webp = await sharp(file.buffer, {
+    webp = await sharp(file.buffer, {
       failOn: 'none',
       // Batasi piksel agar berkas kecil yang "meledak" saat didekode tidak
       // menghabiskan memori server. 60 MP masih cukup untuk foto kamera HP.
@@ -122,11 +123,6 @@ const konversiSatuGambar = async (file: Express.Multer.File): Promise<void> => {
       .rotate() // menghormati orientasi EXIF dari kamera HP
       .webp({ quality: 82, effort: 4 })
       .toBuffer();
-
-    file.buffer = webp;
-    file.mimetype = 'image/webp';
-    file.size = webp.length;
-    file.originalname = `${path.parse(file.originalname || 'gambar').name}.webp`;
   } catch (error) {
     // Penyebab asli (mis. "Input image exceeds pixel limit") harus sampai ke
     // log server; teks untuk klien di bawah sengaja tidak berubah.
@@ -138,9 +134,27 @@ const konversiSatuGambar = async (file: Express.Multer.File): Promise<void> => {
       `Gambar "${file.originalname}" tidak dapat diproses. Gunakan JPG, PNG, WEBP, HEIC, atau format gambar lain (bukan SVG).`
     );
   }
+
+  // WebP lossy bisa menghasilkan artefak yang lebih BESAR dari berkas aslinya
+  // pada gambar berentropi tinggi (terukur 13,89x), sedangkan batas multer
+  // hanya menahan berkas yang masuk. Galat multer asli dipakai supaya pesan
+  // dan angkanya tetap kalimat yang sudah ada di app.ts, tanpa Cloudinary.
+  if (batasUkuran && webp.length > batasUkuran) {
+    throw new multer.MulterError('LIMIT_FILE_SIZE', file.fieldname);
+  }
+
+  file.buffer = webp;
+  file.mimetype = 'image/webp';
+  file.size = webp.length;
+  file.originalname = `${path.parse(file.originalname || 'gambar').name}.webp`;
 };
 
-export const konversiGambarKeWebp = async (req: any, res: any, next: any): Promise<void> => {
+export const konversiGambarKeWebp = async (
+  req: any,
+  res: any,
+  next: any,
+  batasUkuran?: number
+): Promise<void> => {
   const files = kumpulanFile(req);
 
   for (const file of files) {
@@ -154,7 +168,7 @@ export const konversiGambarKeWebp = async (req: any, res: any, next: any): Promi
     if (sudahWebp) continue;
 
     try {
-      await konversiSatuGambar(file);
+      await konversiSatuGambar(file, batasUkuran);
     } catch (error) {
       next(error);
       return;
@@ -165,10 +179,17 @@ export const konversiGambarKeWebp = async (req: any, res: any, next: any): Promi
 };
 
 /** Membungkus multer agar setiap gambar yang tersimpan langsung menjadi WebP. */
-export const denganWebp = (unggah: multer.Multer) => ({
-  single: (field: string) => [unggah.single(field), konversiGambarKeWebp],
-  fields: (fields: any) => [unggah.fields(fields), konversiGambarKeWebp],
-});
+export const denganWebp = (unggah: multer.Multer) => {
+  // Batas yang sudah dipaksakan multer pada jalur ini dibaca ulang, tidak
+  // ditulis kedua kali: satu angka untuk berkas masuk dan untuk hasil konversi.
+  // shortcut: instance multer tanpa limits.fileSize membuat pagar ini mati.
+  const batasUkuran: number | undefined = (unggah as any).limits?.fileSize;
+  const konversi = (req: any, res: any, next: any) => konversiGambarKeWebp(req, res, next, batasUkuran);
+  return {
+    single: (field: string) => [unggah.single(field), konversi],
+    fields: (fields: any) => [unggah.fields(fields), konversi],
+  };
+};
 
 // --- Khusus berkas PDF impor data mahasiswa ---
 // Isinya hanya dibaca sekali untuk diproses, jadi disimpan di memori dan tidak
