@@ -481,7 +481,12 @@ const BARIS: Baris[] = [
   // email/telepon/status akun), sedangkan tindakan pengelolaan tetap staf.
   { metode: 'GET', jalur: '/students', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
   { metode: 'POST', jalur: '/students', harapan: { tamu: 401, mahasiswa: 403 } },
-  { metode: 'PATCH', jalur: '/students/:id/status', harapan: { tamu: 401, mahasiswa: 403 } },
+  {
+    metode: 'PATCH',
+    jalur: '/students/:id/status',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 },
+    catatan: 'nonaktif/aktifkan akun khusus ADMIN sejak AUDIT-14 I1; sebelumnya pengurus lolos ke handler (404 id uji) dan bisa menulis akun mana pun',
+  },
   { metode: 'PATCH', jalur: '/students/:id/perpanjangan', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
   { metode: 'PATCH', jalur: '/students/:id/role', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' } },
   {
