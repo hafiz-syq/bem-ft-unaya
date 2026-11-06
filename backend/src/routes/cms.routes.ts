@@ -25,6 +25,7 @@ const pengelola = [requireAuth, requireRole(['ADMIN', 'SUPERADMIN', ...OFFICER_R
 // Unggahan galeri boleh memuat banyak foto sekaligus (maksimal 10) dalam satu
 // postingan. Berkas ditahan di memori lalu disimpan ke Cloudinary oleh
 // controller, sehingga tidak bergantung pada filesystem server yang sementara.
+// shortcut: sengaja tanpa denganWebp — lib/gambar-media.ts sudah meng-WebP sambil resize 1600 (keluaran terbesar terukur dari masuk ≤5 MB: 1,50 MB, jadi pagar byte pasca-konversi tidak pernah mengikat); ditinjau ulang bila SISI_MAKSIMAL dinaikkan.
 const unggahGaleri = uploadGambarMemori.fields([
   { name: 'images', maxCount: 10 },
   { name: 'file', maxCount: 1 },
