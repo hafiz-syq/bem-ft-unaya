@@ -56,6 +56,7 @@ import { cookieHarusSecure } from '../lib/cookies';
 import { NAMA_ENV_TULIS, NAMA_ENV_UJI, adalahHostLokal, optInDinyalakan, sembunyikanKredensial } from '../lib/penahan-host';
 import { getNotifications } from '../controllers/notification.controller';
 import prisma from '../lib/prisma';
+import { konversiGambarKeWebp } from '../middlewares/upload.middleware';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -500,6 +501,43 @@ async function main(): Promise<void> {
         const adaLangsung = field.filter((f) => kunci.has(f));
         return adaLangsung.includes('foto') && adaLangsung.includes('file') && sumber.includes("'images' ? 'file'");
       })()
+    );
+  }
+
+  console.log('\n=== D2. Penyebab galat sharp tercatat, teks klien tetap ===\n');
+
+  {
+    // Perilaku sungguhan: konversi dijalankan tanpa DB & tanpa Cloudinary.
+    const req = {
+      files: {
+        file: [
+          {
+            buffer: Buffer.from('ini sama sekali bukan gambar\n'.repeat(10)),
+            mimetype: 'image/png',
+            originalname: 'uji-d2.png',
+            fieldname: 'file',
+            size: 290,
+          },
+        ],
+      },
+    };
+
+    const catatanLog: string[] = [];
+    const consoleErrorAsli = console.error;
+    console.error = (...argumen: unknown[]) => catatanLog.push(argumen.map(String).join(' '));
+    const galat: any = await new Promise((selesai) =>
+      konversiGambarKeWebp(req as any, {} as any, selesai as any)
+    );
+    console.error = consoleErrorAsli;
+
+    uji(
+      'konversi gagal dibalas 400 dengan kalimat lama yang tidak berubah',
+      galat?.statusCode === 400 &&
+        /Gambar "uji-d2\.png" tidak dapat diproses\. Gunakan JPG, PNG, WEBP, HEIC, atau format gambar lain \(bukan SVG\)\./.test(String(galat?.message))
+    );
+    uji(
+      'penyebab asli sharp tetap sampai ke log server (tidak lagi dibuang)',
+      catatanLog.some((s) => s.includes('[webp]') && /unsupported image format|exceeds pixel limit/i.test(s))
     );
   }
 

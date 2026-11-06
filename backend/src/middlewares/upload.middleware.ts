@@ -127,7 +127,13 @@ const konversiSatuGambar = async (file: Express.Multer.File): Promise<void> => {
     file.mimetype = 'image/webp';
     file.size = webp.length;
     file.originalname = `${path.parse(file.originalname || 'gambar').name}.webp`;
-  } catch {
+  } catch (error) {
+    // Penyebab asli (mis. "Input image exceeds pixel limit") harus sampai ke
+    // log server; teks untuk klien di bawah sengaja tidak berubah.
+    console.error(
+      `[webp] konversi gagal untuk "${file.originalname}":`,
+      error instanceof Error ? error.message : error
+    );
     throw uploadError(
       `Gambar "${file.originalname}" tidak dapat diproses. Gunakan JPG, PNG, WEBP, HEIC, atau format gambar lain (bukan SVG).`
     );
