@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import OfflineStatus from './components/OfflineStatus';
 import Landing from './pages/Landing';
+import MemuatHalaman from './components/MemuatHalaman';
 import { isAdminRole, isStaff, ROLE_SUPERADMIN } from './lib/roles';
 
 // Halaman selain landing dimuat sesuai kebutuhan. Ini memangkas JavaScript
@@ -39,16 +40,6 @@ const Faq = lazy(() => import('./pages/Faq'));
 const Demisioner = lazy(() => import('./pages/Demisioner'));
 const GalleryCommentsAdmin = lazy(() => import('./pages/GalleryCommentsAdmin'));
 const SeasonalTheme = lazy(() => import('./pages/SeasonalTheme'));
-
-/** Tampilan sementara saat potongan halaman sedang diunduh. */
-function MemuatHalaman() {
-  return (
-    <div className="flex items-center justify-center min-h-screen" role="status" aria-live="polite">
-      <span className="w-10 h-10 border-4 rounded-full border-amber-200 border-t-amber-500 animate-spin" />
-      <span className="sr-only">Memuat halaman…</span>
-    </div>
-  );
-}
 
 /**
  * Penjaga dasar: hanya memastikan pengguna sudah login.
@@ -107,6 +98,9 @@ function App() {
     <>
       {/* Indikator offline & sinkronisasi, global untuk semua halaman. */}
       <OfflineStatus />
+      {/* Batas ini hanya untuk potongan layout/rute terluar. Ganti halaman di
+          dalam dashboard ditangani Suspense milik DashboardLayout, supaya menu
+          samping tidak ikut tercabut saat chunk halaman diunduh. */}
       <Suspense fallback={<MemuatHalaman />}>
         <Routes>
       <Route path="/" element={<Landing />} />

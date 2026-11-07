@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useProfileDialog } from '../contexts/ProfileDialogContext';
 import { api } from '../lib/axios';
 import { avatarUrl } from '../lib/gambar';
 import { ROLE_LABEL, ROLE_SUPERADMIN, isAdminRole, isStaff } from '../lib/roles';
+import MemuatHalaman from '../components/MemuatHalaman';
 import ThemeToggle from '../components/ThemeToggle';
 import SeasonalBadge from '../components/SeasonalBadge';
 import GlobalSearch from '../components/GlobalSearch';
@@ -36,6 +37,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [sidebarTutup, setSidebarTutup] = useState(bacaSidebarTutup);
+  const navRef = useRef<HTMLElement>(null);
 
   // State Notifikasi
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -197,7 +199,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   const allowedMenus = menuItems.filter(item => item.show);
+  const kunciDaftarMenu = allowedMenus.map((m) => m.path).join(',');
   const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  // Pindah halaman selalu mulai dari atas. Tanpa ini, posisi scroll lama
+  // tertinggal di halaman baru yang belum tentu sama panjang, sehingga
+  // browser menarik tampilan ke bawah dan pengguna harus mencari bagiannya lagi.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
+
+  // Daftar menu adalah scroller tersendiri, jadi item yang sedang aktif dijaga
+  // tetap terlihat — termasuk ketika daftar ini baru saja bertambah panjang
+  // (mis. menu Forum muncul setelah status server tiba).
+  useEffect(() => {
+    navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' });
+  }, [location.pathname, sidebarTutup, kunciDaftarMenu]);
 
   const displayName = user?.nama || user?.nim || '';
   const initial = displayName.substring(0, 2).toUpperCase();
@@ -244,7 +261,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         )}
 
-        <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto">
+        <nav ref={navRef} className="flex-1 p-3 space-y-1.5 overflow-y-auto">
           {allowedMenus.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -254,6 +271,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 to={item.path}
                 title={sidebarTutup ? item.name : undefined}
                 aria-label={item.name}
+                aria-current={isActive ? 'page' : undefined}
                 className={`flex items-center gap-3 rounded-xl text-sm font-bold transition duration-200 ${sidebarTutup ? 'justify-center px-2 py-3' : 'px-4 py-3'} ${isActive ? 'bg-amber-400 text-gray-900 shadow-md dark:bg-amber-500' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white'}`}
               >
                 <Icon className="w-5 h-5 shrink-0" />
@@ -424,6 +442,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     key={item.path}
                     to={item.path}
                     onClick={() => setIsMobileMenuOpen(false)}
+                    aria-current={isActive ? 'page' : undefined}
                     className={`flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-colors ${isActive ? 'bg-amber-400 text-gray-900 dark:bg-amber-500' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'}`}
                   >
                     <Icon className="w-5 h-5 shrink-0" /> {item.name}
@@ -450,7 +469,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
 
-        <main id="konten-utama" tabIndex={-1} className="flex-1 w-full min-w-0 overflow-x-hidden outline-none">{children}</main>
+        <main id="konten-utama" tabIndex={-1} className="flex-1 w-full min-w-0 overflow-x-hidden outline-none">
+          {/* Batas sendiri untuk potongan halaman: menu samping dan header tetap
+              terpasang sambil menunggu, jadi posisi tidak melompat ke atas. */}
+          <Suspense fallback={<MemuatHalaman />}>{children}</Suspense>
+        </main>
       </div>
     </div>
   );
