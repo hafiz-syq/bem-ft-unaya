@@ -52,8 +52,8 @@ const RevealOnScroll = ({ children, delay = 0 }: { children: ReactNode; delay?: 
 };
 
 // --- INTERFACES UNTUK MENGHINDARI ESLINT ANY ---
-interface Content { id: string; type: string; title: string; content: string; createdAt: string; image: string | null; author: { profile: { nama: string } | null }; }
-interface AgendaItem { id: string; title: string; description: string; date: string; endDate: string | null; color: string | null; time: string; location: string; registrationLink: string | null; socialMediaLink: string | null; }
+interface Content { id: string; type: string; title: string; content: string; createdAt: string; image: string | null; unit: string | null; author: { profile: { nama: string } | null }; }
+interface AgendaItem { id: string; title: string; description: string; date: string; endDate: string | null; color: string | null; time: string; location: string; unit: string | null; registrationLink: string | null; socialMediaLink: string | null; }
 interface GalleryItem { id: string; title: string; category: string; url: string; activity: string | null; year: number; images?: { id: string; url: string; order: number }[]; }
 interface BalasanPublik { id: string; content: string; penulis: string; role: string; createdAt: string; }
 // Hanya komentar yang sudah disetujui yang dikirim server ke halaman ini, dan
@@ -617,7 +617,12 @@ export default function Landing() {
                             </div>
                           )}
                           <div className="flex flex-col flex-grow p-6">
-                            <span className="px-3 py-1 mb-4 text-xs font-bold rounded-full text-amber-500 bg-amber-100 dark:bg-amber-900/40 w-max">{item.type}</span>
+                            <div className="flex flex-wrap items-center gap-2 mb-4">
+                              <span className="px-3 py-1 text-xs font-bold rounded-full text-amber-500 bg-amber-100 dark:bg-amber-900/40">{item.type}</span>
+                              {item.unit && (
+                                <span className="px-2.5 py-1 text-[10px] font-bold text-gray-600 dark:text-gray-400 rounded-full bg-gray-100 dark:bg-gray-800">{targetLabel(item.unit)}</span>
+                              )}
+                            </div>
                             <h3 className="mb-3 text-xl font-bold text-gray-900 transition-colors dark:text-gray-100 group-hover:text-amber-400">{item.title}</h3>
                             <p className="mb-4 text-sm text-gray-600 dark:text-gray-400 line-clamp-3">{item.content}</p>
                             <div className="flex items-center justify-between pt-4 mt-auto border-t border-gray-100 dark:border-gray-800">
@@ -678,6 +683,11 @@ export default function Landing() {
                           )}
                         </div>
                       </div>
+                      {item.unit && (
+                        <span className="self-start px-2.5 py-1 mb-3 text-[10px] font-bold text-gray-600 dark:text-gray-400 rounded-full bg-gray-100 dark:bg-gray-800 w-max">
+                          {targetLabel(item.unit)}
+                        </span>
+                      )}
                       <h3 className="flex items-start gap-2 mb-2 text-lg font-bold text-gray-900 transition-colors dark:text-gray-100 group-hover:text-amber-600 dark:group-hover:text-amber-300">
                         <span
                           aria-hidden="true"
@@ -992,6 +1002,9 @@ export default function Landing() {
                 </div>
                 <div className="flex items-center gap-3"><Clock className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" /> Pukul {selectedAgenda.time} WIB - Selesai</div>
                 <div className="flex items-start gap-3"><MapPin className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" /> <span>{selectedAgenda.location}</span></div>
+                {selectedAgenda.unit && (
+                  <div className="flex items-center gap-3"><Users className="w-5 h-5 text-gray-400 dark:text-gray-500 shrink-0" /> <span>Diunggah oleh {targetLabel(selectedAgenda.unit)}</span></div>
+                )}
               </div>
 
               <div>

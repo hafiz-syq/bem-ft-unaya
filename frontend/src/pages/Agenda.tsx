@@ -4,12 +4,12 @@ import { api, assetUrl, tautanAman } from '../lib/axios';
 import { Clock, MapPin, Link as LinkIcon, Loader2, Code2, ArrowLeft, Share2, Lock, CalendarDays, CalendarPlus, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useAuth } from '../contexts/AuthContext';
-import { isMahasiswaOrAbove } from '../lib/roles';
+import { isMahasiswaOrAbove, targetLabel } from '../lib/roles';
 import { formatRentangTanggal, jumlahHariAgenda } from '../lib/tanggal';
 
 interface AgendaItem {
   id: string; title: string; description: string; date: string; endDate: string | null; color: string | null;
-  time: string; location: string; registrationLink: string | null; socialMediaLink: string | null;
+  time: string; location: string; unit: string | null; registrationLink: string | null; socialMediaLink: string | null;
 }
 
 const NAMA_HARI = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
@@ -182,6 +182,11 @@ export default function Agenda() {
                   )}
                 </div>
                 <div className="flex-1">
+                  {item.unit && (
+                    <span className="inline-block px-2.5 py-1 mb-2 text-[10px] font-bold text-gray-600 dark:text-gray-400 rounded-full bg-gray-100 dark:bg-gray-800 w-max">
+                      {targetLabel(item.unit)}
+                    </span>
+                  )}
                   <h3 className="mb-2 text-2xl font-bold text-gray-900 dark:text-gray-100">{item.title}</h3>
                   <p className="mb-4 text-gray-600 dark:text-gray-400 line-clamp-2">{item.description}</p>
                   <div className="flex flex-wrap gap-4 mb-4 text-sm font-medium text-gray-500 dark:text-gray-400">

@@ -8,17 +8,18 @@ import {
 import { ThemeToggle } from '../components/ThemeToggle';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { isAdminRole } from '../lib/roles';
+import { isAdminRole, KONTEN_UNITS, targetLabel } from '../lib/roles';
 import { formatRentangTanggal, jumlahHariAgenda, kunciTanggal } from '../lib/tanggal';
 
 interface Content {
   id: string; type: string; title: string; content: string; createdAt: string; image: string | null;
+  unit: string | null;
   author: { profile: { nama: string } | null };
 }
 
 interface Agenda {
   id: string; title: string; description: string; date: string; endDate: string | null;
-  time: string; location: string; color: string | null;
+  time: string; location: string; color: string | null; unit: string | null;
   registrationLink: string | null; socialMediaLink: string | null;
   author: { profile: { nama: string } | null };
 }
@@ -64,10 +65,10 @@ export default function CMSManager() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState({ type: 'BERITA', title: '', content: '' });
+  const [formData, setFormData] = useState({ type: 'BERITA', title: '', content: '', unit: '' });
   const [agendaData, setAgendaData] = useState({
     title: '', description: '', date: '', endDate: '', time: '', location: '',
-    registrationLink: '', socialMediaLink: '', color: '#F59E0B',
+    registrationLink: '', socialMediaLink: '', color: '#F59E0B', unit: '',
   });
   const [galleryData, setGalleryData] = useState({
     title: '', category: 'FOTO', activity: '', year: new Date().getFullYear().toString(),
@@ -124,10 +125,10 @@ export default function CMSManager() {
 
   const resetForm = () => {
     setEditingId(null);
-    setFormData({ type: 'BERITA', title: '', content: '' });
+    setFormData({ type: 'BERITA', title: '', content: '', unit: '' });
     setAgendaData({
       title: '', description: '', date: '', endDate: '', time: '', location: '',
-      registrationLink: '', socialMediaLink: '', color: '#F59E0B',
+      registrationLink: '', socialMediaLink: '', color: '#F59E0B', unit: '',
     });
     setGalleryData({ title: '', category: 'FOTO', activity: '', year: new Date().getFullYear().toString() });
     setDemisionerData({ organization: 'BEM', nama: '', nim: '', jabatan: '', periode: '', description: '' });
@@ -143,7 +144,7 @@ export default function CMSManager() {
   const openEditContent = (item: Content) => {
     resetForm();
     setEditingId(item.id);
-    setFormData({ type: item.type, title: item.title, content: item.content });
+    setFormData({ type: item.type, title: item.title, content: item.content, unit: item.unit ?? '' });
     setIsModalOpen(true);
   };
 
@@ -160,6 +161,7 @@ export default function CMSManager() {
       registrationLink: item.registrationLink || '',
       socialMediaLink: item.socialMediaLink || '',
       color: item.color || '#F59E0B',
+      unit: item.unit ?? '',
     });
     setIsModalOpen(true);
   };
@@ -192,6 +194,8 @@ export default function CMSManager() {
     data.append('type', formData.type);
     data.append('title', formData.title);
     data.append('content', formData.content);
+    // Selalu dikirim, termasuk saat kosong, supaya badge bisa dilepas lagi.
+    data.append('unit', formData.unit);
     if (contentFile) data.append('file', contentFile);
 
     try {
@@ -573,6 +577,14 @@ export default function CMSManager() {
                     </div>
                   </div>
                   <div>
+                    <label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300" htmlFor="unit-konten">Diunggah oleh (Opsional)</label>
+                    <select id="unit-konten" className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={formData.unit} onChange={e => setFormData({ ...formData, unit: e.target.value })}>
+                      <option value="">— Tanpa penanda unit —</option>
+                      {KONTEN_UNITS.map((u) => <option key={u} value={u}>{targetLabel(u)}</option>)}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Penanda ini tampil sebagai badge di halaman utama dan di halaman detail konten.</p>
+                  </div>
+                  <div>
                     <label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Isi Konten</label>
                     <textarea required rows={6} className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300 resize-none" value={formData.content} onChange={e => setFormData({ ...formData, content: e.target.value })}></textarea>
                   </div>
@@ -583,6 +595,14 @@ export default function CMSManager() {
               {activeTab === 'AGENDA' && (
                 <form id="form-agenda" onSubmit={handleSubmitAgenda} className="space-y-4">
                   <div><label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Nama Kegiatan</label><input type="text" required className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={agendaData.title} onChange={e => setAgendaData({ ...agendaData, title: e.target.value })} /></div>
+                  <div>
+                    <label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300" htmlFor="unit-agenda">Diunggah oleh (Opsional)</label>
+                    <select id="unit-agenda" className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={agendaData.unit} onChange={e => setAgendaData({ ...agendaData, unit: e.target.value })}>
+                      <option value="">— Tanpa penanda unit —</option>
+                      {KONTEN_UNITS.map((u) => <option key={u} value={u}>{targetLabel(u)}</option>)}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Penanda ini tampil sebagai badge di bagian Agenda halaman utama dan di daftar agenda.</p>
+                  </div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div><label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Tanggal Mulai</label><input type="date" required className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={agendaData.date} onChange={e => setAgendaData({ ...agendaData, date: e.target.value })} /></div>
                     <div>

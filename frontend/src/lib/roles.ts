@@ -89,3 +89,9 @@ export const TARGET_LABEL: Record<string, string> = {
 
 export const targetLabel = (target?: string | null): string =>
   target ? TARGET_LABEL[target] ?? target : '-';
+
+/**
+ * Unit yang bisa dipilih sebagai "diunggah oleh" pada berita, artikel, dan
+ * agenda. Cerminan KONTEN_UNITS di backend/src/lib/ticket-access.ts.
+ */
+export const KONTEN_UNITS = ['SISTEM_INFORMASI', 'TEKNIK_SIPIL', 'TEKNIK_MESIN'] as const;

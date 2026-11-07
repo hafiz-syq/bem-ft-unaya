@@ -3,9 +3,11 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { api, assetUrl } from '../lib/axios';
 import { Loader2, Code2, ArrowLeft, Calendar, User } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { targetLabel } from '../lib/roles';
 
 interface ContentDetail {
   id: string; type: string; title: string; content: string; image: string | null; createdAt: string;
+  unit: string | null;
   author: { profile: { nama: string } | null };
 }
 
@@ -60,6 +62,11 @@ export default function PublicContentDetail() {
             <span className={`px-3 py-1 text-xs font-bold rounded-full mb-6 inline-block ${content.type === 'BERITA' ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-500' : content.type === 'PROGRAM' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' : 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'}`}>
               {content.type}
             </span>
+            {content.unit && (
+              <span className="inline-block px-3 py-1 mb-6 ml-2 text-xs font-bold text-gray-600 dark:text-gray-400 rounded-full bg-gray-100 dark:bg-gray-800">
+                Diunggah oleh {targetLabel(content.unit)}
+              </span>
+            )}
             
             <h1 className="mb-6 text-3xl font-black leading-tight text-gray-900 dark:text-gray-100 md:text-5xl">{content.title}</h1>
             
