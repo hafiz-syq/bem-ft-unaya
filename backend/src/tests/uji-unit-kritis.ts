@@ -42,6 +42,7 @@ import {
   canExportKeluhan,
   isAdminRole,
   isOfficer,
+  isKontenUnit,
   isTicketTarget,
   ticketVisibilityWhere,
 } from '../lib/ticket-access';
@@ -485,6 +486,35 @@ async function main(): Promise<void> {
       // lolos di fungsi baru, padahal adalahHostLokal memberinya false.
       !adalahHostLokal('http://localhost:3000/api')
   );
+
+  // FEAT-1: unit "diunggah oleh" untuk konten & agenda. Assert murni atas
+  // whitelist, plus jangkar sumber bahwa keempat jalur tulis benar-benar
+  // memakainya — kolom yang ada di schema tetapi tidak dibaca controller
+  // tidak akan pernah muncul di landing.
+  uji(
+    'J9 unit konten hanya tiga himpunan prodi; DPM/BEM/nilai asing/kosong ditolak',
+    isKontenUnit('SISTEM_INFORMASI') &&
+      isKontenUnit('TEKNIK_SIPIL') &&
+      isKontenUnit('TEKNIK_MESIN') &&
+      !isKontenUnit('BEM') &&
+      !isKontenUnit('DPM') &&
+      !isKontenUnit('SISTEM INFORMASI') &&
+      !isKontenUnit('') &&
+      !isKontenUnit(undefined) &&
+      !isKontenUnit(null)
+  );
+
+  {
+    const sumberCms = readFileSync(resolve(__dirname, '../controllers/cms.controller.ts'), 'utf8');
+    const jalurUnit = sumberCms.match(/bacaUnit\(req\.body\.unit\)/g) ?? [];
+    // dua create (content, agenda) + dua update (content, agenda)
+    uji('J10 keempat jalur tulis CMS memvalidasi unit lewat bacaUnit', jalurUnit.length === 4);
+    uji(
+      'J11 create content dan create agenda menyimpan kolom unit',
+      /content\.create\(\{[\s\S]{0,200}?unit: unit\.unit/.test(sumberCms) &&
+        /agenda\.create\(\{[\s\S]{0,300}?unit: unit\.unit/.test(sumberCms)
+    );
+  }
 
   console.log('\n=== C1. Laporan komentar ber-login punya limiter per pengguna ===\n');
 

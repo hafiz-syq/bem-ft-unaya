@@ -454,6 +454,8 @@ model Content {
   title     String
   content   String   @db.Text
   status    String   @default("PUBLISHED") // 'DRAFT' atau 'PUBLISHED'
+  // Unit pengunggah; kosong = badge tidak ditampilkan.
+  unit      String?  // 'SISTEM_INFORMASI', 'TEKNIK_SIPIL', atau 'TEKNIK_MESIN'
   image     String?
   authorId  String
   author    User     @relation(fields: [authorId], references: [id])
@@ -478,6 +480,8 @@ model Agenda {
   registrationLink String?
   // Tautan khusus postingan media sosial (Instagram/TikTok/Facebook) untuk agenda ini.
   socialMediaLink  String?
+  // Unit pengunggah; kosong = badge tidak ditampilkan.
+  unit             String?  // 'SISTEM_INFORMASI', 'TEKNIK_SIPIL', atau 'TEKNIK_MESIN'
   authorId         String
   author           User     @relation(fields: [authorId], references: [id])
   createdAt        DateTime @default(now())

@@ -79,6 +79,16 @@ export const isTicketTarget = (value: unknown): value is TicketTarget =>
   typeof value === 'string' && (TICKET_TARGETS as readonly string[]).includes(value);
 
 /**
+ * Unit yang boleh dipilih sebagai "diunggah oleh" pada konten & agenda CMS.
+ * Hanya tiga himpunan prodi — DPM dan BEM tidak ikut karena konten mereka
+ * sudah dianggap milik bersama di halaman publik.
+ */
+export const KONTEN_UNITS: TicketTarget[] = ['SISTEM_INFORMASI', 'TEKNIK_SIPIL', 'TEKNIK_MESIN'];
+
+export const isKontenUnit = (value: unknown): value is TicketTarget =>
+  typeof value === 'string' && (KONTEN_UNITS as readonly string[]).includes(value);
+
+/**
  * Kondisi Prisma `where` yang membatasi daftar tiket sesuai hak baca pemilik sesi.
  *
  * Aturan:

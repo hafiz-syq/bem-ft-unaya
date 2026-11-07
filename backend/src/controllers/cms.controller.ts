@@ -3,7 +3,7 @@ import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
 import { hitungAngkatan } from '../services/account-lifecycle.service';
 import { hapusGambarMedia, simpanGambarMedia } from '../lib/gambar-media';
-import { isAdminRole, isOfficer } from '../lib/ticket-access';
+import { isAdminRole, isOfficer, isKontenUnit } from '../lib/ticket-access';
 
 /** Kunci pengaturan situs yang boleh diubah admin. */
 const ALLOWED_SETTINGS = ['visi', 'misi'] as const;
@@ -19,6 +19,19 @@ const ambilFile = (req: any): Express.Multer.File[] => {
   const dariFile = Array.isArray(map.file) ? map.file : [];
   const tunggal = req.file ? [req.file as Express.Multer.File] : [];
   return [...dariImages, ...dariFile, ...tunggal];
+};
+
+/**
+ * Unit "diunggah oleh". `undefined` = kolom tidak disentuh, nilai kosong =
+ * badge dilepas, nilai asing ditolak supaya label di landing selalu dikenal.
+ */
+type UnitBaca = { ok: true; unit: string | null } | { ok: false; pesan: string };
+
+const bacaUnit = (nilai: unknown): UnitBaca => {
+  if (nilai === undefined || nilai === null || nilai === '') return { ok: true, unit: null };
+  return isKontenUnit(nilai)
+    ? { ok: true, unit: nilai }
+    : { ok: false, pesan: 'Unit pengunggah tidak dikenal.' };
 };
 
 // ================= KONTEN (BERITA / ARTIKEL / PROGRAM) =================
@@ -68,12 +81,15 @@ export const createContent = async (req: any, res: Response, next: NextFunction)
       res.status(400).json({ message: 'Semua kolom wajib diisi.' }); return;
     }
 
+    const unit = bacaUnit(req.body.unit);
+    if (!unit.ok) { res.status(400).json({ message: unit.pesan }); return; }
+
     // Gambar disimpan ke penyimpanan awan sebelum konten dibuat supaya
     // kegagalan penyimpanan tidak meninggalkan konten tanpa gambarnya.
     const imagePath = gambarBaru ? await simpanGambarMedia(gambarBaru, 'bem-ft-unaya/cms') : null;
 
     const newContent = await prisma.content.create({
-      data: { type, title, content, image: imagePath, authorId: req.user.id }
+      data: { type, title, content, image: imagePath, unit: unit.unit, authorId: req.user.id }
     });
 
     await logActivity(req.user.id, 'CREATE_CONTENT', 'Content', `Menerbitkan ${type} "${title}"`, newContent.id);
@@ -96,6 +112,11 @@ export const updateContent = async (req: any, res: Response, next: NextFunction)
     if (type) data.type = type;
     if (title !== undefined) data.title = title;
     if (content !== undefined) data.content = content;
+    if (req.body.unit !== undefined) {
+      const unit = bacaUnit(req.body.unit);
+      if (!unit.ok) { res.status(400).json({ message: unit.pesan }); return; }
+      data.unit = unit.unit;
+    }
     if (gambarBaru) data.image = await simpanGambarMedia(gambarBaru, 'bem-ft-unaya/cms');
     if (req.body.removeImage === 'true') data.image = null;
 
@@ -278,9 +299,13 @@ export const createAgenda = async (req: any, res: Response, next: NextFunction):
     const warna = bacaWarna(color);
     if (!warna) { res.status(400).json({ message: 'Warna harus berupa kode heksadesimal, misalnya #F59E0B.' }); return; }
 
+    const unit = bacaUnit(req.body.unit);
+    if (!unit.ok) { res.status(400).json({ message: unit.pesan }); return; }
+
     const newAgenda = await prisma.agenda.create({
       data: {
         title, description, date: mulai, endDate: rentang.endDate, color: warna, time, location,
+        unit: unit.unit,
         registrationLink: registrationLink || null,
         socialMediaLink: socialMediaLink || null,
         authorId: req.user.id
@@ -326,6 +351,12 @@ export const updateAgenda = async (req: any, res: Response, next: NextFunction):
       const warna = bacaWarna(color);
       if (!warna) { res.status(400).json({ message: 'Warna harus berupa kode heksadesimal, misalnya #F59E0B.' }); return; }
       data.color = warna;
+    }
+
+    if (req.body.unit !== undefined) {
+      const unit = bacaUnit(req.body.unit);
+      if (!unit.ok) { res.status(400).json({ message: unit.pesan }); return; }
+      data.unit = unit.unit;
     }
 
     if (time !== undefined) data.time = time;
