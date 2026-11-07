@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { api } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
-import { isAdminRole, ROLE_LABEL } from '../lib/roles';
+import { isAdminRole, isOfficer, ROLE_LABEL } from '../lib/roles';
 import {
   Megaphone, Plus, Loader2, X, Trash2, Check, Users, CalendarDays, Building2, Send, Pencil,
 } from 'lucide-react';
@@ -20,6 +20,8 @@ interface Pengumuman {
   penulis?: string;
   dibaca?: boolean;
   jumlahPembaca?: number;
+  // Hanya dikirim daftar pembaca biasa; menandai item milik pengurus sendiri.
+  punyaSaya?: boolean;
   _count?: { reads: number };
   createdBy?: { nim: string; profile: { nama: string } | null };
 }
@@ -44,6 +46,8 @@ const tanggal = (nilai: string) =>
 export default function Announcements() {
   const { user } = useAuth();
   const admin = isAdminRole(user?.role);
+  // Pengurus (termasuk prodi) boleh membuat; daftar kelola + segmen organisasi tetap admin.
+  const bolehTulis = admin || isOfficer(user?.role);
 
   const [daftar, setDaftar] = useState<Pengumuman[]>([]);
   const [organisasi, setOrganisasi] = useState<Organisasi[]>([]);
@@ -189,7 +193,7 @@ export default function Announcements() {
               : 'Informasi resmi organisasi yang ditujukan untuk Anda.'}
           </p>
         </div>
-        {admin && (
+        {bolehTulis && (
           <button
             type="button"
             onClick={bukaBuat}
@@ -210,7 +214,7 @@ export default function Announcements() {
           <Megaphone className="w-12 h-12 mx-auto mb-4 text-gray-300" />
           <p className="text-lg font-medium text-gray-900 dark:text-gray-100">Belum ada pengumuman</p>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {admin ? 'Buat pengumuman pertama untuk mahasiswa dan pengurus.' : 'Pengumuman baru akan muncul di sini.'}
+            {bolehTulis ? 'Buat pengumuman pertama untuk mahasiswa dan pengurus.' : 'Pengumuman baru akan muncul di sini.'}
           </p>
         </div>
       ) : (
@@ -236,7 +240,7 @@ export default function Announcements() {
                     {!admin && !p.dibaca && (
                       <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">Baru</span>
                     )}
-                    {admin && (
+                    {(admin || p.punyaSaya) && (
                       <>
                         <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                           {pembaca} pembaca
@@ -325,7 +329,8 @@ export default function Announcements() {
                       <option value="SEMUA">Semua pengguna</option>
                       <option value="ROLE">Role tertentu</option>
                       <option value="ANGKATAN">Angkatan tertentu</option>
-                      <option value="ORGANISASI">Organisasi tertentu</option>
+                      {/* GET /organizations hanya boleh dibaca admin, jadi pilihan ini butuh daftarnya. */}
+                      {admin && <option value="ORGANISASI">Organisasi tertentu</option>}
                     </select>
                   </div>
 

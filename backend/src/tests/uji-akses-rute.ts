@@ -721,17 +721,30 @@ const BARIS: Baris[] = [
     catatan: 'id tidak ada sehingga admin menerima 404',
   },
 
-  // ── announcement.routes.ts (semua wajib login; kelola hanya admin) ──────
+  // ── announcement.routes.ts (semua wajib login; buat = admin + pengurus) ─
   { metode: 'GET', jalur: '/announcements', harapan: { tamu: 401, mahasiswa: 'DIIZINKAN', pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' } },
   { metode: 'GET', jalur: '/announcements/manage', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' } },
   {
     metode: 'POST',
     jalur: '/announcements',
-    harapan: { tamu: 401, mahasiswa: 403, pengurus: 403, admin: 'DIIZINKAN' },
-    catatan: 'judul/isi kosong ditolak validasi (400)',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'pengurus (PENGURUS_BEM) kini boleh membuat; body {} ditolak 400 sebelum transaksi sehingga tidak ada pengumuman atau notifikasi yang dibuat',
   },
-  { metode: 'PUT', jalur: '/announcements/:id', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
-  { metode: 'DELETE', jalur: '/announcements/:id', harapan: { tamu: 401, mahasiswa: 403, pengurus: 403 } },
+  {
+    metode: 'PUT',
+    jalur: '/announcements/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'gerbang kasar (admin/pengurus) lolos lalu id tidak ada → 404 sebelum pemeriksaan kepemilikan; mahasiswa tetap 403',
+  },
+  {
+    metode: 'DELETE',
+    jalur: '/announcements/:id',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'id tidak ada → 404, jadi tidak ada pengumuman yang terhapus',
+  },
   {
     metode: 'POST',
     jalur: '/announcements/:id/read',

@@ -516,6 +516,60 @@ async function main(): Promise<void> {
     );
   }
 
+  console.log('\n=== F2. Hak tulis forum & pengumuman untuk pengurus prodi ===\n');
+
+  {
+    // Aturan akses ini tidak bisa dibuktikan lewat akun matriks (persona
+    // "pengurus" di sana PENGURUS_BEM), jadi jangkar sumber yang menjaga:
+    // siapa memakai predikat mana, dan bahwa hak kelola ruang tidak ikut meluas.
+    const sumberChat = readFileSync(resolve(__dirname, '../controllers/chat.controller.ts'), 'utf8');
+    const sumberUmum = readFileSync(resolve(__dirname, '../controllers/announcement.controller.ts'), 'utf8');
+
+    uji(
+      'K1 hanya POST /chat/rooms yang naik ke bolehBuatRuang; status, hapus ruang & filter kata tetap bolehKelolaRuang',
+      /createRoom[\s\S]{0,200}?if \(!bolehBuatRuang\(req\.user\?\.role\)\)/.test(sumberChat) &&
+        !/setRoomStatus[\s\S]{0,200}?bolehBuatRuang/.test(sumberChat) &&
+        !/deleteRoom[\s\S]{0,200}?bolehBuatRuang/.test(sumberChat) &&
+        !/saveForumFilter[\s\S]{0,200}?bolehBuatRuang/.test(sumberChat)
+    );
+
+    uji(
+      'K2 daftar pembuat ruang prodi persis tiga pengurus prodi, tanpa PENGURUS generik / BEM / DPM',
+      /ROLE_PEMBUAT_RUANG_PRODI = \['PENGURUS_SISTEM_INFORMASI', 'PENGURUS_TEKNIK_SIPIL', 'PENGURUS_TEKNIK_MESIN'\]/.test(
+        sumberChat
+      )
+    );
+
+    uji(
+      'K3 tombol buat ruang & akses halaman forum memakai bolehBuatRuang, bukan bolehKelolaRuang',
+      /const forumTerbuka = buat \|\| \(await adaRuangTerbuka\(\)\)/.test(sumberChat) &&
+        /meta: \{ bolehMembuatRuang: buat, forumTerbuka: true \}/.test(sumberChat) &&
+        /bolehMembuatRuang: bolehBuatRuang\(req\.user\?\.role\)/.test(sumberChat)
+    );
+
+    uji(
+      'K4 create pengumuman terbuka untuk admin + pengurus; gerbang kasarnya satu fungsi',
+      /const bolehTulisPengumuman = \(role: string\): boolean => isAdminRole\(role\) \|\| isOfficer\(role\)/.test(
+        sumberUmum
+      ) && /createAnnouncement[\s\S]{0,200}?if \(!bolehTulisPengumuman\(req\.user\.role\)\)/.test(sumberUmum)
+    );
+
+    uji(
+      'K5 ubah & hapus pengumuman dibatasi lagi ke admin atau pembuatnya (createdById)',
+      (sumberUmum.match(/isAdminRole\(req\.user\.role\) && lama\.createdById !== req\.user\.id/g) ?? []).length === 2
+    );
+
+    uji(
+      'K6 ruang kelola /announcements/manage tetap hanya admin',
+      /getManagedAnnouncements[\s\S]{0,250}?if \(!isAdminRole\(req\.user\.role\)\)/.test(sumberUmum)
+    );
+
+    uji(
+      'K7 daftar pembaca mengirim punyaSaya sebagai penanda item milik sendiri',
+      /punyaSaya: a\.createdById === req\.user\.id/.test(sumberUmum)
+    );
+  }
+
   console.log('\n=== C1. Laporan komentar ber-login punya limiter per pengguna ===\n');
 
   {

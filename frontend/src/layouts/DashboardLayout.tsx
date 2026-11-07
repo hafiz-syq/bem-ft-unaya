@@ -42,8 +42,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   // Forum hanya tampil di menu setelah pengurus membuka minimal satu ruang.
-  // Bagi pengelola forum, menu tetap tampil agar mereka bisa membukanya.
+  // Bagi yang boleh membuat ruang, menu tetap tampil agar mereka bisa membukanya.
+  // Keduanya nilai server (GET /chat/status) supaya daftarnya tidak disalin ke sini.
   const [forumTerbuka, setForumTerbuka] = useState(false);
+  const [bolehBuatRuang, setBolehBuatRuang] = useState(false);
 
   useEffect(() => {
     let aktif = true;
@@ -91,7 +93,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const cekForum = async () => {
       try {
         const res = await api.get('/chat/status');
-        if (aktif) setForumTerbuka(Boolean(res.data?.forumTerbuka));
+        if (aktif) {
+          setForumTerbuka(Boolean(res.data?.forumTerbuka));
+          setBolehBuatRuang(Boolean(res.data?.bolehMembuatRuang));
+        }
       } catch {
         // Status forum bersifat pelengkap; menu tetap memakai nilai terakhir.
       }
@@ -143,7 +148,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const role = user?.role || '';
-  const bolehKelolaForum = ['PENGURUS_BEM', 'PENGURUS_DPM', 'ADMIN', 'SUPERADMIN'].includes(role);
 
   // Arsip surat hanya untuk pimpinan inti + admin. Menu disembunyikan bagi
   // pengurus lain; aturan sebenarnya tetap dijaga server.
@@ -163,9 +167,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // tombol moderasi & balasan hanya muncul untuk pengurus dan admin.
     { name: 'Buku Tamu', path: '/buku-tamu', icon: MessageSquare, show: true },
     // Forum: semua akun boleh membaca & menulis setelah pengurus membuka
-    // minimal satu ruang. Pengelola forum selalu melihat menu agar bisa
-    // membuat/membuka ruang pertama.
-    { name: 'Forum Diskusi', path: '/forum', icon: MessagesSquare, show: bolehKelolaForum || forumTerbuka },
+    // minimal satu ruang. Yang boleh membuat ruang pertama selalu melihat menu
+    // ini, termasuk pengurus prodi.
+    { name: 'Forum Diskusi', path: '/forum', icon: MessagesSquare, show: bolehBuatRuang || forumTerbuka },
     { name: 'Pengumuman', path: '/pengumuman', icon: Megaphone, show: true },
     // Direktori mahasiswa terbuka untuk semua akun yang login; mahasiswa
     // menerima data terbatas dari server (tanpa email/telepon/status akun).

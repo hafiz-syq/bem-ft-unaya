@@ -63,7 +63,7 @@ const pesanGalat = (err: unknown, cadangan: string): string => {
 /**
  * Forum diskusi komunitas.
  *
- * Ruang dibuat oleh pengurus BEM/DPM atau admin; semua akun yang login dapat
+ * Ruang dibuat oleh pengurus BEM/DPM/prodi atau admin; semua akun yang login dapat
  * membaca dan mengirim pesan. Pesan disegarkan berkala lewat polling delta
  * (bukan WebSocket) agar tetap berjalan di hosting serverless tanpa server
  * realtime tambahan, tapi cukup cepat untuk terasa live tanpa refresh manual.
@@ -387,7 +387,7 @@ export default function Forum() {
           </div>
           <h1 className="text-xl font-black text-gray-900 dark:text-gray-100">Forum Diskusi Belum Dibuka</h1>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Forum akan muncul setelah pengurus BEM, DPM, atau admin membuka ruang diskusi
+            Forum akan muncul setelah pengurus BEM, DPM, prodi, atau admin membuka ruang diskusi
             pertama. Silakan kembali lagi nanti.
           </p>
         </div>
@@ -403,7 +403,7 @@ export default function Forum() {
             <MessagesSquare className="w-6 h-6 text-amber-500" /> Forum Diskusi
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Ruang obrolan komunitas BEM FT UNAYA. Ruang dibuat oleh pengurus BEM, DPM, atau admin.
+            Ruang obrolan komunitas BEM FT UNAYA. Ruang dibuat oleh pengurus BEM, DPM, prodi, atau admin.
           </p>
         </div>
 
@@ -663,7 +663,7 @@ export default function Forum() {
               <div>
                 <h2 id="judul-buat-ruang" className="text-lg font-black text-gray-900 dark:text-gray-100">Buat Ruang Forum</h2>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Ruang hanya dapat dibuat pengurus BEM, DPM, dan admin.
+                  Ruang hanya dapat dibuat pengurus BEM, DPM, prodi, dan admin.
                 </p>
               </div>
               <button type="button" onClick={() => setModalBuat(false)} aria-label="Tutup" className="p-1 text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">

@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
-import { isAdminRole } from '../lib/ticket-access';
+import { isAdminRole, isOfficer } from '../lib/ticket-access';
 import { hitungAngkatan } from '../services/account-lifecycle.service';
 import { kirimPushKeBanyak } from '../services/push.service';
 
@@ -18,6 +18,13 @@ const ROLE_VALID = [
   'PENGURUS_TEKNIK_SIPIL',
   'ADMIN',
 ];
+
+/**
+ * Gerbang kasar tulis pengumuman: admin dan seluruh pengurus (termasuk pengurus
+ * prodi). Ruang kelola daftar penuh (/manage) tetap hanya admin, dan ubah/hapus
+ * dibatasi lagi terhadap pengumuman buatan sendiri.
+ */
+const bolehTulisPengumuman = (role: string): boolean => isAdminRole(role) || isOfficer(role);
 
 /**
  * Menyusun filter penerima pengumuman. Aturan ini dipakai saat membuat
@@ -116,6 +123,9 @@ export const getAnnouncements = async (req: any, res: Response, next: NextFuncti
         audienceOrganizationId: a.audienceOrganizationId,
         createdAt: a.createdAt,
         penulis: a.createdBy.profile?.nama || a.createdBy.nim,
+        // Pengurus butuh penanda ini untuk tahu mana yang boleh ia ubah/hapus;
+        // halaman pembaca biasa tidak memakai.
+        punyaSaya: a.createdById === req.user.id,
         dibaca: a.reads.length > 0,
         jumlahPembaca: a._count.reads,
       }));
@@ -150,8 +160,8 @@ export const getManagedAnnouncements = async (req: any, res: Response, next: Nex
 
 export const createAnnouncement = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (!isAdminRole(req.user.role)) {
-      res.status(403).json({ message: 'Hanya admin yang dapat membuat pengumuman.' });
+    if (!bolehTulisPengumuman(req.user.role)) {
+      res.status(403).json({ message: 'Hanya admin dan pengurus yang dapat membuat pengumuman.' });
       return;
     }
 
@@ -255,13 +265,17 @@ export const createAnnouncement = async (req: any, res: Response, next: NextFunc
 
 export const updateAnnouncement = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (!isAdminRole(req.user.role)) {
-      res.status(403).json({ message: 'Hanya admin yang dapat mengubah pengumuman.' });
+    if (!bolehTulisPengumuman(req.user.role)) {
+      res.status(403).json({ message: 'Hanya admin dan pengurus yang dapat mengubah pengumuman.' });
       return;
     }
     const lama = await prisma.announcement.findUnique({ where: { id: req.params.id } });
     if (!lama) {
       res.status(404).json({ message: 'Pengumuman tidak ditemukan.' });
+      return;
+    }
+    if (!isAdminRole(req.user.role) && lama.createdById !== req.user.id) {
+      res.status(403).json({ message: 'Hanya admin atau pembuat yang dapat mengubah pengumuman.' });
       return;
     }
 
@@ -287,13 +301,20 @@ export const updateAnnouncement = async (req: any, res: Response, next: NextFunc
 
 export const deleteAnnouncement = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (!isAdminRole(req.user.role)) {
-      res.status(403).json({ message: 'Hanya admin yang dapat menghapus pengumuman.' });
+    if (!bolehTulisPengumuman(req.user.role)) {
+      res.status(403).json({ message: 'Hanya admin dan pengurus yang dapat menghapus pengumuman.' });
       return;
     }
-    const lama = await prisma.announcement.findUnique({ where: { id: req.params.id }, select: { title: true } });
+    const lama = await prisma.announcement.findUnique({
+      where: { id: req.params.id },
+      select: { title: true, createdById: true },
+    });
     if (!lama) {
       res.status(404).json({ message: 'Pengumuman tidak ditemukan.' });
+      return;
+    }
+    if (!isAdminRole(req.user.role) && lama.createdById !== req.user.id) {
+      res.status(403).json({ message: 'Hanya admin atau pembuat yang dapat menghapus pengumuman.' });
       return;
     }
 

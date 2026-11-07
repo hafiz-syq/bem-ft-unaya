@@ -9,14 +9,21 @@ import { bacaKataTerlarang, simpanKataTerlarang, saringKata } from '../lib/forum
  *
  * Aturan akses:
  * - Membaca & menulis pesan: semua akun yang sudah login (tamu ditolak 401).
- * - Membuat, menutup, dan menghapus ruang: pengurus BEM, pengurus DPM, ADMIN,
- *   dan SUPERADMIN. Dengan begitu forum tidak bisa dibanjiri ruang oleh akun
- *   biasa, tetapi mahasiswa tetap bebas berdiskusi di ruang yang sudah ada.
+ * - Membuat ruang: pengurus BEM/DPM, tiga pengurus prodi, ADMIN, SUPERADMIN.
+ * - Menutup & menghapus ruang, filter kata, moderasi pesan: tetap pengurus BEM,
+ *   pengurus DPM, ADMIN, dan SUPERADMIN. Pengurus prodi boleh memulai ruang
+ *   untuk organisasinya, tetapi tidak mengelola ruang milik pengurus lain.
  */
-const ROLE_PEMBUAT_RUANG = ['PENGURUS_BEM', 'PENGURUS_DPM', 'ADMIN', 'SUPERADMIN'];
+const ROLE_PENGELOLA_RUANG = ['PENGURUS_BEM', 'PENGURUS_DPM', 'ADMIN', 'SUPERADMIN'];
+
+/** Tambahan hak membuat ruang saja; tidak ikut mengelola ruang. */
+const ROLE_PEMBUAT_RUANG_PRODI = ['PENGURUS_SISTEM_INFORMASI', 'PENGURUS_TEKNIK_SIPIL', 'PENGURUS_TEKNIK_MESIN'];
 
 const bolehKelolaRuang = (role: string | undefined): boolean =>
-  !!role && (ROLE_PEMBUAT_RUANG.includes(role) || isAdminRole(role));
+  !!role && (ROLE_PENGELOLA_RUANG.includes(role) || isAdminRole(role));
+
+const bolehBuatRuang = (role: string | undefined): boolean =>
+  bolehKelolaRuang(role) || (!!role && ROLE_PEMBUAT_RUANG_PRODI.includes(role));
 
 /**
  * Forum baru "terbuka" bila ada minimal satu ruang yang dibuka pengurus.
@@ -78,6 +85,7 @@ export const getForumStatus = async (req: any, res: Response, next: NextFunction
     res.status(200).json({
       forumTerbuka: await adaRuangTerbuka(),
       bolehKelola: bolehKelolaRuang(req.user?.role),
+      bolehMembuatRuang: bolehBuatRuang(req.user?.role),
     });
   } catch (error) { next(error); }
 };
@@ -123,8 +131,10 @@ const penulisSelect = {
 /** GET /api/chat/rooms — daftar ruang beserta jumlah pesan & aktivitas terakhir. */
 export const getRooms = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const kelola = bolehKelolaRuang(req.user?.role);
-    const forumTerbuka = kelola || (await adaRuangTerbuka());
+    const buat = bolehBuatRuang(req.user?.role);
+    // Pengurus prodi boleh membuat ruang, jadi mereka melihat halaman ini juga
+    // saat forum belum punya ruang sama sekali.
+    const forumTerbuka = buat || (await adaRuangTerbuka());
 
     // Sebelum pengurus membuka ruang, forum tidak ditampilkan sama sekali
     // kepada mahasiswa: bukan hanya tombolnya yang disembunyikan, datanya juga.
@@ -160,17 +170,17 @@ export const getRooms = async (req: any, res: Response, next: NextFunction): Pro
           ? { isi: saringKata(ruang.messages[0].content, kata), pada: ruang.messages[0].createdAt }
           : null,
       })),
-      meta: { bolehMembuatRuang: kelola, forumTerbuka: true },
+      meta: { bolehMembuatRuang: buat, forumTerbuka: true },
     });
   } catch (error) { next(error); }
 };
 
-/** POST /api/chat/rooms — membuat ruang baru (BEM, DPM, admin). */
+/** POST /api/chat/rooms — membuat ruang baru (BEM, DPM, prodi, admin). */
 export const createRoom = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (!bolehKelolaRuang(req.user?.role)) {
+    if (!bolehBuatRuang(req.user?.role)) {
       res.status(403).json({
-        message: 'Hanya pengurus BEM, DPM, dan admin yang dapat membuat ruang forum.',
+        message: 'Hanya pengurus BEM, DPM, prodi, dan admin yang dapat membuat ruang forum.',
       });
       return;
     }
