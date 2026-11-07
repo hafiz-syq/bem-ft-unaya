@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 import { Role } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { TOKEN_COOKIE } from '../lib/cookies';
+import { NAMA_ENV_UJI, adalahHostUrlLokal, optInDinyalakan } from '../lib/penahan-host';
 
 /**
  * Perkakas bersama untuk pengujian akses berbasis peran (401/403).
@@ -24,7 +25,31 @@ import { TOKEN_COOKIE } from '../lib/cookies';
 // import './penahan-host-uji' di baris 1, bukan di sini, supaya titik masuk lain
 // yang tidak mengimpor berkas ini ikut terlindungi.
 
-export const API_URL = (process.env.API_URL || 'http://localhost:3000/api').replace(/\/+$/, '');
+/**
+ * AUDIT-16 K1. Penahan di atas hanya memutuskan dari DATABASE_URL PROSES TES,
+ * padahal suite ini menulis lewat HTTP: yang menerima tulis adalah server di
+ * API_URL, dan database-ya bisa saja milik orang lain (mis. ts-node asing di
+ * :3000 yang menunjuk Aiven) sementara pagar tetap hijau. Maka host API diperiksa
+ * juga lewat adalahHostUrlLokal() — fungsi baru di lib/penahan-host.ts yang
+ * mengambil hostname dengan `new URL()`, BUKAN regex userinfo `adalahHostLokal`
+ * (regex itu memberi false untuk `http://localhost:3000/api`).
+ */
+const API_URL_MENTAH = (process.env.API_URL || 'http://localhost:3000/api').replace(/\/+$/, '');
+
+if (!adalahHostUrlLokal(API_URL_MENTAH) && !optInDinyalakan(process.env[NAMA_ENV_UJI])) {
+  console.error(
+    '\n[penahan uji] API_URL menunjuk host yang tidak dikenal sebagai lokal: ' + API_URL_MENTAH +
+      '\nSuite ini membuat + menghapus akun uji 999900xx LEWAT SERVER ITU, jadi yang tertulis adalah ' +
+      'database milik server tersebut, bukan database proses ini.' +
+      '\nJalankan backend sendiri di port bebas lalu arahkan suite kepadanya, mis.:' +
+      '\n  PORT=3411 DATABASE_URL="mysql://<user>@127.0.0.1:3306/<db-uji>" npm run dev' +
+      '\n  API_URL="http://localhost:3411/api" npm test' +
+      '\nKalau memang sadar menargetkan server jauh, setel UJI_BOLEH_PRODUKSI=1.\n'
+  );
+  process.exit(1);
+}
+
+export const API_URL = API_URL_MENTAH;
 
 /** UUID yang dijamin tidak ada di basis data, untuk rute ber-parameter `:id`. */
 export const ID_TIDAK_ADA = '00000000-0000-0000-0000-000000000000';

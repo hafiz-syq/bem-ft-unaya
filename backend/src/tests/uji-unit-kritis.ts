@@ -56,7 +56,7 @@ import { pangkasRetensi } from '../services/retensi.service';
 import { nomorTiketBerikutnya, setTicketModeration } from '../controllers/ticket.controller';
 import { batasHalaman } from '../lib/paginasi';
 import { cookieHarusSecure } from '../lib/cookies';
-import { NAMA_ENV_TULIS, NAMA_ENV_UJI, adalahHostLokal, optInDinyalakan, sembunyikanKredensial } from '../lib/penahan-host';
+import { NAMA_ENV_TULIS, NAMA_ENV_UJI, adalahHostLokal, adalahHostUrlLokal, optInDinyalakan, sembunyikanKredensial } from '../lib/penahan-host';
 import { getNotifications } from '../controllers/notification.controller';
 import prisma from '../lib/prisma';
 import { konversiGambarKeWebp, UPLOAD_LIMITS } from '../middlewares/upload.middleware';
@@ -467,6 +467,23 @@ async function main(): Promise<void> {
   uji(
     'J7 nama opt-in suite uji dan jalur tulis berbeda (UJI_BOLEH_PRODUKSI tidak membuka skrip tulis)',
     NAMA_ENV_UJI === 'UJI_BOLEH_PRODUKSI' && NAMA_ENV_TULIS === 'TULIS_BOLEH_JAUH'
+  );
+
+  // AUDIT-16 K1: keputusan host untuk sisi HTTP (API_URL). Pure function atas
+  // string — tidak menyentuh server mana pun.
+  uji(
+    'J8 hostname API_URL: localhost/127.0.0.1/[::1] lolos; host jauh, mirip, dan URL rusak ditolak',
+    adalahHostUrlLokal('http://localhost:3000/api') &&
+      adalahHostUrlLokal('http://127.0.0.1:3411/api') &&
+      adalahHostUrlLokal('http://[::1]:3000/api') &&
+      adalahHostUrlLokal('http://localhost/api') &&
+      !adalahHostUrlLokal('https://api.bem-ft-unaya.example.com/api') &&
+      !adalahHostUrlLokal('http://localhost.meniru.example.com/api') &&
+      !adalahHostUrlLokal('http://127.0.0.1.meniru.example.com/api') &&
+      !adalahHostUrlLokal('bukan-url') &&
+      // kontrol bahwa regex userinfo TIDAK dipakai untuk URL http: bentuk ini
+      // lolos di fungsi baru, padahal adalahHostLokal memberinya false.
+      !adalahHostLokal('http://localhost:3000/api')
   );
 
   console.log('\n=== C1. Laporan komentar ber-login punya limiter per pengguna ===\n');
