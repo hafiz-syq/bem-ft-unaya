@@ -1335,7 +1335,23 @@ function daftarRuteTerpasang(): { terpasang: RuteTerdaftar[]; berkasTidakTerpasa
 }
 
 async function main(): Promise<void> {
-  console.log(`\n=== UJI AKSES RUTE (401/403) ===\nAPI: ${API_URL}\n`);
+  const mulai = Date.now();
+
+  /**
+   * AUDIT-16 K3 — subset runner. `UJI_AKSES_FILTER=/students` hanya menjalankan
+   * baris yang `jalur`-nya memuat potongan itu, supaya satu aturan bisa
+   * dibuktikan lewat HTTP sungguhan dalam budget CPU (matriks penuh 200+ baris).
+   * Tanpa variabel, perilaku persis seperti sebelumnya.
+   */
+  const filter = (process.env.UJI_AKSES_FILTER || '').trim();
+  const barisAktif = filter ? BARIS.filter((b) => b.jalur.includes(filter)) : BARIS;
+
+  console.log(
+    `\n=== UJI AKSES RUTE (401/403) ===\nAPI: ${API_URL}\n` +
+      (filter
+        ? `FILTER: jalur memuat "${filter}" -> ${barisAktif.length} dari ${BARIS.length} baris\n`
+        : `FILTER: tidak aktif -> ${BARIS.length} baris\n`)
+  );
   await pastikanServerHidup();
 
   const akun = await siapkanAkunUji();
@@ -1346,24 +1362,34 @@ async function main(): Promise<void> {
 
   try {
     console.log('--- Aturan per endpoint ---');
-    for (const baris of BARIS) {
+    for (const baris of barisAktif) {
       await jalankanBaris(baris, akun, jabatan.id, laporan);
     }
 
-    console.log('\n--- Isi balasan: isolasi pengajuan perubahan data ---');
-    await ujiIsolasiPengajuanData(akun, laporan);
+    if (filter) {
+      // Kelompok di bawah ini tidak berkunci pada satu `jalur` matriks dan
+      // semuanya menulis data uji, jadi dilewati saat subset aktif; jalankan
+      // tanpa UJI_AKSES_FILTER untuk memutuskannya.
+      laporan.lewati(
+        'Kelompok isi balasan + batas perangkat',
+        `subset aktif: UJI_AKSES_FILTER="${filter}" hanya membatasi loop BARIS`
+      );
+    } else {
+      console.log('\n--- Isi balasan: isolasi pengajuan perubahan data ---');
+      await ujiIsolasiPengajuanData(akun, laporan);
 
-    console.log('\n--- Isi balasan: draf konten tidak terbaca anonim ---');
-    await ujiDrafKontenTertutup(akun, laporan);
+      console.log('\n--- Isi balasan: draf konten tidak terbaca anonim ---');
+      await ujiDrafKontenTertutup(akun, laporan);
 
-    console.log('\n--- Batas perangkat ---');
-    await ujiBatasPerangkat(akun, laporan);
+      console.log('\n--- Batas perangkat ---');
+      await ujiBatasPerangkat(akun, laporan);
 
-    console.log('\n--- IZINKAN pada akun di atas batas ---');
-    await ujiIzinkanDiAtasBatas(akun, laporan);
+      console.log('\n--- IZINKAN pada akun di atas batas ---');
+      await ujiIzinkanDiAtasBatas(akun, laporan);
 
-    console.log('\n--- Gerbang perangkat saat login ---');
-    await ujiGerbangPerangkatLogin(akun, laporan);
+      console.log('\n--- Gerbang perangkat saat login ---');
+      await ujiGerbangPerangkatLogin(akun, laporan);
+    }
 
     console.log('\n--- Kelengkapan cakupan ---');
     const { terpasang, berkasTidakTerpasang } = daftarRuteTerpasang();
@@ -1396,6 +1422,7 @@ async function main(): Promise<void> {
   }
 
   laporan.ringkas('UJI AKSES');
+  console.log(`Waktu suite: ${((Date.now() - mulai) / 1000).toFixed(1)} dtk untuk ${barisAktif.length} baris matriks`);
   if (laporan.gagal > 0) process.exitCode = 1;
   console.log(laporan.gagal === 0 ? '\nHASIL: TIDAK ADA REGRESI ATURAN AKSES\n' : '\nHASIL: ADA ATURAN YANG TIDAK SESUAI\n');
 }
