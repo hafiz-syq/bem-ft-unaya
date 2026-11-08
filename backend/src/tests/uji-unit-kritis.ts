@@ -50,8 +50,7 @@ import { createPositionSlot, assignPosition } from '../controllers/position.cont
 import { processRequest } from '../controllers/data-request.controller';
 import { getAuditLogs } from '../controllers/audit.controller';
 import { loginSchema } from '../controllers/auth.controller';
-import { cakupanButuhAdmin } from '../controllers/announcement.controller';
-import { EKSTENSI_DOKUMEN, ekstensiDokumen } from '../middlewares/upload.middleware';
+import { cakupanButuhAdmin, layakDitampilkan } from '../controllers/announcement.controller';import { EKSTENSI_DOKUMEN, ekstensiDokumen } from '../middlewares/upload.middleware';
 import { namaAman, simpanLampiran } from '../lib/lampiran';
 import { hostTidakAman, unduh } from '../lib/http';
 import { pangkasRetensi } from '../services/retensi.service';
@@ -597,6 +596,41 @@ async function main(): Promise<void> {
         /idMilikPenulis\.includes\(idOrganisasi\)[\s\S]{0,160}?res\.status\(403\)/.test(sumberUmum) &&
         /audienceOrganizationId: audience === 'ORGANISASI' \? idOrganisasi : null/.test(sumberUmum)
     );
+
+    // S2 AUDIT-17: hak "ubah/hapus punyanya sendiri" tidak ada gunanya kalau
+    // item-nya tidak pernah muncul di daftar. Khalayak ROLE/ANGKATAN tidak
+    // cocok dengan penulisnya dan draf tidak berstatus terbit.
+    uji(
+      'K10 daftar pembaca ikut mengambil item punya penulis sendiri di level query',
+      /where: \{ OR: \[\{ isPublished: true \}, \{ createdById: req\.user\.id \}\] \}/.test(sumberUmum) &&
+        /isPublished: a\.isPublished/.test(sumberUmum)
+    );
+
+    uji(
+      'K11 penyaring daftar memakai layakDitampilkan, bukan hanya cocokUntukPengguna',
+      /export const layakDitampilkan = \(/.test(sumberUmum) &&
+        /layakDitampilkan\(a, \{/.test(sumberUmum)
+    );
+
+    {
+      const penulis = { id: 'saya', role: 'PENGURUS_TEKNIK_SIPIL', nim: '240910001', positions: [] };
+      const item = (over: Record<string, unknown>) => ({
+        isPublished: true,
+        createdById: 'lain',
+        audience: 'SEMUA',
+        audienceRole: null,
+        audienceAngkatan: null,
+        audienceOrganizationId: null,
+        ...over,
+      });
+      uji(
+        'K11b item milik sendiri selalu terbaca, draf & khalayak orang lain tidak',
+        layakDitampilkan(item({ createdById: 'saya', isPublished: false }) as any, penulis) &&
+          layakDitampilkan(item({ createdById: 'saya', audience: 'ROLE', audienceRole: 'MAHASISWA' }) as any, penulis) &&
+          !layakDitampilkan(item({ isPublished: false }) as any, penulis) &&
+          !layakDitampilkan(item({ audience: 'ROLE', audienceRole: 'MAHASISWA' }) as any, penulis)
+      );
+    }
   }
 
   console.log('\n=== C1. Laporan komentar ber-login punya limiter per pengguna ===\n');

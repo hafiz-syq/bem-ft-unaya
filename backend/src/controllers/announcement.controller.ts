@@ -84,6 +84,25 @@ const cocokUntukPengguna = (
   return true;
 };
 
+/**
+ * Pengumuman terbaca oleh penerimanya bila terbit dan khalayaknya cocok, dan
+ * selalu terbaca oleh pembuatnya sendiri — termasuk draf dan khalayak yang
+ * tidak mencakup akun penulis — karena hak ubah/hapus hanya bisa dipakai dari
+ * daftar ini.
+ */
+export const layakDitampilkan = (
+  announcement: {
+    isPublished: boolean;
+    createdById: string | null;
+    audience: string;
+    audienceRole: string | null;
+    audienceAngkatan: number | null;
+    audienceOrganizationId: string | null;
+  },
+  user: { id: string; role: string; nim: string; positions: { organizationId: string }[] }
+): boolean =>
+  announcement.createdById === user.id ||
+  (announcement.isPublished && cocokUntukPengguna(announcement, user));
 /** Daftar pengumuman yang relevan untuk pengguna yang sedang login. */
 export const getAnnouncements = async (req: any, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -100,8 +119,10 @@ export const getAnnouncements = async (req: any, res: Response, next: NextFuncti
     });
 
     const daftar = await prisma.announcement.findMany({
-      where: { isPublished: true },
+      where: { OR: [{ isPublished: true }, { createdById: req.user.id }] },
       orderBy: { createdAt: 'desc' },
+      // shortcut: plafon 60 berlaku gabungan terbit + punya sendiri; naikkan
+      // level bila pengurus mulai kehilangan item lamanya di sini.
       take: 60,
       include: {
         reads: { where: { userId: req.user.id }, select: { id: true } },
@@ -113,7 +134,8 @@ export const getAnnouncements = async (req: any, res: Response, next: NextFuncti
     const data = daftar
       .filter((a) =>
         pengguna
-          ? cocokUntukPengguna(a, {
+          ? layakDitampilkan(a, {
+              id: req.user.id,
               role: pengguna.role,
               nim: pengguna.nim,
               positions: pengguna.positions.map((p) => ({ organizationId: p.positionSlot.organizationId })),
@@ -128,6 +150,7 @@ export const getAnnouncements = async (req: any, res: Response, next: NextFuncti
         audienceRole: a.audienceRole,
         audienceAngkatan: a.audienceAngkatan,
         audienceOrganizationId: a.audienceOrganizationId,
+        isPublished: a.isPublished,
         createdAt: a.createdAt,
         penulis: a.createdBy.profile?.nama || a.createdBy.nim,
         // Pengurus butuh penanda ini untuk tahu mana yang boleh ia ubah/hapus;
