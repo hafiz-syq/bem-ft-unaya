@@ -80,10 +80,11 @@ export const isTicketTarget = (value: unknown): value is TicketTarget =>
 
 /**
  * Unit yang boleh dipilih sebagai "diunggah oleh" pada konten & agenda CMS.
- * Hanya tiga himpunan prodi — DPM dan BEM tidak ikut karena konten mereka
- * sudah dianggap milik bersama di halaman publik.
+ * Kelima unit tiket. Daftar ini adalah sumber kebenaran: frontend/src/lib/roles.ts
+ * harus memuat nilai yang sama, sebab opsi UI di luar daftar ini ditolak
+ * bacaUnit() dengan 400 dan pengguna hanya melihat "Gagal menyimpan".
  */
-export const KONTEN_UNITS: TicketTarget[] = ['SISTEM_INFORMASI', 'TEKNIK_SIPIL', 'TEKNIK_MESIN'];
+export const KONTEN_UNITS: TicketTarget[] = ['DPM', 'BEM', 'SISTEM_INFORMASI', 'TEKNIK_SIPIL', 'TEKNIK_MESIN'];
 
 export const isKontenUnit = (value: unknown): value is TicketTarget =>
   typeof value === 'string' && (KONTEN_UNITS as readonly string[]).includes(value);

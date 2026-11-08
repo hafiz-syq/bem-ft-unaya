@@ -490,14 +490,16 @@ async function main(): Promise<void> {
   // FEAT-1: unit "diunggah oleh" untuk konten & agenda. Assert murni atas
   // whitelist, plus jangkar sumber bahwa keempat jalur tulis benar-benar
   // memakainya — kolom yang ada di schema tetapi tidak dibaca controller
-  // tidak akan pernah muncul di landing.
+  // tidak akan pernah muncul di landing. Whitelist harus identik dengan
+  // KONTEN_UNITS di frontend/src/lib/roles.ts: opsi di UI yang tidak diterima
+  // server menjadi kegagalan simpan tanpa alasan di mata pengguna.
   uji(
-    'J9 unit konten hanya tiga himpunan prodi; DPM/BEM/nilai asing/kosong ditolak',
+    'J9 unit konten adalah kelima unit tiket; nilai asing/kosong ditolak',
     isKontenUnit('SISTEM_INFORMASI') &&
       isKontenUnit('TEKNIK_SIPIL') &&
       isKontenUnit('TEKNIK_MESIN') &&
-      !isKontenUnit('BEM') &&
-      !isKontenUnit('DPM') &&
+      isKontenUnit('BEM') &&
+      isKontenUnit('DPM') &&
       !isKontenUnit('SISTEM INFORMASI') &&
       !isKontenUnit('') &&
       !isKontenUnit(undefined) &&

@@ -94,4 +94,4 @@ export const targetLabel = (target?: string | null): string =>
  * Unit yang bisa dipilih sebagai "diunggah oleh" pada berita, artikel, dan
  * agenda. Cerminan KONTEN_UNITS di backend/src/lib/ticket-access.ts.
  */
-export const KONTEN_UNITS = ['SISTEM_INFORMASI', 'TEKNIK_SIPIL', 'TEKNIK_MESIN'] as const;
+export const KONTEN_UNITS = ['DPM', 'BEM', 'SISTEM_INFORMASI', 'TEKNIK_SIPIL', 'TEKNIK_MESIN'] as const;
