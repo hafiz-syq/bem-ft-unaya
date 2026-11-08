@@ -50,6 +50,7 @@ import { createPositionSlot, assignPosition } from '../controllers/position.cont
 import { processRequest } from '../controllers/data-request.controller';
 import { getAuditLogs } from '../controllers/audit.controller';
 import { loginSchema } from '../controllers/auth.controller';
+import { cakupanButuhAdmin } from '../controllers/announcement.controller';
 import { EKSTENSI_DOKUMEN, ekstensiDokumen } from '../middlewares/upload.middleware';
 import { namaAman, simpanLampiran } from '../lib/lampiran';
 import { hostTidakAman, unduh } from '../lib/http';
@@ -569,6 +570,32 @@ async function main(): Promise<void> {
     uji(
       'K7 daftar pembaca mengirim punyaSaya sebagai penanda item milik sendiri',
       /punyaSaya: a\.createdById === req\.user\.id/.test(sumberUmum)
+    );
+
+    // B1 AUDIT-17: gerbang kasar K4 saja tidak cukup — audience dibaca dari
+    // body, sehingga 6 pengurus bisa menyiarkan SEMUA/ROLE/ANGKATAN ke seluruh
+    // akun aktif (notifikasi + web push). Yang dikunci di sini adalah fungsi
+    // CAKUPAN, bukan hanya siapa yang boleh menulis.
+    uji(
+      'K8 siar menyeluruh (SEMUA/ROLE/ANGKATAN) dikhususkan admin lewat cakupanButuhAdmin',
+      /export const cakupanButuhAdmin = \(audience: string\): boolean => audience !== 'ORGANISASI'/
+        .test(sumberUmum) &&
+        /!penulisAdmin && cakupanButuhAdmin\(audience\)[\s\S]{0,240}?res\.status\(403\)/.test(sumberUmum)
+    );
+
+    uji(
+      'K8b cakupanButuhAdmin memisahkan siar menyeluruh dari ORGANISASI',
+      cakupanButuhAdmin('SEMUA') &&
+        cakupanButuhAdmin('ROLE') &&
+        cakupanButuhAdmin('ANGKATAN') &&
+        !cakupanButuhAdmin('ORGANISASI')
+    );
+
+    uji(
+      'K9 organisasi penerima non-admin diturunkan dari jabatan aktif penulis, bukan dari body',
+      /const idMilikPenulis = \(akun\?\.positions \?\? \[\]\)\.map/.test(sumberUmum) &&
+        /idMilikPenulis\.includes\(idOrganisasi\)[\s\S]{0,160}?res\.status\(403\)/.test(sumberUmum) &&
+        /audienceOrganizationId: audience === 'ORGANISASI' \? idOrganisasi : null/.test(sumberUmum)
     );
   }
 

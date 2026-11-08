@@ -145,7 +145,9 @@ export default function Announcements() {
         const res = await api.post('/announcements', {
           title: form.title.trim(),
           content: form.content.trim(),
-          audience: form.audience,
+          // Non-admin tidak memilih cakupan: server menurunkannya dari jabatan
+          // aktif penulis, jadi id organisasi tidak pernah dikirim dari sini.
+          audience: admin ? form.audience : 'ORGANISASI',
           audienceRole: form.audience === 'ROLE' ? form.audienceRole : undefined,
           audienceAngkatan: form.audience === 'ANGKATAN' ? Number(form.audienceAngkatan) : undefined,
           audienceOrganizationId:
@@ -321,7 +323,7 @@ export default function Announcements() {
                     Segmen tidak dapat diubah setelah pengumuman dibuat. Hapus lalu buat baru bila penerima harus berbeda.
                   </p>
                 </div>
-              ) : (
+              ) : admin ? (
                 <>
                   <div>
                     <label htmlFor="umum-segmen" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Kirim Kepada</label>
@@ -363,6 +365,13 @@ export default function Announcements() {
                     </div>
                   )}
                 </>
+              ) : (
+                <p className="p-3 text-sm border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-800/60 dark:border-gray-700">
+                  <span className="block font-bold text-gray-900 dark:text-gray-100">Kirim Kepada: organisasi Anda sendiri</span>
+                  <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                    Dikirim ke akun dengan jabatan aktif di organisasi Anda. Siaran ke seluruh akun dikhususkan untuk admin.
+                  </span>
+                </p>
               )}
             </div>
 

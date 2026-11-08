@@ -27,6 +27,13 @@ const ROLE_VALID = [
 const bolehTulisPengumuman = (role: string): boolean => isAdminRole(role) || isOfficer(role);
 
 /**
+ * Cakupan siaran, terpisah dari hak menulis. SEMUA/ROLE/ANGKATAN menjangkau
+ * seluruh akun aktif (notifikasi + web push), jadi khusus admin; pengurus
+ * hanya boleh mengirim ke organisasinya sendiri.
+ */
+export const cakupanButuhAdmin = (audience: string): boolean => audience !== 'ORGANISASI';
+
+/**
  * Menyusun filter penerima pengumuman. Aturan ini dipakai saat membuat
  * pengumuman (notifikasi) dan saat membaca daftar, sehingga penerima yang
  * disebut di notifikasi selalu sama dengan yang melihat di halaman.
@@ -164,6 +171,7 @@ export const createAnnouncement = async (req: any, res: Response, next: NextFunc
       res.status(403).json({ message: 'Hanya admin dan pengurus yang dapat membuat pengumuman.' });
       return;
     }
+    const penulisAdmin = isAdminRole(req.user.role);
 
     const title = String(req.body?.title || '').trim().slice(0, 180);
     const content = String(req.body?.content || '').trim().slice(0, 10000);
@@ -173,7 +181,9 @@ export const createAnnouncement = async (req: any, res: Response, next: NextFunc
     const audienceOrganizationId = req.body?.audienceOrganizationId
       ? String(req.body.audienceOrganizationId)
       : null;
-    const isPublished = req.body?.isPublished !== false;
+    // Draf khusus admin: draf pengurus tidak punya tempat di daftar pembaca,
+    // jadi item tak terbit hanya akan menggantung tak bisa ditemukan.
+    const isPublished = penulisAdmin ? req.body?.isPublished !== false : true;
 
     if (!title || !content) {
       res.status(400).json({ message: 'Judul dan isi pengumuman wajib diisi.' });
@@ -194,7 +204,35 @@ export const createAnnouncement = async (req: any, res: Response, next: NextFunc
       res.status(400).json({ message: 'Tahun angkatan harus antara 2000 dan 2099.' });
       return;
     }
-    if (audience === 'ORGANISASI' && !audienceOrganizationId) {
+    // Cakupan siaran penulis non-admin. Nilai organisasi dari body tidak pernah
+    // dipercaya apa adanya: /organizations hanya terbaca admin, jadi cakupan
+    // pengurus diturunkan dari jabatan aktifnya sendiri.
+    let idOrganisasi = audienceOrganizationId;
+    if (!penulisAdmin && cakupanButuhAdmin(audience)) {
+      res.status(403).json({
+        message: 'Siaran ke seluruh akun (SEMUA/ROLE/ANGKATAN) khusus admin. Pengurus mengirim ke organisasinya sendiri.',
+      });
+      return;
+    }
+    if (!penulisAdmin && audience === 'ORGANISASI') {
+      const akun = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { positions: { where: { isActive: true }, select: { positionSlot: { select: { organizationId: true } } } } },
+      });
+      const idMilikPenulis = (akun?.positions ?? []).map((p) => p.positionSlot.organizationId).sort();
+      if (idMilikPenulis.length === 0) {
+        res.status(403).json({ message: 'Akun Anda tidak punya jabatan aktif, jadi tidak ada organisasi yang bisa disiari.' });
+        return;
+      }
+      if (idOrganisasi && !idMilikPenulis.includes(idOrganisasi)) {
+        res.status(403).json({ message: 'Pengumuman hanya bisa dikirim ke organisasi tempat Anda aktif berjaga.' });
+        return;
+      }
+      // shortcut: penulis multi-jabatan memakai organisasi pertamanya (id ikut
+      // dikirim di respons); naikkan level bila pengurus memang perlu memilih.
+      if (!idOrganisasi) idOrganisasi = idMilikPenulis[0];
+    }
+    if (audience === 'ORGANISASI' && !idOrganisasi) {
       res.status(400).json({ message: 'Pilih organisasi penerima.' });
       return;
     }
@@ -209,7 +247,7 @@ export const createAnnouncement = async (req: any, res: Response, next: NextFunc
           audience,
           audienceRole: (audience === 'ROLE' ? audienceRole : null) as any,
           audienceAngkatan: audience === 'ANGKATAN' ? audienceAngkatan : null,
-          audienceOrganizationId: audience === 'ORGANISASI' ? audienceOrganizationId : null,
+          audienceOrganizationId: audience === 'ORGANISASI' ? idOrganisasi : null,
           isPublished,
           createdById: req.user.id,
         },
