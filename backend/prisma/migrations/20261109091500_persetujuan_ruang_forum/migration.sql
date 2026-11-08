@@ -1,0 +1,11 @@
+-- Keputusan pemilik ITERASI-AUDIT-18 F3: ruang forum buatan pengurus prodi tidak
+-- langsung tampil untuk semua akun. Pengelola forum (BEM/DPM/admin) menyetujuinya
+-- lewat rute POST /api/chat/rooms/:id/approve.
+--
+-- DEFAULT false dipilih supaya seluruh baris lama otomatis berarti "sudah
+-- disetujui": tidak ada penulisan ulang data dan tidak ada ruang lama yang
+-- mendadak hilang dari daftar. Kolom baru tidak dipakai sebagai pengganti
+-- `isOpen` karena menutup ruang dan menunda ruang adalah dua hal berbeda.
+--
+-- BELUM dijalankan ke mana pun: pemilik belum memberi izin DDL untuk kolom ini.
+ALTER TABLE `ChatRoom` ADD COLUMN `pendingApproval` BOOLEAN NOT NULL DEFAULT false;

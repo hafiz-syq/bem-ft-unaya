@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  approveRoom,
   createRoom,
   deleteMessage,
   deleteRoom,
@@ -41,6 +42,7 @@ router.put('/filter', saveForumFilter);
 router.get('/rooms', getRooms);
 router.post('/rooms', batasRuangLogin, createRoom);
 router.patch('/rooms/:id', setRoomStatus);
+router.post('/rooms/:id/approve', approveRoom);
 router.delete('/rooms/:id', deleteRoom);
 router.get('/rooms/:id/messages', getMessages);
 router.post('/rooms/:id/messages', sendMessage);

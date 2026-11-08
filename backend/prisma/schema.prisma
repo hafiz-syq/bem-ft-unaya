@@ -601,14 +601,18 @@ model UserPresence {
 }
 
 /// Ruang forum percakapan yang dapat dibuat pengurus BEM/DPM dan admin.
+/// Ruang buatan pengurus prodi berstatus `pendingApproval` sampai pengelola
+/// forum menyetujuinya; kolomnya berdefault false sehingga seluruh ruang lama
+/// tetap tampil tanpa perubahan data.
 model ChatRoom {
-  id          String        @id @default(uuid())
-  name        String        @db.VarChar(100)
-  description String?       @db.VarChar(500)
-  createdById String
-  createdAt   DateTime      @default(now())
-  isOpen      Boolean       @default(true)
-  messages    ChatMessage[]
+  id              String        @id @default(uuid())
+  name            String        @db.VarChar(100)
+  description     String?       @db.VarChar(500)
+  createdById     String
+  createdAt       DateTime      @default(now())
+  isOpen          Boolean       @default(true)
+  pendingApproval Boolean       @default(false)
+  messages        ChatMessage[]
 
   @@index([isOpen, createdAt])
 }

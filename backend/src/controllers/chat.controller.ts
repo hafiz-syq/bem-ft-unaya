@@ -13,6 +13,8 @@ import { bacaKataTerlarang, simpanKataTerlarang, saringKata } from '../lib/forum
  * - Menutup & menghapus ruang, filter kata, moderasi pesan: tetap pengurus BEM,
  *   pengurus DPM, ADMIN, dan SUPERADMIN. Pengurus prodi boleh memulai ruang
  *   untuk organisasinya, tetapi tidak mengelola ruang milik pengurus lain.
+ * - Ruang buatan pengurus prodi belum tayang sebelum pengelola forum
+ *   menyetujuinya (POST /rooms/:id/approve); lihat ruangPerluPersetujuan.
  */
 const ROLE_PENGELOLA_RUANG = ['PENGURUS_BEM', 'PENGURUS_DPM', 'ADMIN', 'SUPERADMIN'];
 
@@ -26,11 +28,22 @@ const bolehBuatRuang = (role: string | undefined): boolean =>
   bolehKelolaRuang(role) || (!!role && ROLE_PEMBUAT_RUANG_PRODI.includes(role));
 
 /**
+ * Ruang baru perlu persetujuan bila pembuatnya berhak membuat ruang tapi bukan
+ * pengelola forum, yaitu tiga pengurus prodi (keputusan pemilik AUDIT-18 F3:
+ * ruang prodi boleh dilihat lintas prodi, asal disetujui dulu). Diturunkan dari
+ * role, tidak pernah dari isi permintaan.
+ */
+export const ruangPerluPersetujuan = (role: string | undefined): boolean =>
+  bolehBuatRuang(role) && !bolehKelolaRuang(role);
+
+/**
  * Forum baru "terbuka" bila ada minimal satu ruang yang dibuka pengurus.
  * Mahasiswa/umum tidak melihat menu maupun daftar ruang sebelum itu.
+ * Ruang yang masih menunggu persetujuan tidak ikut menghitung, padahal
+ * `isOpen`-nya true: ruang itu belum boleh membuka forum untuk akun lain.
  */
 const adaRuangTerbuka = async (): Promise<boolean> => {
-  const jumlah = await prisma.chatRoom.count({ where: { isOpen: true } });
+  const jumlah = await prisma.chatRoom.count({ where: { isOpen: true, pendingApproval: false } });
   return jumlah > 0;
 };
 
@@ -147,7 +160,11 @@ export const getRooms = async (req: any, res: Response, next: NextFunction): Pro
     }
 
     const kata = await bacaKataTerlarang();
+    // Ruang tertunda hanya terlihat oleh pengelola forum dan pembuatnya sendiri;
+    // pengarang tetap perlu melihat ruangannya supaya tahu statusnya belum tayang.
+    const kelola = bolehKelolaRuang(req.user?.role);
     const rooms = await prisma.chatRoom.findMany({
+      where: kelola ? {} : { OR: [{ pendingApproval: false }, { createdById: req.user.id }] },
       orderBy: [{ isOpen: 'desc' }, { createdAt: 'desc' }],
       include: {
         _count: { select: { messages: true } },
@@ -165,6 +182,7 @@ export const getRooms = async (req: any, res: Response, next: NextFunction): Pro
         nama: ruang.name,
         deskripsi: ruang.description,
         isOpen: ruang.isOpen,
+        pendingApproval: ruang.pendingApproval,
         jumlahPesan: ruang._count.messages,
         pesanTerakhir: ruang.messages[0]
           ? { isi: saringKata(ruang.messages[0].content, kata), pada: ruang.messages[0].createdAt }
@@ -199,12 +217,56 @@ export const createRoom = async (req: any, res: Response, next: NextFunction): P
         name: nama,
         description: deskripsi || null,
         createdById: req.user.id,
+        pendingApproval: ruangPerluPersetujuan(req.user?.role),
       },
     });
 
     await logActivity(req.user.id, 'CREATE_CHAT_ROOM', 'ChatRoom', `Membuat ruang forum "${nama}"`, baru.id);
 
-    res.status(201).json({ message: `Ruang "${nama}" berhasil dibuat.`, data: baru });
+    res.status(201).json({
+      message: baru.pendingApproval
+        ? `Ruang "${nama}" dibuat dan menunggu persetujuan pengelola forum sebelum tampil ke semua akun.`
+        : `Ruang "${nama}" berhasil dibuat.`,
+      data: baru,
+    });
+  } catch (error) { next(error); }
+};
+
+/**
+ * POST /api/chat/rooms/:id/approve — menyetujui ruang tertunda.
+ *
+ * Sengaja rute tersendiri, bukan tambahan pada PATCH /rooms/:id: gerbang
+ * buka/tutup ruang dan gerbang persetujuan memang sama-sama bolehKelolaRuang,
+ * tapi maknanya berbeda, dan assert K1 menjaga bolehBuatRuang tidak ikut naik
+ * ke jalur status.
+ */
+export const approveRoom = async (req: any, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    if (!bolehKelolaRuang(req.user?.role)) {
+      res.status(403).json({ message: 'Hanya pengurus BEM, DPM, dan admin yang dapat menyetujui ruang forum.' });
+      return;
+    }
+
+    const id = String(req.params.id);
+    const lama = await prisma.chatRoom.findUnique({
+      where: { id },
+      select: { id: true, name: true, pendingApproval: true },
+    });
+    if (!lama) {
+      res.status(404).json({ message: 'Ruang forum tidak ditemukan.' });
+      return;
+    }
+
+    if (!lama.pendingApproval) {
+      res.status(200).json({ message: `Ruang "${lama.name}" sudah disetujui sebelumnya.` });
+      return;
+    }
+
+    await prisma.chatRoom.update({ where: { id }, data: { pendingApproval: false } });
+
+    await logActivity(req.user.id, 'APPROVE_CHAT_ROOM', 'ChatRoom', `Menyetujui ruang forum "${lama.name}"`, id);
+
+    res.status(200).json({ message: `Ruang "${lama.name}" disetujui dan kini tampil untuk semua akun.` });
   } catch (error) { next(error); }
 };
 

@@ -18,7 +18,7 @@ import './penahan-host-uji';
 // ts-node menghentikan seluruh suite dengan TS2694 -- kegagalan kompilasi,
 // bukan kegagalan aturan bisnis.
 import 'multer';
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ROLE_TARGET } from '../lib/ticket-access';
 import { bacaUnit } from '../controllers/cms.controller';
@@ -104,6 +104,96 @@ async function main(): Promise<void> {
       (bacaSumber('../controllers/cms.controller.ts').match(
         /bacaUnit\(req\.body\.unit,\s*req\.user\.role\)/g
       ) ?? []).length === 4
+    );
+  }
+
+  console.log('\n=== F3. Ruang forum prodi: global tetapi perlu persetujuan (DDL lokal saja) ===\n');
+
+  {
+    const sumberChat = bacaSumber('../controllers/chat.controller.ts');
+    const sumberRute = bacaSumber('../routes/chat.routes.ts');
+    const skema = bacaSumber('../../prisma/schema.prisma');
+
+    // Sengaja lewat require, bukan import: selama langkah RED simbolnya belum
+    // ada, dan impor langsung membuat ts-node menghentikan seluruh berkas
+    // (TS2305) alih-alih menunjukkan kegagalan aturan bisnis.
+    const chat = require('../controllers/chat.controller') as {
+      ruangPerluPersetujuan?: (role: string | undefined) => boolean;
+    };
+    const perlu = chat.ruangPerluPersetujuan;
+
+    uji(
+      'F3a hanya pembuat ruang non-pengelola yang tertunda; BEM/DPM/admin langsung tayang',
+      typeof perlu === 'function' &&
+        ['PENGURUS_SISTEM_INFORMASI', 'PENGURUS_TEKNIK_SIPIL', 'PENGURUS_TEKNIK_MESIN'].every(
+          (role) => perlu(role) === true
+        ) &&
+        ['PENGURUS_BEM', 'PENGURUS_DPM', 'ADMIN', 'SUPERADMIN', 'MAHASISWA', 'PENGURUS', undefined].every(
+          (role) => perlu(role) === false
+        )
+    );
+
+    uji(
+      'F3b kolom pendingApproval ada di model ChatRoom dengan default false',
+      /model ChatRoom \{[\s\S]*?pendingApproval Boolean\s+@default\(false\)/.test(skema)
+    );
+
+    // Berkas migrasi ditulis tangan dan TIDAK dijalankan: pemilik belum
+    // memberi izin DDL untuk kolom ini.
+    const folderMigrasi = resolve(__dirname, '../../prisma/migrations');
+    const terahirTerpasang = '20261107192119_unit_pengunggah_konten_agenda';
+    const calon = readdirSync(folderMigrasi)
+      .filter((nama) => nama > terahirTerpasang)
+      .filter((nama) => {
+        const berkas = resolve(folderMigrasi, nama, 'migration.sql');
+        return existsSync(berkas) && readFileSync(berkas, 'utf8').includes('pendingApproval');
+      });
+    uji('F3c tepat satu migrasi baru menambah kolom itu', calon.length === 1);
+
+    uji(
+      'F3d migrasinya hanya DDL tanpa UPDATE/INSERT/DELETE (baris lama otomatis false)',
+      calon.length === 1 &&
+        !/\b(UPDATE|INSERT|DELETE)\b/i.test(readFileSync(resolve(folderMigrasi, calon[0], 'migration.sql'), 'utf8')) &&
+        /ALTER TABLE `ChatRoom` ADD COLUMN `pendingApproval`/.test(
+          readFileSync(resolve(folderMigrasi, calon[0], 'migration.sql'), 'utf8')
+        )
+    );
+
+    uji(
+      'F3e createRoom menandai tertunda dari role penulis, bukan dari body, dan berkata jujur',
+      /createRoom[\s\S]{0,900}?pendingApproval: ruangPerluPersetujuan\(req\.user\?\.role\)/.test(sumberChat) &&
+        !/pendingApproval:\s*req\./.test(sumberChat) &&
+        /menunggu persetujuan/.test(sumberChat)
+    );
+
+    uji(
+      'F3f ruang tertutup belum dihitung membuka forum bila masih tertunda',
+      /chatRoom\.count\(\{ where: \{ isOpen: true, pendingApproval: false \} \}\)/.test(sumberChat)
+    );
+
+    uji(
+      'F3g daftar ruang menyembunyikan ruang tertunda kecuali dari pengelola & pembuatnya',
+      /pendingApproval: false \}, \{ createdById: req\.user\.id \}\]/.test(sumberChat) &&
+        /pendingApproval: ruang\.pendingApproval/.test(sumberChat)
+    );
+
+    uji(
+      'F3h persetujuan rute baru: bolehKelolaRuang + logActivity, bukan perluasan setRoomStatus',
+      /approveRoom[\s\S]{0,300}?if \(!bolehKelolaRuang\(req\.user\?\.role\)\)/.test(sumberChat) &&
+        /approveRoom[\s\S]{0,900}?data: \{ pendingApproval: false \}/.test(sumberChat) &&
+        /'APPROVE_CHAT_ROOM'/.test(sumberChat) &&
+        /prisma\.chatRoom\.update\(\{ where: \{ id \}, data: \{ isOpen \} \}\)/.test(sumberChat)
+    );
+
+    uji(
+      'F3i POST /rooms/:id/approve terdaftar dengan controller approveRoom',
+      /router\.post\('\/rooms\/:id\/approve', approveRoom\)/.test(sumberRute) &&
+        /\n  approveRoom,\n/.test(sumberRute)
+    );
+
+    uji(
+      'F3j indeks lama [isOpen, createdAt] dibiarkan: kolom baru belum terbukti dipakai optimizer',
+      /@@index\(\[isOpen, createdAt\]\)/.test(skema) && !/@@index\(\[[^\]]*pendingApproval/.test(skema)
     );
   }
 

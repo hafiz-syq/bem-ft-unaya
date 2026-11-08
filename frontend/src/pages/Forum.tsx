@@ -14,6 +14,7 @@ interface Ruang {
   nama: string;
   deskripsi: string | null;
   isOpen: boolean;
+  pendingApproval: boolean;
   jumlahPesan: number;
   pesanTerakhir: { isi: string; pada: string } | null;
 }
@@ -313,6 +314,9 @@ export default function Forum() {
       });
       setModalBuat(false);
       setFormBuat({ nama: '', deskripsi: '' });
+      // Server membedakan ruang langsung tayang dan ruang yang menunggu
+      // persetujuan; tanpa pesan ini pembuat ruang prodi mengira ruangannya sudah live.
+      setNotice(res.data?.message || 'Ruang berhasil dibuat.');
       await ambilRuang();
       if (res.data?.data?.id) setAktifId(res.data.data.id);
     } catch (err: unknown) {
@@ -335,6 +339,21 @@ export default function Forum() {
       await ambilRuang();
     } catch (err: unknown) {
       setGalat(pesanGalat(err, 'Status ruang gagal diubah.'));
+    } finally {
+      setSedangProses(null);
+    }
+  };
+
+  const setujuiRuang = async (id: string): Promise<void> => {
+    if (!window.confirm('Setujui ruang ini? Ruang akan langsung tampil untuk seluruh akun yang login.')) return;
+
+    setSedangProses('setujui-ruang');
+    try {
+      const res = await api.post(`/chat/rooms/${id}/approve`);
+      setNotice(res.data?.message || 'Ruang disetujui.');
+      await ambilRuang();
+    } catch (err: unknown) {
+      setGalat(pesanGalat(err, 'Ruang gagal disetujui.'));
     } finally {
       setSedangProses(null);
     }
@@ -491,6 +510,11 @@ export default function Forum() {
                             <Lock className="w-3.5 h-3.5 shrink-0 text-gray-400" aria-label="Ruang ditutup" />
                           )}
                         </div>
+                        {r.pendingApproval && (
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                            Menunggu persetujuan
+                          </p>
+                        )}
                         {r.pesanTerakhir && (
                           <p className="mt-1 text-xs text-gray-500 truncate dark:text-gray-400">{r.pesanTerakhir.isi}</p>
                         )}
@@ -522,6 +546,11 @@ export default function Forum() {
                 <div className="min-w-0">
                   <h2 className="flex items-center gap-2 font-bold text-gray-900 truncate dark:text-gray-100">
                     {ruangAktif.nama}
+                    {ruangAktif.pendingApproval && (
+                      <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                        Menunggu persetujuan
+                      </span>
+                    )}
                     {!ruangAktif.isOpen && (
                       <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-full bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                         Ditutup
@@ -535,6 +564,16 @@ export default function Forum() {
 
                 {detail?.bolehKelola && (
                   <div className="flex items-center gap-1.5">
+                    {ruangAktif.pendingApproval && (
+                      <button
+                        type="button"
+                        onClick={() => void setujuiRuang(ruangAktif.id)}
+                        disabled={sedangProses === 'setujui-ruang'}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold rounded-lg text-amber-900 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 dark:text-amber-200 dark:bg-amber-950/60 dark:hover:bg-amber-900/60"
+                      >
+                        <Check className="w-3.5 h-3.5" />Setujui
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => void ubahStatusRuang(detail, !ruangAktif.isOpen)}

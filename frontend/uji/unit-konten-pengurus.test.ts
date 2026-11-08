@@ -2,7 +2,7 @@
  * ITERASI-AUDIT-18 F2: penanda unit "Diunggah oleh" dikunci ke unit penulis.
  *
  * Yang memutuskan tetap server (`bacaUnit` di cms.controller, diuji di
- * backend/src/tests/uji-unit-kritis.ts J2a-J2i). Suite ini menjaga sisi UI:
+ * backend/src/tests/uji-unit-audit18.ts F2a-F2i). Suite ini menjaga sisi UI:
  * memilihkan opsi yang pasti ditolak 400 sama dengan kegagalan simpan tanpa
  * alasan, dan mengirim ulang label unit lain yang tertinggal dari item suntingan
  * admin juga ditolak server setelah F2.
