@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { api } from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
-import { isAdminRole, isOfficer, ROLE_LABEL } from '../lib/roles';
+import { AUDIENCE_ROLE_VALID, isAdminRole, isOfficer, ROLE_LABEL } from '../lib/roles';
 import {
   Megaphone, Plus, Loader2, X, Trash2, Check, Users, CalendarDays, Building2, Send, Pencil,
 } from 'lucide-react';
@@ -340,8 +340,8 @@ export default function Announcements() {
                     <div>
                       <label htmlFor="umum-role" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Role</label>
                       <select id="umum-role" value={form.audienceRole} onChange={(e) => setForm({ ...form, audienceRole: e.target.value })} className="w-full p-2.5 text-base sm:text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
-                        {Object.entries(ROLE_LABEL).filter(([r]) => r !== 'TAMU').map(([r, label]) => (
-                          <option key={r} value={r}>{label}</option>
+                        {AUDIENCE_ROLE_VALID.map((r) => (
+                          <option key={r} value={r}>{ROLE_LABEL[r]}</option>
                         ))}
                       </select>
                     </div>

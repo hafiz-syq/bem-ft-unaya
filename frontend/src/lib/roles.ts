@@ -54,6 +54,24 @@ export const isOfficer = (role?: string | null): boolean =>
   !!role && (OFFICER_ROLES as readonly string[]).includes(role);
 
 /**
+ * Role yang boleh menjadi sasaran pengumuman ber-audience ROLE. Cerminan
+ * ROLE_VALID di backend/src/controllers/announcement.controller.ts: SUPERADMIN
+ * dan TAMU ditolak server, jadi tidak boleh ditawarkan di UI. Nilainya sengaja
+ * ditulis lengkap, bukan mengambil ASSIGNABLE_ROLES, supaya sebuah perubahan
+ * pada daftar penetapan role tidak diam-diam mengubah sasaran siaran.
+ */
+export const AUDIENCE_ROLE_VALID = [
+  'MAHASISWA',
+  'PENGURUS',
+  'PENGURUS_DPM',
+  'PENGURUS_BEM',
+  'PENGURUS_SISTEM_INFORMASI',
+  'PENGURUS_TEKNIK_MESIN',
+  'PENGURUS_TEKNIK_SIPIL',
+  'ADMIN',
+] as const;
+
+/**
  * Akun yang login minimal berperan MAHASISWA.
  * Dipakai untuk fitur yang hanya boleh dilihat mahasiswa ke atas (mis. tautan
  * pendaftaran agenda); tamu tidak punya role sehingga selalu ditolak.

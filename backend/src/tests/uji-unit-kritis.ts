@@ -631,6 +631,30 @@ async function main(): Promise<void> {
           !layakDitampilkan(item({ audience: 'ROLE', audienceRole: 'MAHASISWA' }) as any, penulis)
       );
     }
+
+    // CERMIN FE (AUDIT-17 S4/S5): daftar yang ditawarkan UI harus persis sama
+    // dengan whitelist server. Selisih satu nilai saja sudah menjadi kegagalan
+    // simpan tanpa alasan — itulah bug DPM/BEM yang baru ditutup, dan kelas
+    // yang sama masih ada di dropdown role audience.
+    const rolesFe = readFileSync(resolve(__dirname, '../../../frontend/src/lib/roles.ts'), 'utf8');
+    const arrayLiteral = (sumber: string, nama: string): string[] => {
+      const blok = sumber.match(new RegExp(`(?:export )?const ${nama}[^=]* = \\[([^\\]]*)\\]`));
+      return blok ? (blok[1].match(/'[^']+'/g) ?? []).map((s) => s.replace(/'/g, '')) : [];
+    };
+    const himpunanSama = (a: string[], b: string[]): boolean =>
+      a.length > 0 && a.length === b.length && a.every((x) => b.includes(x));
+
+    uji(
+      'K12 pilihan role audience FE = cermin ROLE_VALID backend',
+      himpunanSama(arrayLiteral(rolesFe, 'AUDIENCE_ROLE_VALID'), arrayLiteral(sumberUmum, 'ROLE_VALID'))
+    );
+
+    uji(
+      'K13 dropdown role memakai AUDIENCE_ROLE_VALID, bukan seluruh ROLE_LABEL',
+      /AUDIENCE_ROLE_VALID\.map/.test(
+        readFileSync(resolve(__dirname, '../../../frontend/src/pages/Announcements.tsx'), 'utf8')
+      )
+    );
   }
 
   console.log('\n=== C1. Laporan komentar ber-login punya limiter per pengguna ===\n');
