@@ -113,3 +113,21 @@ export const targetLabel = (target?: string | null): string =>
  * agenda. Cerminan KONTEN_UNITS di backend/src/lib/ticket-access.ts.
  */
 export const KONTEN_UNITS = ['DPM', 'BEM', 'SISTEM_INFORMASI', 'TEKNIK_SIPIL', 'TEKNIK_MESIN'] as const;
+
+/**
+ * Unit "diunggah oleh" yang melekat pada penulis pengurus: cermin ROLE_TARGET
+ * di backend/src/lib/ticket-access.ts. Hanya BEM & DPM yang boleh memakai label
+ * BEM/DPM, jadi label lain tidak pernah ditawarkan ke pengurus. PENGURUS
+ * generik tidak ada di peta ini: server menolak penanda unit apa pun darinya.
+ */
+export const ROLE_UNIT_KONTEN: Record<string, string> = {
+  PENGURUS_DPM: 'DPM',
+  PENGURUS_BEM: 'BEM',
+  PENGURUS_SISTEM_INFORMASI: 'SISTEM_INFORMASI',
+  PENGURUS_TEKNIK_MESIN: 'TEKNIK_MESIN',
+  PENGURUS_TEKNIK_SIPIL: 'TEKNIK_SIPIL',
+};
+
+/** Unit penulis untuk select "Diunggah oleh"; null = tidak terkunci/bebas. */
+export const unitKontenPenulis = (role?: string | null): string | null =>
+  (role ? ROLE_UNIT_KONTEN[role] : undefined) ?? null;

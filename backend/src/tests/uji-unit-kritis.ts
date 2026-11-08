@@ -508,7 +508,9 @@ async function main(): Promise<void> {
 
   {
     const sumberCms = readFileSync(resolve(__dirname, '../controllers/cms.controller.ts'), 'utf8');
-    const jalurUnit = sumberCms.match(/bacaUnit\(req\.body\.unit\)/g) ?? [];
+    // Pola sengaja toleran terhadap parameter kedua: jalur tulis wajib memanggil
+    // bacaUnit, tapi jumlah paramennya boleh berubah (AUDIT-18 F2 menambah role).
+    const jalurUnit = sumberCms.match(/bacaUnit\(req\.body\.unit\b/g) ?? [];
     // dua create (content, agenda) + dua update (content, agenda)
     uji('J10 keempat jalur tulis CMS memvalidasi unit lewat bacaUnit', jalurUnit.length === 4);
     uji(

@@ -3,7 +3,7 @@ import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
 import { hitungAngkatan } from '../services/account-lifecycle.service';
 import { hapusGambarMedia, simpanGambarMedia } from '../lib/gambar-media';
-import { isAdminRole, isOfficer, isKontenUnit } from '../lib/ticket-access';
+import { isAdminRole, isOfficer, isKontenUnit, ROLE_TARGET, TARGET_LABEL } from '../lib/ticket-access';
 
 /** Kunci pengaturan situs yang boleh diubah admin. */
 const ALLOWED_SETTINGS = ['visi', 'misi'] as const;
@@ -22,16 +22,34 @@ const ambilFile = (req: any): Express.Multer.File[] => {
 };
 
 /**
- * Unit "diunggah oleh". `undefined` = kolom tidak disentuh, nilai kosong =
- * badge dilepas, nilai asing ditolak supaya label di landing selalu dikenal.
+ * Unit "diunggah oleh". Nilai kosong berarti "tidak ada label baru": admin
+ * melepas penanda, pengurus terisi unitnya sendiri. Pengurus tidak boleh
+ * memakai label unit lain (keputusan pemilik: hanya BEM/DPM yang berhak
+ * melabeli BEM/DPM), dan PENGURUS generik tidak terhubung ke unit mana pun,
+ * jadi ia ditolak dengan alasan, bukan 400 tanpa penjelasan.
  */
 type UnitBaca = { ok: true; unit: string | null } | { ok: false; pesan: string };
 
-const bacaUnit = (nilai: unknown): UnitBaca => {
-  if (nilai === undefined || nilai === null || nilai === '') return { ok: true, unit: null };
-  return isKontenUnit(nilai)
-    ? { ok: true, unit: nilai }
-    : { ok: false, pesan: 'Unit pengunggah tidak dikenal.' };
+export const bacaUnit = (nilai: unknown, role: string): UnitBaca => {
+  const unitPenulis = isAdminRole(role) ? null : ROLE_TARGET[role];
+
+  if (nilai === undefined || nilai === null || nilai === '') {
+    return { ok: true, unit: isAdminRole(role) ? null : unitPenulis ?? null };
+  }
+
+  if (!isKontenUnit(nilai)) return { ok: false, pesan: 'Unit pengunggah tidak dikenal.' };
+  if (isAdminRole(role)) return { ok: true, unit: nilai };
+
+  if (!unitPenulis) {
+    return {
+      ok: false,
+      pesan: 'Role Anda belum terhubung ke satu unit, jadi penanda unit belum bisa dipakai. Hubungi admin.',
+    };
+  }
+  if (nilai !== unitPenulis) {
+    return { ok: false, pesan: `Penanda unit terkunci pada unit Anda (${TARGET_LABEL[unitPenulis]}).` };
+  }
+  return { ok: true, unit: nilai };
 };
 
 // ================= KONTEN (BERITA / ARTIKEL / PROGRAM) =================
@@ -81,7 +99,7 @@ export const createContent = async (req: any, res: Response, next: NextFunction)
       res.status(400).json({ message: 'Semua kolom wajib diisi.' }); return;
     }
 
-    const unit = bacaUnit(req.body.unit);
+    const unit = bacaUnit(req.body.unit, req.user.role);
     if (!unit.ok) { res.status(400).json({ message: unit.pesan }); return; }
 
     // Gambar disimpan ke penyimpanan awan sebelum konten dibuat supaya
@@ -113,7 +131,7 @@ export const updateContent = async (req: any, res: Response, next: NextFunction)
     if (title !== undefined) data.title = title;
     if (content !== undefined) data.content = content;
     if (req.body.unit !== undefined) {
-      const unit = bacaUnit(req.body.unit);
+      const unit = bacaUnit(req.body.unit, req.user.role);
       if (!unit.ok) { res.status(400).json({ message: unit.pesan }); return; }
       data.unit = unit.unit;
     }
@@ -299,7 +317,7 @@ export const createAgenda = async (req: any, res: Response, next: NextFunction):
     const warna = bacaWarna(color);
     if (!warna) { res.status(400).json({ message: 'Warna harus berupa kode heksadesimal, misalnya #F59E0B.' }); return; }
 
-    const unit = bacaUnit(req.body.unit);
+    const unit = bacaUnit(req.body.unit, req.user.role);
     if (!unit.ok) { res.status(400).json({ message: unit.pesan }); return; }
 
     const newAgenda = await prisma.agenda.create({
@@ -354,7 +372,7 @@ export const updateAgenda = async (req: any, res: Response, next: NextFunction):
     }
 
     if (req.body.unit !== undefined) {
-      const unit = bacaUnit(req.body.unit);
+      const unit = bacaUnit(req.body.unit, req.user.role);
       if (!unit.ok) { res.status(400).json({ message: unit.pesan }); return; }
       data.unit = unit.unit;
     }

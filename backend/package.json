@@ -12,7 +12,7 @@
     "start": "node server.js",
     "prisma:deploy": "prisma migrate deploy",
     "test": "ts-node src/tests/uji-akses-rute.ts",
-    "test:unit": "ts-node src/tests/uji-unit-kritis.ts && ts-node src/tests/uji-unit-plafon.ts",
+    "test:unit": "ts-node src/tests/uji-unit-kritis.ts && ts-node src/tests/uji-unit-plafon.ts && ts-node src/tests/uji-unit-audit18.ts",
     "uji:retensi": "ts-node src/tests/uji-retensi-mysql.ts",
     "uji:nomor-tiket": "ts-node src/tests/uji-nomor-tiket-mysql.ts",
     "seed": "ts-node src/scripts/seed.ts",

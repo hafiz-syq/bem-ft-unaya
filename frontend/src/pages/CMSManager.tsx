@@ -8,7 +8,7 @@ import {
 import { ThemeToggle } from '../components/ThemeToggle';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
-import { isAdminRole, KONTEN_UNITS, targetLabel } from '../lib/roles';
+import { isAdminRole, KONTEN_UNITS, targetLabel, unitKontenPenulis } from '../lib/roles';
 import { formatRentangTanggal, jumlahHariAgenda, kunciTanggal } from '../lib/tanggal';
 
 interface Content {
@@ -47,6 +47,14 @@ const WARNA_AGENDA = ['#F59E0B', '#3B82F6', '#10B981', '#EF4444', '#8B5CF6', '#E
 export default function CMSManager() {
   const { user } = useAuth();
   const isAdmin = isAdminRole(user?.role);
+
+  // Server mengunci penanda unit pada unit penulis (bacaUnit di cms.controller),
+  // jadi UI tidak menawarkan opsi yang pasti ditolak, dan tidak ikut mengirim
+  // balik label unit asing yang tertinggal dari item suntingan admin.
+  const unitSaya = unitKontenPenulis(user?.role);
+  const bolehPilihUnit = isAdmin;
+  const opsiUnit: string[] = bolehPilihUnit ? [...KONTEN_UNITS] : unitSaya ? [unitSaya] : [];
+  const unitTerkirim = (nilai: string) => (bolehPilihUnit ? nilai : unitSaya ?? '');
 
   const [activeTab, setActiveTab] = useState<Tab>('KONTEN');
 
@@ -195,7 +203,7 @@ export default function CMSManager() {
     data.append('title', formData.title);
     data.append('content', formData.content);
     // Selalu dikirim, termasuk saat kosong, supaya badge bisa dilepas lagi.
-    data.append('unit', formData.unit);
+    data.append('unit', unitTerkirim(formData.unit));
     if (contentFile) data.append('file', contentFile);
 
     try {
@@ -218,8 +226,9 @@ export default function CMSManager() {
     }
     setSubmitting(true);
     try {
-      if (editingId) await api.put(`/cms/agendas/${editingId}`, agendaData);
-      else await api.post('/cms/agendas', agendaData);
+      const payloadAgenda = { ...agendaData, unit: unitTerkirim(agendaData.unit) };
+      if (editingId) await api.put(`/cms/agendas/${editingId}`, payloadAgenda);
+      else await api.post('/cms/agendas', payloadAgenda);
       setIsModalOpen(false); resetForm(); fetchData();
     } catch (error) {
       console.error(error);
@@ -578,11 +587,17 @@ export default function CMSManager() {
                   </div>
                   <div>
                     <label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300" htmlFor="unit-konten">Diunggah oleh (Opsional)</label>
-                    <select id="unit-konten" className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={formData.unit} onChange={e => setFormData({ ...formData, unit: e.target.value })}>
-                      <option value="">— Tanpa penanda unit —</option>
-                      {KONTEN_UNITS.map((u) => <option key={u} value={u}>{targetLabel(u)}</option>)}
+                    <select id="unit-konten" className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300 disabled:bg-gray-100 dark:disabled:bg-gray-800" value={bolehPilihUnit ? formData.unit : unitSaya ?? ''} onChange={e => setFormData({ ...formData, unit: e.target.value })} disabled={!bolehPilihUnit}>
+                      {bolehPilihUnit && <option value="">— Tanpa penanda unit —</option>}
+                      {opsiUnit.map((u) => <option key={u} value={u}>{targetLabel(u)}</option>)}
                     </select>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Penanda ini tampil sebagai badge di halaman utama dan di halaman detail konten.</p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {bolehPilihUnit
+                        ? 'Penanda ini tampil sebagai badge di halaman utama dan di halaman detail konten.'
+                        : unitSaya
+                          ? 'Penanda unit terkunci pada unit Anda — hanya admin yang bisa memilih unit lain.'
+                          : 'Role Anda belum terhubung ke satu unit, jadi penanda unit belum bisa dipakai. Hubungi admin.'}
+                    </p>
                   </div>
                   <div>
                     <label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Isi Konten</label>
@@ -597,11 +612,17 @@ export default function CMSManager() {
                   <div><label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Nama Kegiatan</label><input type="text" required className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={agendaData.title} onChange={e => setAgendaData({ ...agendaData, title: e.target.value })} /></div>
                   <div>
                     <label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300" htmlFor="unit-agenda">Diunggah oleh (Opsional)</label>
-                    <select id="unit-agenda" className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={agendaData.unit} onChange={e => setAgendaData({ ...agendaData, unit: e.target.value })}>
-                      <option value="">— Tanpa penanda unit —</option>
-                      {KONTEN_UNITS.map((u) => <option key={u} value={u}>{targetLabel(u)}</option>)}
+                    <select id="unit-agenda" className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300 disabled:bg-gray-100 dark:disabled:bg-gray-800" value={bolehPilihUnit ? agendaData.unit : unitSaya ?? ''} onChange={e => setAgendaData({ ...agendaData, unit: e.target.value })} disabled={!bolehPilihUnit}>
+                      {bolehPilihUnit && <option value="">— Tanpa penanda unit —</option>}
+                      {opsiUnit.map((u) => <option key={u} value={u}>{targetLabel(u)}</option>)}
                     </select>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Penanda ini tampil sebagai badge di bagian Agenda halaman utama dan di daftar agenda.</p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {bolehPilihUnit
+                        ? 'Penanda ini tampil sebagai badge di bagian Agenda halaman utama dan di daftar agenda.'
+                        : unitSaya
+                          ? 'Penanda unit terkunci pada unit Anda — hanya admin yang bisa memilih unit lain.'
+                          : 'Role Anda belum terhubung ke satu unit, jadi penanda unit belum bisa dipakai. Hubungi admin.'}
+                    </p>
                   </div>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div><label className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Tanggal Mulai</label><input type="date" required className="w-full p-2.5 border border-gray-300 dark:border-gray-700 rounded-lg outline-none focus:ring-2 focus:ring-amber-300" value={agendaData.date} onChange={e => setAgendaData({ ...agendaData, date: e.target.value })} /></div>
