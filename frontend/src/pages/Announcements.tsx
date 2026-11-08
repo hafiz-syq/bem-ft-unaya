@@ -76,13 +76,23 @@ export default function Announcements() {
       if (admin) {
         const org = await api.get('/organizations');
         setOrganisasi(org.data.data || []);
+      } else if (bolehTulis) {
+        // GET /organizations khusus admin. Pengurus memakai jabatan aktifnya
+        // sendiri: pilihan di UI harus berasal dari daftar yang sama dengan yang
+        // divalidasi server, bukan dari organisasi yang ditebakkan backend.
+        const profil = await api.get('/profile/me');
+        const milik = new Map<string, Organisasi>();
+        for (const j of (profil.data.jabatan ?? []) as { idOrganisasi: string; organisasi: string }[]) {
+          milik.set(j.idOrganisasi, { id: j.idOrganisasi, name: j.organisasi });
+        }
+        setOrganisasi([...milik.values()]);
       }
     } catch (err) {
       setError(isAxiosError(err) ? err.response?.data?.message || 'Gagal memuat pengumuman.' : 'Gagal memuat pengumuman.');
     } finally {
       setLoading(false);
     }
-  }, [admin]);
+  }, [admin, bolehTulis]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -142,16 +152,16 @@ export default function Announcements() {
         });
         pesan = res.data.message || 'Pengumuman diperbarui.';
       } else {
+        // Non-admin tidak memilih segmen: ORGANISASI dikunci, dan id yang dikirim
+        // adalah organisasi penulis sendiri yang sedang ia pilih di layar ini.
+        const segmenTerkirim = admin ? form.audience : 'ORGANISASI';
         const res = await api.post('/announcements', {
           title: form.title.trim(),
           content: form.content.trim(),
-          // Non-admin tidak memilih cakupan: server menurunkannya dari jabatan
-          // aktif penulis, jadi id organisasi tidak pernah dikirim dari sini.
-          audience: admin ? form.audience : 'ORGANISASI',
+          audience: segmenTerkirim,
           audienceRole: form.audience === 'ROLE' ? form.audienceRole : undefined,
           audienceAngkatan: form.audience === 'ANGKATAN' ? Number(form.audienceAngkatan) : undefined,
-          audienceOrganizationId:
-            form.audience === 'ORGANISASI' ? form.audienceOrganizationId : undefined,
+          audienceOrganizationId: segmenTerkirim === 'ORGANISASI' ? form.audienceOrganizationId : undefined,
         });
         pesan = res.data.message;
       }
@@ -366,12 +376,26 @@ export default function Announcements() {
                   )}
                 </>
               ) : (
-                <p className="p-3 text-sm border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-800/60 dark:border-gray-700">
-                  <span className="block font-bold text-gray-900 dark:text-gray-100">Kirim Kepada: organisasi Anda sendiri</span>
-                  <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                    Dikirim ke akun dengan jabatan aktif di organisasi Anda. Siaran ke seluruh akun dikhususkan untuk admin.
-                  </span>
-                </p>
+                <div className="space-y-3">
+                  <p className="p-3 text-sm border border-gray-200 rounded-lg bg-gray-50 dark:bg-gray-800/60 dark:border-gray-700">
+                    <span className="block font-bold text-gray-900 dark:text-gray-100">Kirim Kepada: organisasi Anda sendiri</span>
+                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                      Dikirim ke akun dengan jabatan aktif di organisasi Anda. Siaran ke seluruh akun dikhususkan untuk admin.
+                    </span>
+                  </p>
+                  <div>
+                    <label htmlFor="umum-org-milik" className="block mb-1 text-sm font-bold text-gray-700 dark:text-gray-300">Organisasi Anda</label>
+                    <select id="umum-org-milik" required value={form.audienceOrganizationId} onChange={(e) => setForm({ ...form, audienceOrganizationId: e.target.value })} className="w-full p-2.5 text-base sm:text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-700">
+                      <option value="">Pilih organisasi Anda...</option>
+                      {organisasi.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                    </select>
+                    {organisasi.length === 0 && (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Akun Anda belum punya jabatan aktif, jadi belum ada organisasi yang bisa disiari.
+                      </p>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
 

@@ -55,6 +55,9 @@ export const getMyProfile = async (req: any, res: Response, next: NextFunction):
         id: p.id,
         title: p.positionSlot.title,
         organisasi: p.positionSlot.organization.name,
+        // id ikut dikirim supaya UI pengumuman pengurus bisa menawarkan
+        // organisasinya sendiri sebagai pilihan, bukan mengirim label saja.
+        idOrganisasi: p.positionSlot.organizationId,
         divisi: p.positionSlot.department?.name ?? null,
         startDate: p.startDate,
       }))

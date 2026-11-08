@@ -665,6 +665,37 @@ async function main(): Promise<void> {
         arrayLiteral(readFileSync(resolve(__dirname, '../lib/ticket-access.ts'), 'utf8'), 'KONTEN_UNITS')
       )
     );
+
+    // F1 AUDIT-19: non-admin boleh menyiarkan ke organisasinya sendiri, TAPI
+    // tanpa id dari klien server dulu diam-diam memilih UUID pertama hasil
+    // sort() — penulis multi-jabatan menyiar ke organisasi yang tidak ia pilih.
+    // TODO F1 yang masih DIPARKAN (belum ada asser-nya, jangan mengaku lulus):
+    // khalayak 'UNIT' dan peta ejaan program_studi -> unit. Nilainya belum
+    // pernah disensus (staging mati), dan menebak ejaan = salah sasaran.
+    uji(
+      'K15 tidak ada organisasi arbitrer: tanpa id dari klien non-admin ditanya, bukan dipilihkan',
+      !/= idMilikPenulis\[0\]/.test(sumberUmum) &&
+        /if \(!idOrganisasi\) \{\s*res\.status\(400\)\.json\(\{ message: 'Pilih organisasi Anda\.' \}\)/.test(sumberUmum)
+    );
+
+    uji(
+      'K16 /profile/me mengirim id organisasi jabatan supaya UI bisa menawarkan pilihan penulis',
+      /idOrganisasi: p\.positionSlot\.organizationId/.test(
+        readFileSync(resolve(__dirname, '../controllers/profile.controller.ts'), 'utf8')
+      )
+    );
+
+    uji(
+      'K17 FE menawarkan organisasi dari jabatan penulis & mengirim id terpilih',
+      (() => {
+        const halaman = readFileSync(resolve(__dirname, '../../../frontend/src/pages/Announcements.tsx'), 'utf8');
+        return (
+          /api\.get\('\/profile\/me'\)/.test(halaman) &&
+          /data\.jabatan/.test(halaman) &&
+          /audienceOrganizationId: segmenTerkirim === 'ORGANISASI' \? form\.audienceOrganizationId : undefined/.test(halaman)
+        );
+      })()
+    );
   }
 
   console.log('\n=== C1. Laporan komentar ber-login punya limiter per pengguna ===\n');

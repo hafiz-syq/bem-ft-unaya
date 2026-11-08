@@ -251,9 +251,13 @@ export const createAnnouncement = async (req: any, res: Response, next: NextFunc
         res.status(403).json({ message: 'Pengumuman hanya bisa dikirim ke organisasi tempat Anda aktif berjaga.' });
         return;
       }
-      // shortcut: penulis multi-jabatan memakai organisasi pertamanya (id ikut
-      // dikirim di respons); naikkan level bila pengurus memang perlu memilih.
-      if (!idOrganisasi) idOrganisasi = idMilikPenulis[0];
+      // Tidak ada pilihan default: penulis multi-jabatan harus menyebut organisasi
+      // yang ia maksud. UUID pertama hasil sort() pernah dipakai diam-diam, dan
+      // pengumannya terkirim ke organisasi yang tidak pernah ia pilih.
+      if (!idOrganisasi) {
+        res.status(400).json({ message: 'Pilih organisasi Anda.' });
+        return;
+      }
     }
     if (audience === 'ORGANISASI' && !idOrganisasi) {
       res.status(400).json({ message: 'Pilih organisasi penerima.' });
