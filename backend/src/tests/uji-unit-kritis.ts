@@ -682,6 +682,35 @@ async function main(): Promise<void> {
     );
   }
 
+  console.log('\n=== C2. Jalur tulis yang menyiar ke banyak akun dibatasi per pengguna ===\n');
+
+  {
+    // Pembuatan pengumuman menyebarkan satu baris Notification + web push ke
+    // sasaran (berikutnya), dan pembuatan ruang forum menulis beberapa baris
+    // sekaligus. Tanpa limiter, satu skrip bisa membanjiri seluruh kampus lewat
+    // jalur yang sudah terbukti sah. Yang diuji rantai rutenya plus kuncinya.
+    const sumberUmumRute = readFileSync(resolve(__dirname, '../routes/announcement.routes.ts'), 'utf8');
+    const sumberChatRute = readFileSync(resolve(__dirname, '../routes/chat.routes.ts'), 'utf8');
+
+    uji(
+      'K15 POST /announcements memakai limiter sebelum controller',
+      /router\.post\('\/',\s*batasUmumLogin,\s*createAnnouncement\)/.test(sumberUmumRute)
+    );
+    uji(
+      'K16 POST /chat/rooms memakai limiter sebelum controller',
+      /router\.post\('\/rooms',\s*batasRuangLogin,\s*createRoom\)/.test(sumberChatRute)
+    );
+    uji(
+      'K17 kedua limiter berkunci id pengguna, bukan IP kampus yang dibagi bersama',
+      /batasUmumLogin[\s\S]{0,400}keyGenerator: \(req: any\) => req\.user\?\.id \|\| ipKeyGenerator\(req\.ip\)/.test(
+        sumberUmumRute
+      ) &&
+        /batasRuangLogin[\s\S]{0,400}keyGenerator: \(req: any\) => req\.user\?\.id \|\| ipKeyGenerator\(req\.ip\)/.test(
+          sumberChatRute
+        )
+    );
+  }
+
   console.log('\n=== D3. Batas ukuran punya angka untuk semua field unggahan ===\n');
 
   {
