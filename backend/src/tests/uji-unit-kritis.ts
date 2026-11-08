@@ -655,6 +655,14 @@ async function main(): Promise<void> {
         readFileSync(resolve(__dirname, '../../../frontend/src/pages/Announcements.tsx'), 'utf8')
       )
     );
+
+    uji(
+      'K14 unit konten FE = cermin KONTEN_UNITS backend',
+      himpunanSama(
+        arrayLiteral(rolesFe, 'KONTEN_UNITS'),
+        arrayLiteral(readFileSync(resolve(__dirname, '../lib/ticket-access.ts'), 'utf8'), 'KONTEN_UNITS')
+      )
+    );
   }
 
   console.log('\n=== C1. Laporan komentar ber-login punya limiter per pengguna ===\n');
