@@ -38,6 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [sidebarTutup, setSidebarTutup] = useState(bacaSidebarTutup);
   const navRef = useRef<HTMLElement>(null);
+  const drawerNavRef = useRef<HTMLElement>(null);
 
   // State Notifikasi
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -211,10 +212,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // Daftar menu adalah scroller tersendiri, jadi item yang sedang aktif dijaga
   // tetap terlihat — termasuk ketika daftar ini baru saja bertambah panjang
-  // (mis. menu Forum muncul setelah status server tiba).
+  // (mis. menu Forum muncul setelah status server tiba). Drawer mobile adalah
+  // scroller lain yang justru tampil saat aside desktop hidden, jadi pilih
+  // kontainer yang sedang terlihat, bukan selalu navRef.
   useEffect(() => {
-    navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' });
-  }, [location.pathname, sidebarTutup, kunciDaftarMenu]);
+    const kontainer = isMobileMenuOpen ? drawerNavRef.current : navRef.current;
+    kontainer?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' });
+  }, [location.pathname, sidebarTutup, kunciDaftarMenu, isMobileMenuOpen]);
 
   const displayName = user?.nama || user?.nim || '';
   const initial = displayName.substring(0, 2).toUpperCase();
@@ -433,7 +437,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <h1 className="text-xl font-black dark:text-gray-100">Menu Navigasi</h1>
             </div>
 
-            <nav className="p-4 space-y-1.5 flex-1">
+            <nav ref={drawerNavRef} className="p-4 space-y-1.5 flex-1">
               {allowedMenus.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;

@@ -30,17 +30,27 @@ test('c. ganti rute mulai dari atas halaman', () => {
   assert.match(layout, /useEffect\(\(\) => \{\s*window\.scrollTo\(0, 0\);\s*\}, \[location\.pathname\]\)/);
 });
 
-test('d. menu aktif dijaga tetap terlihat di scroller sidebar sendiri', () => {
+test('d. menu aktif dijaga tetap terlihat di scroller yang sedang tampil', () => {
   assert.match(layout, /<nav ref=\{navRef\}/);
+  assert.match(layout, /<nav ref=\{drawerNavRef\}/);
+  // Drawer mobile justru tampil saat aside desktop hidden, jadi kontainer yang
+  // di-scroll harus dipilih menurut yang sedang terlihat.
   assert.match(
     layout,
-    /navRef\.current\?\.querySelector\('\[aria-current="page"\]'\)\?\.scrollIntoView\(\{ block: 'nearest' \}\)/
+    /const kontainer = isMobileMenuOpen \? drawerNavRef\.current : navRef\.current;\s*kontainer\?\.querySelector\('\[aria-current="page"\]'\)\?\.scrollIntoView\(\{ block: 'nearest' \}\)/
   );
+  assert.match(layout, /\[location\.pathname, sidebarTutup, kunciDaftarMenu, isMobileMenuOpen\]/);
   assert.equal(
     (layout.match(/aria-current=\{isActive \? 'page' : undefined\}/g) ?? []).length,
     2,
     'penanda halaman aktif harus ada di sidebar desktop dan drawer mobile'
   );
+});
+
+test('f. fallback chunk tidak lagi setinggi satu layar penuh di dalam main', () => {
+  const fallback = baca('../src/components/MemuatHalaman.tsx');
+  assert.match(fallback, /min-h-\[50vh\]/);
+  assert.doesNotMatch(fallback, /min-h-screen/);
 });
 
 test('e. fallback dimuat dari satu komponen, tidak disalin dua kali', () => {
