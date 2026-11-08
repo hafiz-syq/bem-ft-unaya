@@ -197,6 +197,71 @@ async function main(): Promise<void> {
     );
   }
 
+  console.log('\n=== F4. Ruang tertunda tidak bisa dibaca/ditulis lewat id (AUDIT-19 G1) ===\n');
+
+  {
+    const sumberChat = bacaSumber('../controllers/chat.controller.ts');
+
+    // Sama seperti F3a: require, bukan import, supaya RED berupa kegagalan
+    // aturan bisnis dan bukan TS2305 yang menghentikan seluruh berkas.
+    const chat = require('../controllers/chat.controller') as {
+      ruangPerluPersetujuan?: (role: string | undefined) => boolean;
+      ruangTertundaTerkunci?: (
+        ruang: { pendingApproval: boolean; createdById: string },
+        penonton: { id: string; role?: string }
+      ) => boolean;
+    };
+    const kunci = chat.ruangTertundaTerkunci;
+
+    uji(
+      'F4a ruang tertunda terkunci bagi akun lain; pembuat & pengelola boleh masuk',
+      kunci !== undefined &&
+        kunci({ pendingApproval: true, createdById: 'a' }, { id: 'b', role: 'MAHASISWA' }) === true &&
+        kunci({ pendingApproval: true, createdById: 'a' }, { id: 'b', role: 'PENGURUS_SISTEM_INFORMASI' }) === true &&
+        kunci({ pendingApproval: true, createdById: 'a' }, { id: 'a', role: 'MAHASISWA' }) === false &&
+        kunci({ pendingApproval: true, createdById: 'a' }, { id: 'b', role: 'PENGURUS_BEM' }) === false &&
+        kunci({ pendingApproval: true, createdById: 'a' }, { id: 'b', role: 'ADMIN' }) === false &&
+        kunci({ pendingApproval: false, createdById: 'a' }, { id: 'b', role: 'MAHASISWA' }) === false
+    );
+
+    uji(
+      'F4b kedua jalur pesan membaca pendingApproval & createdById ruang',
+      (sumberChat.match(/select: \{[^}]*pendingApproval: true[^}]*createdById: true/g) ?? []).length === 2
+    );
+
+    uji(
+      'F4c penolakannya 404 dengan kalimat yang sama persis dengan "tidak ditemukan"',
+      (
+        sumberChat.match(
+          /ruangTertundaTerkunci\([\s\S]{0,200}?res\.status\(404\)\.json\(\{ message: 'Ruang forum tidak ditemukan\.' \}\)/g
+        ) ?? []
+      ).length === 2
+    );
+
+    uji(
+      'F4d penjaga berjalan sebelum riwayat dibaca dan sebelum pesan ditulis',
+      (() => {
+        const awal = sumberChat.indexOf('export const getMessages');
+        const blok = sumberChat.slice(awal, sumberChat.indexOf('/** POST /api/chat/rooms/:id/messages', awal));
+        const tulis = sumberChat.slice(sumberChat.indexOf('export const sendMessage'));
+        return (
+          awal > 0 &&
+          blok.indexOf('ruangTertundaTerkunci') > blok.indexOf('if (!ruang)') &&
+          blok.indexOf('ruangTertundaTerkunci') < blok.indexOf('prisma.chatMessage.findMany') &&
+          tulis.indexOf('ruangTertundaTerkunci') > tulis.indexOf('if (!ruang)') &&
+          tulis.indexOf('ruangTertundaTerkunci') < tulis.indexOf('prisma.chatMessage.create')
+        );
+      })()
+    );
+
+    uji(
+      'F4e aturan isOpen lama utuh: 403 FORUM_BELUM_DIBUKA & ruang ditutup masih ada',
+      /!ruang\.isOpen && !bolehKelolaRuang\(req\.user\?\.role\) && !\(await adaRuangTerbuka\(\)\)/.test(sumberChat) &&
+        /code: 'FORUM_BELUM_DIBUKA'/.test(sumberChat) &&
+        /if \(!ruang\.isOpen\) \{[\s\S]{0,120}?sudah ditutup oleh pengelola/.test(sumberChat)
+    );
+  }
+
   console.log(`\n--- RINGKASAN UNIT TEST AUDIT-18 ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
   if (gagal.length > 0) {
     console.log('GAGAL:');

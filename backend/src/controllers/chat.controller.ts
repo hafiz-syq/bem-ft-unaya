@@ -37,6 +37,18 @@ export const ruangPerluPersetujuan = (role: string | undefined): boolean =>
   bolehBuatRuang(role) && !bolehKelolaRuang(role);
 
 /**
+ * Ruang yang belum disetujui hanya boleh dibuka oleh pembuatnya sendiri atau
+ * pengelola forum. Tanpa ini moderasi F3 bocor lewat id: ruang itu hilang dari
+ * daftar, tetapi riwayatnya tetap terbaca dan bisa ditulisi oleh akun mana pun
+ * yang tahu id-nya — dan id itu keluar di respons pembuatan ruang.
+ */
+export const ruangTertundaTerkunci = (
+  ruang: { pendingApproval: boolean; createdById: string },
+  penonton: { id: string; role?: string }
+): boolean =>
+  ruang.pendingApproval && ruang.createdById !== penonton.id && !bolehKelolaRuang(penonton.role);
+
+/**
  * Forum baru "terbuka" bila ada minimal satu ruang yang dibuka pengurus.
  * Mahasiswa/umum tidak melihat menu maupun daftar ruang sebelum itu.
  * Ruang yang masih menunggu persetujuan tidak ikut menghitung, padahal
@@ -347,9 +359,16 @@ export const getMessages = async (req: any, res: Response, next: NextFunction): 
 
     const ruang = await prisma.chatRoom.findUnique({
       where: { id },
-      select: { id: true, name: true, description: true, isOpen: true },
+      select: { id: true, name: true, description: true, isOpen: true, pendingApproval: true, createdById: true },
     });
     if (!ruang) {
+      res.status(404).json({ message: 'Ruang forum tidak ditemukan.' });
+      return;
+    }
+
+    // Ruang tertunda diperlakukan sama persis seperti ruang yang tidak ada:
+    // pesan yang berbeda membuat id ruang tertunda bisa dicari dari luar.
+    if (ruangTertundaTerkunci(ruang, { id: req.user.id, role: req.user?.role })) {
       res.status(404).json({ message: 'Ruang forum tidak ditemukan.' });
       return;
     }
@@ -424,8 +443,15 @@ export const sendMessage = async (req: any, res: Response, next: NextFunction): 
     const isi = saringKata(isiAsli, kata);
     const disaring = isi !== isiAsli;
 
-    const ruang = await prisma.chatRoom.findUnique({ where: { id }, select: { id: true, isOpen: true } });
+    const ruang = await prisma.chatRoom.findUnique({
+      where: { id },
+      select: { id: true, isOpen: true, pendingApproval: true, createdById: true },
+    });
     if (!ruang) {
+      res.status(404).json({ message: 'Ruang forum tidak ditemukan.' });
+      return;
+    }
+    if (ruangTertundaTerkunci(ruang, { id: req.user.id, role: req.user?.role })) {
       res.status(404).json({ message: 'Ruang forum tidak ditemukan.' });
       return;
     }
