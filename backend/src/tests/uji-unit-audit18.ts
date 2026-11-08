@@ -262,6 +262,43 @@ async function main(): Promise<void> {
     );
   }
 
+  console.log('\n=== G2. Cermin ROLE_UNIT_KONTEN FE = ROLE_TARGET backend sebagai peta (AUDIT-19) ===\n');
+
+  {
+    // arrayLiteral/himpunanSama milik uji-unit-kritis.ts hanya membandingkan
+    // HIMPUNAN nilai array. Peta peran->unit perlu dibandingkan sebagai peta:
+    // kelas bug yang sama (DPM/BEM) dulu lolos karena kuncinya ada tapi
+    // nilainya beda, dan peran yang hilang di sisi FE tidak terlihat oleh
+    // perbandingan panjang.
+    const petaLiteral = (sumber: string, nama: string): Map<string, string> => {
+      const blok = sumber.match(new RegExp(`(?:export )?const ${nama}[^=]*=\\s*\\{([\\s\\S]*?)\\};`));
+      const hasil = new Map<string, string>();
+      for (const baris of blok ? blok[1].match(/\w+:\s*'[^']+'/g) ?? [] : []) {
+        const [peran, unit] = baris.split(':');
+        hasil.set(peran.trim(), unit.trim().replace(/'/g, ''));
+      }
+      return hasil;
+    };
+    const petaSama = (a: Map<string, string>, b: Map<string, string>): boolean =>
+      a.size > 0 && a.size === b.size && [...a].every(([peran, unit]) => b.get(peran) === unit);
+
+    const be = petaLiteral(bacaSumber('../lib/ticket-access.ts'), 'ROLE_TARGET');
+    const fe = petaLiteral(bacaSumber('../../../frontend/src/lib/roles.ts'), 'ROLE_UNIT_KONTEN');
+
+    uji('G2a ROLE_UNIT_KONTEN FE = ROLE_TARGET backend, kunci DAN nilai, tanpa peran hilang', petaSama(be, fe));
+
+    // Kontrol negatif:assert di atas buta terhadap tiga cara cermin itu bisa
+    // menyimpang. Kalau salah satu tidak menjatuhkannya, assertnya yang salah.
+    const peranPalsu = new Map(fe).set('PENGURUS_PALSU', 'TEKNIK_MESIN');
+    const nilaiTertukar = new Map(fe).set('PENGURUS_BEM', 'DPM');
+    const peranHilang = new Map(fe);
+    peranHilang.delete('PENGURUS_DPM');
+    uji(
+      'G2b kontrol negatif: peran palsu, nilai tertukar, dan peran hilang semuanya jatuh',
+      !petaSama(be, peranPalsu) && !petaSama(be, nilaiTertukar) && !petaSama(be, peranHilang)
+    );
+  }
+
   console.log(`\n--- RINGKASAN UNIT TEST AUDIT-18 ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
   if (gagal.length > 0) {
     console.log('GAGAL:');
