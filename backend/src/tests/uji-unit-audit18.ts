@@ -224,9 +224,21 @@ async function main(): Promise<void> {
         kunci({ pendingApproval: false, createdById: 'a' }, { id: 'b', role: 'MAHASISWA' }) === false
     );
 
+    const badan = (nama: string) => {
+      const mulai = sumberChat.indexOf(`export const ${nama}`);
+      if (mulai < 0) return '';
+      const berikutnya = sumberChat.indexOf('\nexport const', mulai + 1);
+      return sumberChat.slice(mulai, berikutnya < 0 ? undefined : berikutnya);
+    };
+
     uji(
       'F4b kedua jalur pesan membaca pendingApproval & createdById ruang',
-      (sumberChat.match(/select: \{[^}]*pendingApproval: true[^}]*createdById: true/g) ?? []).length === 2
+      // Dua jalur pesan saja, bukan hitungan "2 di seluruh berkas": approveRoom
+      // juga membaca createdById (bonus AUDIT-20), dan hitungan global akan
+      // menjatuhkannya tanpa menyentuh aturan akses yang dijaga di sini.
+      ['getMessages', 'sendMessage'].every(
+        (f) => /pendingApproval: true/.test(badan(f)) && /createdById: true/.test(badan(f))
+      )
     );
 
     uji(

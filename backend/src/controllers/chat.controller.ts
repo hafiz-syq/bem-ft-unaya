@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { logActivity } from '../services/audit.service';
+import { kirimPushKePengguna } from '../services/push.service';
 import { isAdminRole } from '../lib/ticket-access';
 import { bacaKataTerlarang, simpanKataTerlarang, saringKata } from '../lib/forum-filter';
 
@@ -262,7 +263,7 @@ export const approveRoom = async (req: any, res: Response, next: NextFunction): 
     const id = String(req.params.id);
     const lama = await prisma.chatRoom.findUnique({
       where: { id },
-      select: { id: true, name: true, pendingApproval: true },
+      select: { id: true, name: true, pendingApproval: true, createdById: true },
     });
     if (!lama) {
       res.status(404).json({ message: 'Ruang forum tidak ditemukan.' });
@@ -275,6 +276,19 @@ export const approveRoom = async (req: any, res: Response, next: NextFunction): 
     }
 
     await prisma.chatRoom.update({ where: { id }, data: { pendingApproval: false } });
+
+    await prisma.notification.create({
+      data: {
+        userId: lama.createdById,
+        title: 'Ruang forum disetujui',
+        message: `Ruang "${lama.name}" kini tampil untuk semua akun.`,
+      },
+    });
+    await kirimPushKePengguna(lama.createdById, {
+      title: 'Ruang forum disetujui',
+      body: `Ruang "${lama.name}" kini tampil untuk semua akun.`,
+      url: '/forum',
+    });
 
     await logActivity(req.user.id, 'APPROVE_CHAT_ROOM', 'ChatRoom', `Menyetujui ruang forum "${lama.name}"`, id);
 

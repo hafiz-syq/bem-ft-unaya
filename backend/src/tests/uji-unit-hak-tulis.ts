@@ -290,6 +290,44 @@ async function main(): Promise<void> {
     );
   }
 
+  console.log('\n=== B1. Pembuat ruang tertunda diberi tahu saat ruangnya disetujui ===\n');
+
+  {
+    // AUDIT-20 bonus.approveRoom hanya menulis baris audit hari ini, jadi
+    // pengurus prodi yang mengirim ruang masuk antrean tidak pernah tahu
+    // hasilnya. Yang dipakai adalah pola rumah yang sudah ada: baris
+    // notification + helper kirimPushKePengguna (lihat review dokumen di
+    // document.controller). Jalur "ditolak" tidak dijaga di sini karena
+    // penolakan ruang tertunda memang belum ada di kode mana pun;
+    // setRoomStatus mengurus isOpen, bukan persetujuan, dan tidak boleh ikut.
+    const sumberChat = readFileSync(resolve(__dirname, '../controllers/chat.controller.ts'), 'utf8');
+    const mulai = sumberChat.indexOf('export const approveRoom');
+    const selesai = sumberChat.indexOf('export const setRoomStatus');
+    const badan = mulai >= 0 && selesai > mulai ? sumberChat.slice(mulai, selesai) : '';
+
+    uji(
+      'B1a persetujuan menulis notifikasi in-app untuk createdById sebelum respons',
+      badan.length > 0 &&
+        /select: \{[^}]*createdById[^}]*\}/.test(badan) &&
+        /prisma\.notification\.create\(\{[\s\S]{0,300}?userId: lama\.createdById/.test(badan) &&
+        badan.indexOf('userId: lama.createdById') < badan.lastIndexOf('res.status(200).json')
+    );
+
+    uji(
+      'B1b web push lewat helper rumah yang sudah ada, diimpor dari services/push.service',
+      /import \{[^}]*kirimPushKePengguna[^}]*\} from '\.\.\/services\/push\.service'/.test(sumberChat) &&
+        /kirimPushKePengguna\(lama\.createdById/.test(badan)
+    );
+
+    uji(
+      'B1c kontrol: gerbang approveRoom tidak berubah dan setRoomStatus tetap bersih dari notifikasi',
+      /if \(!bolehKelolaRuang\(req\.user\?\.role\)\)/.test(badan) &&
+        badan.indexOf('bolehKelolaRuang') < badan.indexOf('chatRoom.findUnique') &&
+        /if \(!lama\.pendingApproval\) \{[\s\S]{0,120}?sudah disetujui sebelumnya/.test(badan) &&
+        !/notification|kirimPushKe/.test(sumberChat.slice(selesai))
+    );
+  }
+
   console.log(`\n--- RINGKASAN UNIT TEST HAK TULIS ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
   if (gagal.length > 0) {
     console.log('GAGAL:');
