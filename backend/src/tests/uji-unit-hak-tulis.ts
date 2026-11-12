@@ -256,6 +256,40 @@ async function main(): Promise<void> {
         )
     );
   }
+
+  console.log('\n=== N-C. Publikasi hanya peristiwa pembuatan, bukan sakelar di jalur sunting ===\n');
+
+  {
+    // AUDIT-20 N-C, OPSI (a) yang dipilih: update yang menyalakan isPublished tidak
+    // punya fan-out, jadi draf "terbit" tanpa satu pun notifikasi atau web push.
+    // Yang dihapus adalah kemampuan setengah jadi itu, bukan ditambal dengan jalur
+    // siaran kedua. Konsekuensi yang sengaja diterima: draf lama tidak bisa
+    // diterbitkan lewat API — membuatnya tetap bisa (N-Cc).
+    const sumberUmum = readFileSync(resolve(__dirname, '../controllers/announcement.controller.ts'), 'utf8');
+    const mulai = sumberUmum.indexOf('export const updateAnnouncement');
+    const selesai = sumberUmum.indexOf('export const deleteAnnouncement');
+    const badan = mulai >= 0 && selesai > mulai ? sumberUmum.slice(mulai, selesai) : '';
+
+    uji(
+      'N-Ca transisi isPublished ditolak 400 dengan kalimat jalan keluar, sebelum update ditulis',
+      /if \(isPublished !== lama\.isPublished\) \{[\s\S]{0,240}?res\.status\(400\)\.json\(\{ message: 'Publikasi terjadi saat pengumuman dibuat; buat ulang untuk menyiarkan\.' \}\)/.test(
+        badan
+      ) &&
+        badan.indexOf('Publikasi terjadi saat pengumuman dibuat') < badan.indexOf('announcement.update')
+    );
+
+    uji(
+      'N-Cb jalur update tetap bersih dari fan-out (PUT tidak boleh menyiar diam-diam)',
+      badan.length > 0 && !/notification\.createMany|kirimPushKe/.test(badan)
+    );
+
+    uji(
+      'N-Cc pembuatan draf oleh admin tidak ikut dipotong',
+      /const isPublished = penulisAdmin \? req\.body\?\.isPublished !== false : true/.test(sumberUmum) &&
+        /tx\.notification\.createMany/.test(sumberUmum)
+    );
+  }
+
   console.log(`\n--- RINGKASAN UNIT TEST HAK TULIS ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
   if (gagal.length > 0) {
     console.log('GAGAL:');

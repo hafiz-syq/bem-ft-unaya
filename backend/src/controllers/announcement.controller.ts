@@ -353,6 +353,15 @@ export const updateAnnouncement = async (req: any, res: Response, next: NextFunc
       return;
     }
 
+    // Publikasi adalah peristiwa pembuatan: fan-out notifikasi + web push hanya
+    // ada di jalur create. Update yang menyalakan isPublished akan menghasilkan
+    // pengumuman terbaca publik tanpa satu pun pemberitahuan, jadi transisinya
+    // ditolak, bukan ditambal dengan jalur siaran kedua.
+    if (isPublished !== lama.isPublished) {
+      res.status(400).json({ message: 'Publikasi terjadi saat pengumuman dibuat; buat ulang untuk menyiarkan.' });
+      return;
+    }
+
     const data = await prisma.announcement.update({
       where: { id: lama.id },
       data: { title, content, isPublished },
