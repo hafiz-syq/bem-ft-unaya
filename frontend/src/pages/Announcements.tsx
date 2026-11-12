@@ -43,6 +43,14 @@ const segmenLabel = (p: Pengumuman) => {
 const tanggal = (nilai: string) =>
   new Date(nilai).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 
+/**
+ * Jalan buntu yang sama dengan 403 server: akun PENGURUS_* tanpa slot jabatan
+ * aktif tidak punya organisasi sasaran. Dipakai oleh guard kirim dan teks di
+ * bawah dropdown, supaya pengurus tahu sebelum judul + isi selesai ditulis.
+ */
+const TANPA_JABATAN =
+  'Akun Anda belum punya jabatan aktif, jadi belum ada organisasi yang bisa disiari. Minta penetapan jabatan ke admin BEM atau organisator organisasinya.';
+
 export default function Announcements() {
   const { user } = useAuth();
   const admin = isAdminRole(user?.role);
@@ -137,8 +145,17 @@ export default function Announcements() {
     setEditingId(null);
   };
 
+  // Jalur buat saja: suntingan judul/isi tidak butuh organisasi, dan 403 server
+  // tetap sumber kebenaran — kunci ini hanya memotong kegagalan yang sudah bisa
+  // dipastikan dari data yang dikirim /profile/me.
+  const kunciKirim = !editingId && !admin && !loading && organisasi.length === 0;
+
   const simpan = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (kunciKirim) {
+      setError(TANPA_JABATAN);
+      return;
+    }
     setMenyimpan(true);
     setError('');
     try {
@@ -390,9 +407,7 @@ export default function Announcements() {
                       {organisasi.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                     </select>
                     {organisasi.length === 0 && (
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Akun Anda belum punya jabatan aktif, jadi belum ada organisasi yang bisa disiari.
-                      </p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{TANPA_JABATAN}</p>
                     )}
                   </div>
                 </div>
@@ -401,7 +416,7 @@ export default function Announcements() {
 
             <div className="flex justify-end gap-2 p-5 border-t border-gray-100 dark:border-gray-800">
               <button type="button" onClick={tutupModal} className="px-4 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800">Batal</button>
-              <button type="submit" disabled={menyimpan} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
+              <button type="submit" disabled={menyimpan || kunciKirim} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-900 rounded-lg bg-amber-400 hover:bg-amber-500 disabled:opacity-50">
                 {menyimpan ? <Loader2 className="w-4 h-4 animate-spin" /> : editingId ? <><Pencil className="w-4 h-4" /> Simpan Perubahan</> : <><Send className="w-4 h-4" /> Kirim</>}
               </button>
             </div>
