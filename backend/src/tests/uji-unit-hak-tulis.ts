@@ -378,6 +378,32 @@ async function main(): Promise<void> {
         return /cek: ruangHilangDiharapkan/.test(badan) && /amanDiuji: true/.test(badan);
       })()
     );
+
+    // AUDIT-23 S1: T1e memakai SALINAN cabang DIIZINKAN, jadi salinan itu hanya
+    // bernilai selama runner belum diubah. Ini jangkar ke teks aslinya — bila
+    // cabang itu diperketat (menolak 5xx) atau dilunakkan, assert ini yang
+    // berteriak supaya luluskanLama diselaraskan, bukan T1e yang diam-diam busuk.
+    const kanonik = 'hasil.status!==401&&hasil.status!==403';
+    const cabangDiizinkan = (teks: string): string =>
+      (
+        teks.match(
+          /const\s+sesuai\s*=\s*harapan\s*===\s*'DIIZINKAN'\s*\?\s*([\s\S]*?)\s*:\s*hasil\.status\s*===\s*harapan/
+        ) ?? []
+      )[1]?.replace(/\s+/g, '') ?? '';
+
+    uji(
+      'T1g cabang DIIZINKAN di uji-akses-rute.ts masih persis yang ditiru luluskanLama, dan varian lain terbaca berbeda',
+      (() => {
+        const sumberMatriks = readFileSync(resolve(__dirname, 'uji-akses-rute.ts'), 'utf8');
+        const diperketat = "const sesuai = harapan === 'DIIZINKAN' ? hasil.status !== 401 && hasil.status !== 403 && hasil.status < 500 : hasil.status === harapan;";
+        const dilunakkan = "const sesuai = harapan === 'DIIZINKAN' ? hasil.status !== 401 : hasil.status === harapan;";
+        return (
+          cabangDiizinkan(sumberMatriks) === kanonik &&
+          cabangDiizinkan(diperketat) !== kanonik &&
+          cabangDiizinkan(dilunakkan) !== kanonik
+        );
+      })()
+    );
   }
 
   console.log(`\n--- RINGKASAN UNIT TEST HAK TULIS ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
