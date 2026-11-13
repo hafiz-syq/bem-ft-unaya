@@ -421,6 +421,30 @@ async function main(): Promise<void> {
         return bodySalinan(sumberSendiri) !== '' && bodySalinan(sumberSendiri) === harus;
       })()
     );
+
+    // Arah pembusukan ketiga: T1a-T1h menjaga helper, salinan, dan baris
+    // matriks, tapi tidak ada yang membuktikan runner MASIH mengonsumsi `cek`.
+    // Kalau blok pesanCek atau gerbang amanDiuji hilang, seluruh proteksi
+    // AUDIT-22 mati sementara T1a-T1h tetap hijau. Ekstraksi cabang DIIZINKAN
+    // dipakai ulang sebagai prasyarat (pola keduanya di sana, bukan baru di
+    // sini); string kosong dari cabangDiizinkan berarti GAGAL, bukan lolos.
+    // Kedua pola DIANCHOR ke awal baris (^ + hanya spasi/tabs): tanpa anchor,
+    // `// const pesanCek = ...` yang dikomentari tetap cocok dan assert ini
+    // terbukti vakum saat RED. `pesanCek` juga diikat ke `if (pesanCek)` di
+    // baris berikutnya supaya "dihitung tapi tidak dipakai" ikut terbaca GAGAL.
+    uji(
+      'T1i runner masih mengonsumsi baris.cek dan masih men-lewati sel DIIZINKAN tulis tanpa amanDiuji',
+      (() => {
+        const sumberRunner = readFileSync(resolve(__dirname, 'uji-akses-rute.ts'), 'utf8');
+        return (
+          cabangDiizinkan(sumberRunner) !== '' &&
+          /^\s*const\s+pesanCek\s*=\s*baris\.cek\?\.\(\s*peran,\s*hasil\s*\)\s*\?\?\s*null\s*;?\s*\n\s*if\s*\(\s*pesanCek\s*\)\s*\{/m.test(
+            sumberRunner
+          ) &&
+          /^\s*if\s*\(\s*baris\.metode\s*!==\s*'GET'\s*&&\s*harapan\s*===\s*'DIIZINKAN'\s*&&\s*!baris\.amanDiuji\s*\)/m.test(sumberRunner)
+        );
+      })()
+    );
   }
 
   console.log(`\n--- RINGKASAN UNIT TEST HAK TULIS ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
