@@ -374,7 +374,20 @@ async function main(): Promise<void> {
       (() => {
         const sumberMatriks = readFileSync(resolve(__dirname, 'uji-akses-rute.ts'), 'utf8');
         const mulai = sumberMatriks.indexOf("jalur: '/chat/rooms/:id/approve'");
-        const badan = mulai < 0 ? '' : sumberMatriks.slice(mulai, sumberMatriks.indexOf('\n  },', mulai));
+        // indexOf yang tidak ketemu mengembalikan -1, dan slice(mulai, -1)
+        // memotong sampai dekat AKHIR BERKAS, sehingga 43 `amanDiuji: true`
+        // milik baris lain membuat T1f lolos tanpa membaca baris approve.
+        // Penjadanya harus terminator baris itu sendiri, dan itu hanya sah
+        // bila terminator datang SEBELUM baris berikutnya dibuka: kalau
+        // terminatornya yang berubah bentuk (reformat indentasi), potongan
+        // melebar ke baris tetangga dan T1f membaca kolom baris lain.
+        // Angka ini terukur di pohon utuh: terminator 373 karakter dari
+        // `mulai`, awal baris berikutnya 378.
+        const terminator = sumberMatriks.indexOf('\n  },', mulai);
+        const barisBerikutnya = sumberMatriks.indexOf('\n  {', mulai);
+        const sah =
+          terminator > mulai && (barisBerikutnya < 0 || terminator < barisBerikutnya);
+        const badan = sah ? sumberMatriks.slice(mulai, terminator) : '';
         return /cek: ruangHilangDiharapkan/.test(badan) && /amanDiuji: true/.test(badan);
       })()
     );
