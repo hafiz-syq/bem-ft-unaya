@@ -18,6 +18,7 @@ import './penahan-host-uji';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { cakupanButuhAdmin, layakDitampilkan } from '../controllers/announcement.controller';
+import { ruangHilangDiharapkan, type HasilPermintaan, type Peran } from './bantu-uji';
 
 let lulus = 0;
 const gagal: string[] = [];
@@ -325,6 +326,57 @@ async function main(): Promise<void> {
         badan.indexOf('bolehKelolaRuang') < badan.indexOf('chatRoom.findUnique') &&
         /if \(!lama\.pendingApproval\) \{[\s\S]{0,120}?sudah disetujui sebelumnya/.test(badan) &&
         !/notification|kirimPushKe/.test(sumberChat.slice(selesai))
+    );
+  }
+
+  console.log('\n=== T1. Sel DIIZINKAN baris approve harus menolak 5xx (AUDIT-22) ===\n');
+
+  {
+    // Runner menghitung 'DIIZINKAN' lulus untuk status apa pun selain 401/403
+    // (uji-akses-rute.ts:884). Tanpa kolom `cek`, 500 akibat P2022 — kolom
+    // pendingApproval belum ada di basis data — dilaporkan LULUS.
+    const luluskanLama = (status: number): boolean => status !== 401 && status !== 403;
+    const balasan = (status: number): HasilPermintaan => ({ status, body: '', contentType: '' });
+
+    uji(
+      'T1a pengelola menerima null untuk 404',
+      (['pengurus', 'admin'] as Peran[]).every((p) => ruangHilangDiharapkan(p, balasan(404)) === null)
+    );
+
+    uji(
+      'T1b pengelola ditolak bila status 500/502/503 (endpoint mati tidak boleh dibaca lulus)',
+      (['pengurus', 'admin'] as Peran[]).every(
+        (p) => [500, 502, 503].every((s) => typeof ruangHilangDiharapkan(p, balasan(s)) === 'string')
+      )
+    );
+
+    uji(
+      'T1c pengelola ditolak bila status bukan 404 (200 = ruang nyata ikut tersetujui)',
+      (['pengurus', 'admin'] as Peran[]).every(
+        (p) => [200, 400, 403].every((s) => typeof ruangHilangDiharapkan(p, balasan(s)) === 'string')
+      )
+    );
+
+    uji(
+      'T1d peran non-pengelola selalu null (401/403 mereka sudah dijaga kolom harapan)',
+      (['tamu', 'mahasiswa'] as Peran[]).every((p) => ruangHilangDiharapkan(p, balasan(500)) === null)
+    );
+
+    uji(
+      'T1e kontrol negatif: predikat runner meluluskan 500 yang justru ditolak helper',
+      luluskanLama(500) === true &&
+        ruangHilangDiharapkan('pengurus', balasan(500)) !== null &&
+        ruangHilangDiharapkan('pengurus', balasan(404)) === null
+    );
+
+    uji(
+      'T1f baris approve memasang helper itu dan tetap amanDiuji (tanpa amanDiuji selnya DILEWATI, cek tak pernah jalan)',
+      (() => {
+        const sumberMatriks = readFileSync(resolve(__dirname, 'uji-akses-rute.ts'), 'utf8');
+        const mulai = sumberMatriks.indexOf("jalur: '/chat/rooms/:id/approve'");
+        const badan = mulai < 0 ? '' : sumberMatriks.slice(mulai, sumberMatriks.indexOf('\n  },', mulai));
+        return /cek: ruangHilangDiharapkan/.test(badan) && /amanDiuji: true/.test(badan);
+      })()
     );
   }
 

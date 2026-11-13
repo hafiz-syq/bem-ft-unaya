@@ -167,6 +167,19 @@ export interface HasilPermintaan {
   contentType: string;
 }
 
+/**
+ * AUDIT-22 T1: runner menghitung 'DIIZINKAN' lulus untuk status apa pun selain
+ * 401/403, jadi 500 (mis. P2022 karena kolom belum ada) ikut hijau. Baris
+ * approve memanggil id teks "id" yang bukan baris ChatRoom, jadi jawaban
+ * pengelola WAJIB 404 — selain itu berarti endpoint mati atau ruang nyata.
+ */
+export const ruangHilangDiharapkan = (peran: Peran, hasil: HasilPermintaan): string | null =>
+  peran !== 'pengurus' && peran !== 'admin'
+    ? null
+    : hasil.status === 404
+      ? null
+      : `pengelola seharusnya menerima 404 (id "id" bukan baris ChatRoom), dapat ${hasil.status}`;
+
 /** Kirim permintaan ke API; `cookie` kosong berarti tamu (tanpa sesi). */
 export async function minta(
   jalur: string,

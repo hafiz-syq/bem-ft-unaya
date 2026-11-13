@@ -10,6 +10,7 @@ import {
   hapusAkunUji,
   minta,
   pastikanServerHidup,
+  ruangHilangDiharapkan,
   siapkanAkunUji,
   type AkunUji,
   type Harapan,
@@ -600,6 +601,7 @@ const BARIS: Baris[] = [
     jalur: '/chat/rooms/:id/approve',
     harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
     amanDiuji: true,
+    cek: ruangHilangDiharapkan,
     catatan: 'betulkanJalur melepas titik dua sehingga id yang dikirim adalah teks "id", bukan ID_TIDAK_ADA; teks itu bukan baris ChatRoom jadi pengelola menerima 404, bukan persetujuan ruang nyata',
   },
   {
