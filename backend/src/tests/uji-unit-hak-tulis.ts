@@ -404,6 +404,23 @@ async function main(): Promise<void> {
         );
       })()
     );
+
+    // Arah pembusukan yang TIDAK ditutup T1g: `kanonik` adalah string literal,
+    // jadi body luluskanLama sendiri bisa disunting (mis. menjadi
+    // `status !== 401`) sementara runner tetap utuh — T1g lalu hijau di atas
+    // salinan yang sudah busuk. Ekstraksi gagal menghasilkan string kosong,
+    // yang membuat assert ini GAGAL, bukan lolos diam-diam.
+    const sumberSendiri = readFileSync(resolve(__dirname, 'uji-unit-hak-tulis.ts'), 'utf8');
+    const bodySalinan = (sumber: string): string =>
+      (sumber.match(/const\s+luluskanLama\s*=\s*\(status:\s*number\):\s*boolean\s*=>\s*([^;]+);/) ?? [])[1]?.replace(/\s+/g, '') ?? '';
+
+    uji(
+      'T1h body luluskanLama masih sama dengan cabang runner tanpa `hasil.` (salinan tidak boleh membusuk sendiri)',
+      (() => {
+        const harus = cabangDiizinkan(readFileSync(resolve(__dirname, 'uji-akses-rute.ts'), 'utf8')).replace(/hasil\./g, '');
+        return bodySalinan(sumberSendiri) !== '' && bodySalinan(sumberSendiri) === harus;
+      })()
+    );
   }
 
   console.log(`\n--- RINGKASAN UNIT TEST HAK TULIS ---\nLulus: ${lulus}\nGagal: ${gagal.length}\n`);
