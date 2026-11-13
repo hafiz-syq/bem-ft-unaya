@@ -596,6 +596,13 @@ const BARIS: Baris[] = [
     catatan: 'id tidak ada sehingga pengelola menerima 404, bukan perubahan status',
   },
   {
+    metode: 'POST',
+    jalur: '/chat/rooms/:id/approve',
+    harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN', admin: 'DIIZINKAN' },
+    amanDiuji: true,
+    catatan: 'betulkanJalur melepas titik dua sehingga id yang dikirim adalah teks "id", bukan ID_TIDAK_ADA; teks itu bukan baris ChatRoom jadi pengelola menerima 404, bukan persetujuan ruang nyata',
+  },
+  {
     metode: 'DELETE',
     jalur: '/chat/rooms/:id',
     harapan: { tamu: 401, mahasiswa: 403, pengurus: 'DIIZINKAN' },
