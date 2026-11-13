@@ -333,7 +333,7 @@ async function main(): Promise<void> {
 
   {
     // Runner menghitung 'DIIZINKAN' lulus untuk status apa pun selain 401/403
-    // (uji-akses-rute.ts:884). Tanpa kolom `cek`, 500 akibat P2022 — kolom
+    // (predikat 'DIIZINKAN' di runner uji-akses-rute.ts). Tanpa kolom `cek`, 500 akibat P2022 — kolom
     // pendingApproval belum ada di basis data — dilaporkan LULUS.
     const luluskanLama = (status: number): boolean => status !== 401 && status !== 403;
     const balasan = (status: number): HasilPermintaan => ({ status, body: '', contentType: '' });
