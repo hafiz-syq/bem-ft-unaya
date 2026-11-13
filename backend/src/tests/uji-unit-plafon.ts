@@ -127,7 +127,6 @@ async function main(): Promise<void> {
     // resize yang plafonnya hanya satu sumbu), 3200 memotong sumbu yang salah
     // dan foto potret keluar sebagai landscape. Kontrol `tanpaRotasi` di bawah
     // membuktikan assertion ini membedakan kedua keadaan, bukan selalu benar.
-    const mulaiKd = Date.now();
     const rawPotret = Buffer.alloc(4032 * 3024 * 3);
     for (let y = 0; y < 3024; y++)
       rawPotret.fill(40 + Math.floor((y / 3024) * 6) * 30, y * 4032 * 3, (y + 1) * 4032 * 3);
@@ -136,7 +135,14 @@ async function main(): Promise<void> {
       .jpeg({ quality: 80 })
       .toBuffer();
 
+    // msKd hanya angka laporan, BUKAN conjunct gerbang: sebagai pagar waktu
+    // dinding ia membuat CI merah tanpa ada yang mengubah kode (5/8 run di atas
+    // ambang 5000 ms, geometri keluaran selalu benar). Jendela ukurnya sengaja
+    // hanya unggah() — jalur produksi — bukan alokasi 36 MB + encode bahan +
+    // encode kontrol di sekitarnya.
+    const mulaiKd = Date.now();
     const hasilPotret = await unggah(bahanPotret, 'uji-k-d.jpg');
+    const msKd = Date.now() - mulaiKd;
     const metaPotret = await sharp(hasilPotret.berkas.buffer).metadata();
     const metaBahan = await sharp(bahanPotret).metadata();
     const tanpaRotasi = await sharp(bahanPotret, { failOn: 'none' })
@@ -144,7 +150,6 @@ async function main(): Promise<void> {
       .webp({ quality: 82, effort: 4 })
       .toBuffer();
     const metaTanpaRotasi = await sharp(tanpaRotasi).metadata();
-    const msKd = Date.now() - mulaiKd;
     uji(
       `K(d): EXIF orientation=${metaBahan.orientation} + 4032 di ATAS plafon -> POTRET ${metaPotret.width}x${metaPotret.height} ` +
         `(sisi terpanjang vertikal 3200), orientasi tidak terbawa, bahan ${(bahanPotret.length / 1024).toFixed(1)} KB -> ` +
@@ -159,8 +164,7 @@ async function main(): Promise<void> {
         // test-nya buta terhadap urutan rantai.
         metaTanpaRotasi.width === 3200 &&
         metaTanpaRotasi.height === 2400 &&
-        bahanPotret.length < 200_000 &&
-        msKd < 5000
+        bahanPotret.length < 200_000
     );
   }
 
