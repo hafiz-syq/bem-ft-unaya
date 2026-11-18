@@ -49,7 +49,7 @@ jobs:
       API_URL: http://localhost:3000/api
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -152,7 +152,7 @@ jobs:
       DATABASE_URL: mysql://root:root@127.0.0.1:3306/bem_ft_migrasi
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -262,7 +262,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -301,7 +301,7 @@ jobs:
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Menyapu riwayat penuh — bukan hanya HEAD — adalah inti job ini.
           fetch-depth: 0
