@@ -9,6 +9,17 @@ node_modules/
 backend/.env.*
 !backend/.env.example
 
+# Varian env frontend diabaikan juga, termasuk .env.production berikutnya.
+# Dua berkas yang tetap dilacak sengaja dikecualikan karena isinya bukan
+# rahasia: .env.example sebagai dokumentasi, dan .env.production karena build
+# Vercel membacanya (VITE_API_URL=/api). Nilai VITE_* memang menempel ke
+# bundle publik, jadi tidak pernah layak dianggap rahasia. Job "keamanan" di
+# .github/workflows/uji-akses.yml memaksa semua env ter-track hanya berisi
+# kunci VITE_*, jadi pengecualian baru tidak bisa dipakai diam-diam.
+frontend/.env.*
+!frontend/.env.example
+!frontend/.env.production
+
 # Vite dev & build output
 frontend/dist/
 frontend/.vite/

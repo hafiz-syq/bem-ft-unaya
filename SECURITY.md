@@ -103,3 +103,98 @@ Mitra yang masih memegang clone lama harus **menghapus clone itu dan clone ulang
   tetap bisa dibaca meski berkasnya dihapus di commit berikutnya.
 - Jalankan `git log --all --name-only --pretty=format: | sort -u` secara berkala
   untuk mencari `.env`, dump, atau unggahan yang tidak sengaja masuk.
+- **Secret scanning GitHub tidak ikut pindah saat repo jadi privat.** GitHub
+  menyediakan pemindaian rahasia gratis untuk repo publik saja; untuk repo privat
+  ia termasuk GitHub Advanced Security (berbayar). Karena §1 menyuruh repo
+  dibuat privat, poin itu tidak bisa lagi diandalkan — penutupnya adalah job
+  `keamanan` di bawah.
+
+## 5. Yang dijaga otomatis (job `keamanan`)
+
+Sejak 14 Nov 2026 langkah §4 tidak lagi bergantung pada ingatan manusia.
+`.github/workflows/uji-akses.yml` punya job `keamanan` yang berjalan pada setiap
+push dan pull request.
+
+| Gerbang | Isi | Hasil pada hari pertama |
+| --- | --- | --- |
+| Tripwire data pengguna | `backups/`, `backend/uploads/`, `*.sql` di luar `backend/prisma/migrations*`, dan berkas kunci penanda tangan (`*.keystore|jks|p12|pfx`) tidak boleh muncul dalam diff | hijau — dan `backups/` terukur 0 cocok di seluruh riwayat, jadi pembersihan §3 terbukti |
+| Tripwire env | yang boleh terlacak hanya `.env.example` dan `frontend/.env.production`, dan isinya wajib kunci `VITE_*` | hijau |
+| Gitleaks | menyapu seluruh riwayat dari kunci yang bocor | hijau — 7 pola (private key, hash bcrypt, connection string mengandung password, `JWT_SECRET`, `CLOUDINARY_API_SECRET`, `VAPID_PRIVATE_KEY`, app password Gmail) 0 cocok |
+| `npm audit` | memblokir high/critical produksi; moderate hanya dilaporkan | hijau — 2 moderate tersisa: `uuid<11.1.1` lewat `exceljs` (GHSA-w5hq-g745-h8pq) |
+| Tripwire header | `vercel.json` masih mendeklarasikan header keamanan frontend | hijau |
+
+Tripwire data sengaja memeriksa **rentang yang dikirim**, bukan seluruh riwayat:
+riwayat lama sudah dibersihkan, dan gate yang merah selamanya hanya akan
+dimatikan orang.
+
+Kelas kunci penanda tangan ikut dijaga meski `android/.gitignore` sudah memuat
+`*.keystore`: ignore menahan `git add -A`, bukan `git add -f`. Terukur 15 Nov
+2026, `android/bem-ft-unaya.keystore` ada di disk, tidak terlacak, dan 0 cocok di
+seluruh riwayat — jadi kunci APK belum pernah bocor dan tidak perlu dirotasi.
+
+### Dependabot
+
+`.github/dependabot.yml` membuka PR kecil setiap minggu (±02:00 WIB) untuk npm
+`backend`, npm `frontend`, gradle `android`, dan `github-actions`. Cara
+mengaktifkannya cukup mengirim berkas itu — tidak ada tombol yang harus ditekan,
+dan Dependabot versi pembaruan tidak bergantung pada visibilitas repo atau plan
+berbayar
+([Configuring Dependabot version updates](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/configure-version-updates),
+diakses 15 Nov 2026).
+
+Ini yang membedakan job `keamanan` dari §4: gerbang di atas dan Dependabot
+tetap bekerja setelah repo jadi privat, sedangkan pemindai rahasia GitHub
+tidak.
+
+## 6. Header keamanan pada origin publik
+
+Terukur 14 Nov 2026 pada `https://bem-ft-unaya.vercel.app`:
+
+- `GET /api/health` sudah lengkap karena helmet — `X-Frame-Options: SAMEORIGIN`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, COOP, CORP,
+  HSTS.
+- `GET /` — HTML portal — tidak membawa satu pun dari itu. Yang tiba hanyalah
+  `Strict-Transport-Security` milik platform Vercel. Halaman yang bisa
+  di-iframe siapa pun adalah celah clickjacking, jadi keempat header sekarang
+  dideklarasikan di `services.frontend.headers` pada `vercel.json`. Letaknya di
+  dalam service (bukan level atas) supaya tidak dobel dengan helmet pada `/api`.
+
+Verifikasi setelah deploy — header ini hanya bisa dibuktikan dari respons nyata:
+
+```bash
+curl -sSI https://bem-ft-unaya.vercel.app/ | grep -iE "x-frame|x-content|referrer|permissions"
+```
+
+### CSP sengaja belum dipasang
+
+Ada dua alasan, dan keduanya hasil pengukuran, bukan kebiasaan:
+
+1. **Report-Only tanpa `report-to` tidak melakukan apa pun.** MDN (diakses
+   14 Nov 2026): direktif `report-to` "must be specified for reports to be sent:
+   if not, the operation won't have any effect". Memasang header tanpa endpoint
+   pelaporan hanya menambah rasa aman palsu, jadi tidak dipasang. Gerbang header
+   di atas sudah menolak CSP yang ditambahkan tanpa `report-to`.
+2. **Mode memaksa akan langsung memecah portal.** `frontend/index.html` memuat
+   dua skrip inline — pemuat Google Tag (baris 18–44) dan anti-kilatan tema
+   gelap (baris 82–105) — dan hasil `vite build` menambah satu lagi. Tanpa
+   `unsafe-inline` ketiganya ditolak: analytics mati dan tema berkedip.
+
+Jalur upgrade yang dipilih, berurutan:
+
+1. Pindahkan kedua skrip inline `index.html` ke berkas sendiri
+   (`/src/bootstrap-tema.ts` dan `/src/bootstrap-gtag.ts`) sehingga tidak ada
+   lagi `<script>` inline di HTML. Ini satu-satunya langkah yang tidak butuh
+   infrastruktur baru.
+2. Pasang `Content-Security-Policy` mode memaksa dengan `script-src 'self'
+   https://www.googletagmanager.com https://va.vercel-scripts.com`,
+   `img-src 'self' blob: data: https://res.cloudinary.com`, `worker-src 'self'`,
+   `manifest-src 'self'`, `form-action 'self'`, `base-uri 'self'`,
+   `frame-ancestors 'self'`, `object-src 'none'`.
+3. `build.cspNonce` Vite **bukan** jalannya di sini: komentar tipe-nya (Vite
+   8.3.4) sendiri mewajibkan nilai itu "replaced with a unique value for each
+   request by the server", sementara frontend ini disajikan statis oleh Vercel.
+   Kalau nanti butuh nonce sungguhan, itu berarti Routing Middleware Vercel —
+   keputusan terpisah, bukan penghapusan tiga baris.
+4. Uji di deployment preview sebelum produksi: portal ini dipakai 377 akun,
+   dan CSP yang salah tulis membuat halaman putih, bukan pesan galat yang jelas.
+

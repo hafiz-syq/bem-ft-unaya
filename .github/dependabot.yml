@@ -1,0 +1,43 @@
+# Membuka PR kecil saat ada dependensi yang usang atau kena CVE. Tanpa ini,
+# celah seperti uuid<11.1.1 (lewat exceljs) tidak pernah punya pemilik.
+# Gradle ikut karena APK bertanda tangan dibangun dari android/.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      time: "02:00"
+      timezone: Asia/Jakarta
+    open-pull-requests-limit: 5
+    groups:
+      patch-dan-minor-backend:
+        update-types: [patch, minor]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      time: "02:00"
+      timezone: Asia/Jakarta
+    open-pull-requests-limit: 5
+    groups:
+      patch-dan-minor-frontend:
+        update-types: [patch, minor]
+
+  - package-ecosystem: gradle
+    directory: /android
+    schedule:
+      interval: weekly
+      time: "02:00"
+      timezone: Asia/Jakarta
+    open-pull-requests-limit: 3
+
+  # Action CI ikut diperbarui supaya tidak memakai SHA/action lama.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      time: "02:00"
+      timezone: Asia/Jakarta
+    open-pull-requests-limit: 3

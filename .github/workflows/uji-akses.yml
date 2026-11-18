@@ -1,13 +1,17 @@
-# Pemeriksaan otomatis: aturan akses backend (401/403), keutuhan migrasi, dan
-# pemeriksaan statis.
+# Pemeriksaan otomatis: aturan akses backend (401/403), keutuhan migrasi,
+# pemeriksaan statis, dan penjagaan riwayat/dependensi.
 #
-# Tiga hal yang dijaga:
+# Empat hal yang dijaga:
 #   1. uji-akses  — setiap endpoint backend punya aturan peran yang TERTULIS dan
 #                   TERUJI. Rute baru tanpa baris harapan akan menggagalkan job
 #                   ini; lihat backend/src/tests/uji-akses-rute.ts.
 #   2. migrasi    — folder prisma/migrations masih bisa diterapkan dari basis
 #                   data kosong, dan hasilnya sama dengan schema.prisma.
 #   3. statis     — type-check backend, lint + build frontend.
+#   4. keamanan   — Pencegahan §4 SECURITY.md dijalankan sendiri oleh runner,
+#                   bukan diingat-ingat orang: dump/unggahan tak masuk diff,
+#                   gitleaks menyapu riwayat, audit dependensi, dan frontend
+#                   masih mendeklarasikan header keamanannya.
 #
 # Semuanya berjalan di runner sementara dengan MySQL kosong.
 name: uji-akses
@@ -283,3 +287,182 @@ jobs:
           npm ci
           npm run lint
           npm run build
+
+  # Pencegahan §4 SECURITY.md yang selama ini hanya berupa instruksi kepada
+  # manusia. Keempat langkah di bawah tidak memakai basis data, jadi murah.
+  keamanan:
+    name: Rahasia, riwayat, dependensi, header
+    runs-on: ubuntu-latest
+
+    # gitleaks-action menulis temuannya sebagai komentar review, jadi butuh
+    # akses tulis pada pull-request.
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Menyapu riwayat penuh — bukan hanya HEAD — adalah inti job ini.
+          fetch-depth: 0
+
+      # Dump dan lampiran adalah kelas kebocoran yang sudah terjadi di repo ini,
+      # jadi yang dicocokkan cukup nama berkasnya. Batasnya sengaja rentang yang
+      # sedang dikirim, bukan seluruh riwayat: riwayat lama sudah dibersihkan
+      # (backups/ = 0 cocok) dan gate yang merah selamanya hanya akan dimatikan
+      # orang.
+      - name: Tripwire — data pengguna dan kunci penanda tangan tidak boleh ditambahkan
+        run: |
+          batas=""
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            batas="${{ github.event.pull_request.base.sha }}"
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            batas="${{ github.event.before }}"
+          fi
+          # Force-push atau cabang baru: 'before' berupa nol / bukan leluhur HEAD.
+          if ! git cat-file -e "${batas:-0}^{commit}" 2>/dev/null ||
+             ! git merge-base --is-ancestor "$batas" HEAD 2>/dev/null; then
+            echo "Batas lama tidak terjangkau; yang diperiksa isi HEAD saja."
+            berkas=$(git ls-tree -r --name-only HEAD)
+          else
+            berkas=$(git diff --name-only "$batas" HEAD)
+          fi
+
+          # Migrasi Prisma memang berkas .sql, dan uploads/.gitkeep sengaja
+          # dilacak supaya foldernya ada setelah clone. Kunci penanda tangan APK
+          # ikut dijaga walau android/.gitignore sudah memuat '*.keystore':
+          # 'git add -f' menembus ignore, dan keystore di tangan orang lain =
+          # update resmi atas nama aplikasi bisa dikirim pihak luar.
+          tersangka=$(printf '%s\n' "$berkas" \
+            | grep -E '^backups/|^backend/uploads/|\.sql$|\.(keystore|jks|p12|pfx)$' \
+            | grep -vE '^backend/uploads/\.gitkeep$|^backend/prisma/migrations(_archive)?/[^/]+/migration\.sql$' \
+            || true)
+          if [ -n "$tersangka" ]; then
+            echo "Berkas data pribadi/lampiran pengguna tidak boleh masuk repo:"
+            echo "$tersangka" | sed 's/^/  /'
+            exit 1
+          fi
+          echo "Bersih: tidak ada dump/lampiran pada rentang ini."
+
+      # .gitignore menjaga berkas baru, tapi tidak bisa menahan orang yang
+      # sengaja `git add -f`. Ini yang menahan yang kedua.
+      - name: Tripwire — berkas .env yang dilacak tidak melebar
+        run: |
+          luar=$(git ls-files '*.env*' \
+            | grep -vE '(^|/)\.env\.example$|^frontend/\.env\.production$' || true)
+          if [ -n "$luar" ]; then
+            echo "Berkas env baru ikut terlacak git:"
+            echo "$luar" | sed 's/^/  /'
+            exit 1
+          fi
+
+          # Pengecualian frontend/.env.production hanya sah selama isinya VITE_*:
+          # nilai VITE_* memang tertanam di bundel publik sehingga bukan rahasia,
+          # sedangkan kunci lain yang diselipkan ke situ akan terpublikasi.
+          # Berkasnya wajib ada: tanpa jaga ini, menghapus/mengganti nama berkas
+          # membuat 'grep' error dan gerbangnya diam-diam bilang bersih.
+          if [ ! -f frontend/.env.production ]; then
+            echo "frontend/.env.production tidak ada, padahal pengecualian di"
+            echo ".gitignore dan build Vercel sama-sama bergantung padanya."
+            exit 1
+          fi
+          if grep -qvE '^[[:space:]]*(#|$|VITE_[A-Za-z0-9_]+=)' frontend/.env.production; then
+            echo "frontend/.env.production memuat kunci di luar VITE_*:"
+            grep -nvE '^[[:space:]]*(#|$|VITE_[A-Za-z0-9_]+=)' frontend/.env.production
+            exit 1
+          fi
+          echo "Bersih: hanya env contoh + VITE_API_URL yang terlacak."
+
+      - name: Gitleaks — sapu seluruh riwayat dari kunci yang bocor
+        # Tidak dijalankan untuk PR dari fork supaya token GITHUB_TOKEN tidak
+        # bisa diekstrak oleh kode pihak luar; push ke main tetap teriksa.
+        if: >-
+          github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Hanya diminta akun organisasi. Untuk akun personal boleh kosong.
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # 'npm audit' membaca package-lock tanpa perlu node_modules.
+      # Yang memblokir hanya high/critical. Moderate — misalnya GHSA-w5hq-g745-h8pq
+      # pada uuid<11.1.1 yang ikut lewat exceljs — tetap dicetak sebagai laporan,
+      # karena moderate yang memaksa setiap PR merah akan berhenti dibaca orang.
+      - name: Audit dependensi — backend (hanya produksi)
+        working-directory: backend
+        run: |
+          npm audit --omit=dev
+          npm audit --omit=dev --audit-level=high
+
+      - name: Audit dependensi — frontend (hanya produksi)
+        working-directory: frontend
+        run: |
+          npm audit --omit=dev
+          npm audit --omit=dev --audit-level=high
+
+      # Terukur 2026-11-14 pada bem-ft-unaya.vercel.app: balasan HTML hanya
+      # membawa Strict-Transport-Security (itu milik platform Vercel, bukan kita)
+      # — tanpa X-Content-Type-Options, X-Frame-Options, Referrer-Policy, atau
+      # Permissions-Policy, sedangkan balasan /api sudah lengkap karena helmet.
+      # Keempat header itu jadi harus datang dari vercel.json; kalau bloknya
+      # terhapus, tidak ada yang memagari halaman portal dari clickjacking.
+      - name: Tripwire — frontend masih mendeklarasikan header keamanannya
+        run: |
+          node -e '
+          const fs = require("fs");
+          const j = JSON.parse(fs.readFileSync("vercel.json", "utf8"));
+
+          // Deklarasi boleh di dalam service frontend (yang dipakai sekarang,
+          // supaya tidak rangkap dengan header helmet pada /api) atau di level
+          // atas. Yang tidak boleh hanyalah tidak ada sama sekali.
+          const punya = {};
+          const dari = [];
+          for (const [nama, daftar] of [
+            ["services.frontend.headers", j.services?.frontend?.headers],
+            ["headers level atas", j.headers],
+          ]) {
+            for (const aturan of daftar ?? [])
+              for (const h of aturan.headers ?? [])
+                if (!(h.key in punya)) punya[h.key] = h.value;
+            if ((daftar ?? []).length) dari.push(nama);
+          }
+
+          const wajib = [
+            "X-Content-Type-Options",
+            "X-Frame-Options",
+            "Referrer-Policy",
+            "Permissions-Policy",
+          ];
+          const kurang = wajib.filter((k) => !punya[k]);
+
+          // CSP sengaja belum dipasang, dan itu keputusan, bukan kelalaian:
+          // tanpa report-to yang menunjuk endpoint pelaporan, kebijakan
+          // Report-Only tidak punya efek apa pun (MDN, diakses 2026-11-14), dan
+          // mode memaksa akan memecahkan Google Analytics + tema gelap lebih
+          // dulu karena frontend/index.html dan hasil build Vite memuat tiga
+          // skrip inline yang butuh nonce. Kalau CSP ditambahkan nanti,
+          // direktif intinya ikut dijaga di sini — termasuk report-to, supaya
+          // yang ditambahkan adalah CSP yang berfungsi, bukan hiasan.
+          const csp = punya["Content-Security-Policy"] ??
+                      punya["Content-Security-Policy-Report-Only"];
+          if (csp) {
+            for (const d of ["default-src", "script-src", "img-src", "connect-src",
+                             "worker-src", "frame-ancestors", "object-src", "report-to"]) {
+              if (!csp.includes(d)) {
+                console.error("CSP kehilangan direktif:", d);
+                process.exit(1);
+              }
+            }
+          }
+          if (kurang.length) {
+            console.error("Header hilang dari vercel.json:", kurang.join(", "));
+            process.exit(1);
+          }
+          console.log("Header frontend utuh, dideklarasikan di:", dari.join(" + "));
+          console.log("CSP:", csp ? "terpasang" : "belum (sengaja — lihat catatan di atas)");
+          '
